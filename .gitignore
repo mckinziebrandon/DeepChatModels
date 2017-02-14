@@ -1,0 +1,17 @@
+# STOP COMMITING SWAPS PLZ
+.*.swp
+*swp*
+./**/.*.swp
+**swp**
+
+*.log
+**.log
+
+*tmp*
+
+*.idea*
+**.idea*
+
+.idea/*
+.ipynb_checkpoints
+.ipynb_checkpoints/*
