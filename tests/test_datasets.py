@@ -2,7 +2,8 @@ import unittest
 from util.datasets import get
 
 
-class MyTest(unittest.TestCase):
+class TestDatasets(unittest.TestCase):
+
     def test_get(self):
         self.assertTrue(get('nietzsche') != -1)
         with self.assertRaises(KeyError) as ke:

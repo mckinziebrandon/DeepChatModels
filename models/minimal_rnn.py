@@ -9,30 +9,39 @@ from keras.layers           import Input, Embedding, Reshape, merge, LSTM, Bidir
 from keras.layers           import TimeDistributed, Activation, SimpleRNN, GRU
 from keras.layers.core      import Flatten, Dense, Dropout, Lambda
 
+
 class MyRNN:
 
-    def __init__(self, vocab_size, dicts=[], model_type='manual', seq_len=3, n_hid=256, n_fac=42):
+    def __init__(self, vocab_size, seq_len=3, embed_dim=42):
 
-        self.n_hid      = n_hid
         self.vocab_size = vocab_size
         self.seq_len    = seq_len
-        self.char_indices, self.indices_char = dicts
-        self.n_latent_factors = n_fac
-        self.model_type = model_type
+        self.embed_dim = embed_dim
+        print('wtf')
 
+        #[Input(shape=(1,), dtype='int64', name='input{}'.format(t)) for t in range(self.seq_len)]
+        # Output shape of embedding layer: (batch_size, seq_len, embed_dim)
+        self.model = Sequential([
+            # First two args: input_DIM and output_DIM (not shape!)
+            Embedding(self.vocab_size, self.embed_dim, input_length=self.seq_len),
+            LSTM(32, return_sequences=True, input_shape=(self.seq_len, self.embed_dim)), # Returns seq_len number of vectors.
+            LSTM(32), # Returns one vector (of dimension embed_dim).
+            Dropout(0.5),
+            Dense(self.vocab_size, activation='softmax')
+        ])
+        self.model.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['accuracy'])
         # Get the keras input layers.
-        self.inputs = self._create_inputs()
+        #self.inputs = self._create_inputs()
         # Send inputs through Keras embedding layers.
-        self.embeddings = self._create_embeddings()
+        #self.embeddings = self._create_embeddings()
         # Get the parameter weight matrices.
-        self.params = self._create_params()
+        #self.params = self._create_params()
         # Get the hidden states, indexed by t (self.seq_len total).
-        self.h = self._compute_hidden_states(self.embeddings)
+        #self.h = self._compute_hidden_states(self.embeddings)
         # Get the (single, for now) output state.
-        self.output = self._compute_output_states()
-
-        # Finally, define and store the keras model.
-        self.model = self._define_model(model_type)
+        #self.output = self._compute_output_states()
+        ## Finally, define and store the keras model.
+        #self.model = self._define_model(model_type)
 
 
     def fit(self, x, y, **kwargs):
@@ -52,9 +61,7 @@ class MyRNN:
 
     def _create_inputs(self):
         """ Create one input layer for each timestep (out of seq_len steps total). """
-
-        return [Input(shape=(1,), dtype='int64', name='input{}'.format(t)) \
-                for t in range(self.seq_len)]
+        return [Input(shape=(1,), dtype='int64', name='input{}'.format(t)) for t in range(self.seq_len)]
 
     def _create_embeddings(self, n_latent_factors=42):
         """
@@ -105,7 +112,6 @@ class MyRNN:
     def _compute_output_states(self):
         return self.params['V'](self.h[self.seq_len - 1])
 
-    @property
     def summary(self):
         self.model.summary()
 
