@@ -25,7 +25,7 @@ class MyRNN:
             # First two args: input_DIM and output_DIM (not shape!)
             Embedding(self.vocab_size, self.embed_dim, input_length=self.seq_len),
             LSTM(32, return_sequences=True, input_shape=(self.seq_len, self.embed_dim)), # Returns seq_len number of vectors.
-            LSTM(32), # Returns one vector (of dimension embed_dim).
+            LSTM(32), #, input_shape=(self.seq_len, self.embed_dim)), # Returns one vector (of dimension embed_dim).
             Dropout(0.5),
             Dense(self.vocab_size, activation='softmax')
         ])
@@ -48,13 +48,14 @@ class MyRNN:
         self.model.fit(x, y, **kwargs)
 
 
-    def predict(self, chars, unique_chars):
-        id_chars = [self.char_indices[c] for c in chars]
-        test_inputs = [np.array(i)[np.newaxis] for i in id_chars]
-        p = self.model.predict(test_inputs)
+    def predict(self, idx_chars, **kwargs):
 
-        idx_highest_probability = np.argmax(p)
-        return unique_chars[idx_highest_probability]
+        x_test = np.array(idx_chars).reshape(1, self.seq_len)
+        # ============================
+        p = self.model.predict(x_test, **kwargs)
+        # ============================
+        return p
+
 
     def _define_model(self, model_type='manual', learning_rate=1e-6):
         return Model(input=self.inputs, output=self.output)
