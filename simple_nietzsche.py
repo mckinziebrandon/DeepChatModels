@@ -5,6 +5,7 @@ import numpy as np
 from pprint import pprint
 import nltk
 from models.minimal_rnn import MyRNN
+from keras.preprocessing.text import *
 import pdb
 
 
@@ -18,39 +19,49 @@ SEQ_LEN = 15
 N_STEPS=6
 REMOVE_RARE_N=15
 
+
 # =========================================================================
 # Obtain data/pre-process as needed.
 # =========================================================================
 
-token_choice = 'CHAR'
+text_tokenized            = get_text(DATASET, as_word_list=True)
+# nb_words: Maximum number of [most common] words to work with.
+tokenizer = Tokenizer(nb_words=vocab_size)
+tokenizer.fit_on_texts(text_tokenized)
 
-text            = get_text(DATASET).lower()
-text_tokenized = nltk.word_tokenize(text) if token_choice == 'WORD' else list(text)
-unique_words = sorted(list(set(text_tokenized)))
+#unique_words = sorted(list(set(text_tokenized)))
+unique_words = list(tokenizer.word_counts.keys())
+# vocab_size = min(vocab_size, len(unique_words[:-REMOVE_RARE_N]))
 
-vocab_size = min(vocab_size, len(unique_words[:-REMOVE_RARE_N]))
-print("VOCAB SIZE FINAL IS ", vocab_size)
 print("There are {} unique words in the {} dataset.".format(len(unique_words), DATASET))
 print("There are {} words total in the document.".format(len(text_tokenized)))
 
-vocab_freqs = nltk.FreqDist(text_tokenized).most_common(vocab_size - 1)
-print(vocab_freqs[:10])
+#vocab_freqs = nltk.FreqDist(text_tokenized).most_common(vocab_size - 1)
+vocab_freqs = sorted(tokenizer.word_counts, key=tokenizer.word_counts.get)[::-1]
+vocab_freqs = [(w, tokenizer.word_counts[w]) for w in vocab_freqs][:vocab_size-1]
+
 print("Most common word is {} and occurs {} times".format(*vocab_freqs[0]))
 print("Null rate:", float(vocab_freqs[0][1])/float(len(text_tokenized)))
+
 vocab_words = [w for w, _ in vocab_freqs]
 vocab_words.append(unknown_token)
+
 # Replace all non-vocab words with the 'unknown' token.
 text_tokenized = [w if w in vocab_words else unknown_token for w in text_tokenized]
-print("Now There are {} unique words in the {} dataset.".format(len(sorted(list(set(text_tokenized)))), DATASET))
+#print("Now There are {} unique words in the {} dataset.".format(len(sorted(list(set(text_tokenized)))), DATASET))
 assert(len(vocab_words) == vocab_size)
 
 print("Least common word was {} and appeared {} times.".format(*vocab_freqs[-1]))
-word_to_idx = {w: i for i, w in enumerate(vocab_words)}
-idx_to_word = {i: w for i, w in enumerate(vocab_words)}
+#word_to_idx = {w: i for i, w in enumerate(vocab_words)}
+#idx_to_word = {i: w for i, w in enumerate(vocab_words)}
+word_to_idx = tokenizer.word_index
+idx_to_word = {i:w for w, i  in word_to_idx.items()}
 
 # Get full text document in format of indices into vocabulary.
 text_as_idx = [word_to_idx[w] for w in text_tokenized]
 print("len(text_as_idx) =", len(text_as_idx))
+print("textasdf", text_as_idx[:20])
+print("textasdf", [idx_to_word[i] for i in text_as_idx[:20]])
 
 # =========================================================================
 # Make the training data.
@@ -71,6 +82,7 @@ for i in np.arange(X_train.shape[0]):
     y_train[i, text_as_idx[N_STEPS * (i + 1)]] = 1
 
 print("y_train is a numpy array of shape {}.".format(y_train.shape))
+exit()
 
 # =========================================================================
 # Prepare the model.
@@ -84,7 +96,7 @@ myRNN.summary()
 # =========================================================================
 
 myRNN.model.load_weights('models/words_instead_V{}.h5'.format(V))
-#myRNN.fit(X_train, y_train, batch_size=128, nb_epoch=10, verbose=2)
+myRNN.fit(X_train, y_train, batch_size=128, nb_epoch=10, verbose=2)
 
 
 # =========================================================================
