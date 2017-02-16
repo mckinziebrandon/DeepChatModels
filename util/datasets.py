@@ -1,6 +1,8 @@
 # Trying to make it easier to load common datasets.
 from keras.utils.data_utils import get_file
 from keras.preprocessing.text import text_to_word_sequence, one_hot, Tokenizer
+import numpy as np
+import nltk
 
 DATASETS = {
     'nietzsche': get_file('nietzsche.txt', origin="https://s3.amazonaws.com/text-datasets/nietzsche.txt")
@@ -25,8 +27,6 @@ def get_text(dataset_name, lower=True, as_word_list=False):
     return text
 
 def get_train_data(dataset_name, vocab_size=1000):
-    import nltk
-    import numpy as np
     SEQ_LEN = 3
     N_STEPS = 2
     if dataset_name == 'nietzsche':

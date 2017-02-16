@@ -14,4 +14,7 @@ class TestStrippedSeq2Seq(unittest.TestCase):
         X_train, y_train = get_train_data('nietzsche')
         print(X_train.shape, y_train.shape)
 
+        # TODO: Read through
+        # https://github.com/nicolas-ivanov/debug_seq2seq/blob/master/lib/nn_model/train.py
+        # to see how to format X_train and y_train.
         testRNN.fit(X_train, y_train, nb_epoch=1)

@@ -96,23 +96,7 @@ def generate_n_words(n, temperature=0.5):
         print("")
         rly = 0
         pred = myRNN.model.predict(seq, batch_size=1)
-        #try:
         sample_ind = _sample(pred, temperature)
-        #    #sample_ind = np.random.multinomial(1, pred.flatten(),  size=1).argmax()
-        #except:
-        #    #sample_ind = word_index[unknown_token]
-        ##    sample_ind = _sample(pred, temperature)
-        #while  sample_ind == word_index[unknown_token]:
-        #    try:
-        #        if rly > 5: sample_ind = np.random.multinomial(1, pred.flatten(),  size=1).argmax()
-        #        else: sample_ind = _sample(pred, temperature)
-        #    except ValueError:
-        #        rly += 1
-        #        if rly < 5:
-        #            pred /= (pred.sum() + 1e-9)
-        #        else:
-        #            pred /= (pred.sum() + 1e-6)
-            #sample_ind = _sample(pred, temperature)
 
         thoughts.append(index_word[sample_ind])
         seq = np.hstack((seq[:, 1:].flatten(), [sample_ind]))

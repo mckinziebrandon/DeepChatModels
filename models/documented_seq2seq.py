@@ -4,6 +4,9 @@ from .cells import LSTMDecoderCell, AttentionDecoderCell
 from keras.models import Sequential, Model
 from keras.layers import Dense, Dropout, TimeDistributed, Bidirectional, Input
 
+# This is a copy of:
+#  wget https://raw.githubusercontent.com/farizrahman4u/seq2seq/master/seq2seq/models.py
+# and I'm just gonna comment the heck out of it until I fully understand it.
 
 '''
 Papers:
@@ -14,80 +17,101 @@ Papers:
 
 
 def SimpleSeq2Seq(output_dim, output_length, hidden_dim=None, depth=1, dropout=0., **kwargs):
-	'''
-	Simple model for sequence to sequence learning.
-	The encoder encodes the input sequence to vector (called context vector)
-	The decoder decodes the context vector in to a sequence of vectors.
-	There is no one on one relation between the input and output sequence elements.
-	The input sequence and output sequence may differ in length.
+    """
+    Simple model for sequence to sequence learning.
+    The encoder encodes the input sequence to vector (called context vector)
+    The decoder decodes the context vector in to a sequence of vectors.
+    There is no one on one relation between the input and output sequence elements.
+    The input sequence and output sequence may differ in length.
 
-	Arguments:
+    Arguments:
 
-	output_dim : Required output dimension.
-	hidden_dim : The dimension of the internal representations of the model.
-	output_length : Length of the required output sequence.
-	depth : Used to create a deep Seq2seq model. For example, if depth = 3, 
-			there will be 3 LSTMs on the enoding side and 3 LSTMs on the 
-			decoding side. You can also specify depth as a tuple. For example,
-			if depth = (4, 5), 4 LSTMs will be added to the encoding side and
-			5 LSTMs will be added to the decoding side.
-	dropout : Dropout probability in between layers.
+    output_dim : Required output dimension.
+    hidden_dim : The dimension of the internal representations of the model.
+    output_length : Length of the required output sequence.
+    depth : Used to create a deep Seq2seq model. For example, if depth = 3,
+            there will be 3 LSTMs on the enoding side and 3 LSTMs on the
+            decoding side. You can also specify depth as a tuple. For example,
+            if depth = (4, 5), 4 LSTMs will be added to the encoding side and
+            5 LSTMs will be added to the decoding side.
+    dropout : Dropout probability in between layers.
+    """
 
-	'''
-	if type(depth) == int:
-		depth = [depth, depth]
-	if 'batch_input_shape' in kwargs:
-		shape = kwargs['batch_input_shape']
-		del kwargs['batch_input_shape']
-	elif 'input_shape' in kwargs:
-		shape = (None,) + tuple(kwargs['input_shape'])
-		del kwargs['input_shape']
-	elif 'input_dim' in kwargs:
-		if 'input_length' in kwargs:
-			shape = (None, kwargs['input_length'], kwargs['input_dim'])
-			del kwargs['input_length']
-		else:
-			shape = (None, None, kwargs['input_dim'])
-		del kwargs['input_dim']
-	if 'unroll' in kwargs:
-		unroll = kwargs['unroll']
-		del kwargs['unroll']
-	else:
-		unroll = False
-	if 'stateful' in kwargs:
-		stateful = kwargs['stateful']
-		del kwargs['stateful']
-	else:
-		stateful = False
-	if not hidden_dim:
-		hidden_dim = output_dim
-	encoder = RecurrentContainer(unroll=unroll, stateful=stateful, input_length=shape[1])
-	encoder.add(LSTMCell(hidden_dim, batch_input_shape=(shape[0], shape[2]), **kwargs))
-	for _ in range(1, depth[0]):
-		encoder.add(Dropout(dropout))
-		encoder.add(LSTMCell(hidden_dim, **kwargs))
-	decoder = RecurrentContainer(unroll=unroll, stateful=stateful, decode=True, output_length=output_length, input_length=shape[1])
-	decoder.add(Dropout(dropout, batch_input_shape=(shape[0], hidden_dim)))
+    # =======================================================
+    # Argument checking.
+    # =======================================================
+    if type(depth) == int:
+        depth = [depth, depth]
 
-	if depth[1] == 1:
-		decoder.add(LSTMCell(output_dim, **kwargs))
-	else:
-		decoder.add(LSTMCell(hidden_dim, **kwargs))
-		for _ in range(depth[1] - 2):
-			decoder.add(Dropout(dropout))
-			decoder.add(LSTMCell(hidden_dim, **kwargs))
+    if 'batch_input_shape' in kwargs:
+        shape = kwargs['batch_input_shape']
+        del kwargs['batch_input_shape']
+    elif 'input_shape' in kwargs:
+        shape = (None,) + tuple(kwargs['input_shape'])
+        del kwargs['input_shape']
+    elif 'input_dim' in kwargs:
+        if 'input_length' in kwargs:
+            shape = (None, kwargs['input_length'], kwargs['input_dim'])
+            del kwargs['input_length']
+        else:
+            shape = (None, None, kwargs['input_dim'])
+        del kwargs['input_dim']
 
-		decoder.add(Dropout(dropout))
-		decoder.add(LSTMCell(output_dim, **kwargs))
+    if 'unroll' in kwargs:
+        unroll = kwargs['unroll']
+        del kwargs['unroll']
+    else:
+        unroll = False
 
-	model = Sequential()
-	model.add(encoder)
-	model.add(decoder)
-	return model
+    if 'stateful' in kwargs:
+        stateful = kwargs['stateful']
+        del kwargs['stateful']
+    else:
+        stateful = False
+
+    if not hidden_dim:
+        hidden_dim = output_dim
+
+    # ==========================================================================
+    # Create the empty containers that define the high-level model architecture.
+    # ==========================================================================
+    model   = Sequential()
+    encoder = RecurrentContainer(unroll=unroll, stateful=stateful, input_length=shape[1])
+    decoder = RecurrentContainer(unroll=unroll, stateful=stateful, decode=True, output_length=output_length, input_length=shape[1])
+
+    # =======================================================
+    # Build the encoder.
+    # =======================================================
+    # RecurrentContainer appears to mess up the meaning of 'batch_input_shape' which is pretty gross design imo.
+    encoder.add(LSTMCell(hidden_dim, batch_input_shape=(shape[0], shape[2]), **kwargs))
+    # Stack on more sequential LSTMs if desired.
+    for _ in range(1, depth[0]):
+        encoder.add(Dropout(dropout))
+        encoder.add(LSTMCell(hidden_dim, **kwargs))
+
+    # =======================================================
+    # Build the decoder.
+    # =======================================================
+    decoder.add(Dropout(dropout, batch_input_shape=(shape[0], hidden_dim)))
+
+    # Stack intermediate decoder LSTMs of hidden_dim if output depth > 1.
+    if depth[1] > 1:
+        decoder.add(LSTMCell(hidden_dim, **kwargs))
+        for _ in range(depth[1] - 2):
+            decoder.add(Dropout(dropout))
+            decoder.add(LSTMCell(hidden_dim, **kwargs))
+        decoder.add(Dropout(dropout))
+
+    decoder.add(LSTMCell(output_dim, **kwargs))
+
+    model.add(encoder)
+    model.add(decoder)
+    return model
 
 
-def Seq2Seq(output_dim, output_length, hidden_dim=None, depth=1, broadcast_state=True, inner_broadcast_state=True, teacher_force=False, peek=False, dropout=0., **kwargs):
-	'''
+def Seq2Seq(output_dim, output_length, hidden_dim=None, depth=1, broadcast_state=True, inner_broadcast_state=True, teacher_force=False,
+            peek=False, dropout=0., **kwargs):
+    '''
 	Seq2seq model based on [1] and [2].
 	This model has the ability to transfer the encoder hidden state to the decoder's
 	hidden state(specified by the broadcast_state argument). Also, in deep models 
@@ -138,68 +162,64 @@ def Seq2Seq(output_dim, output_length, hidden_dim=None, depth=1, broadcast_state
 
 
 	'''
-	if type(depth) == int:
-		depth = [depth, depth]
-	if 'batch_input_shape' in kwargs:
-		shape = kwargs['batch_input_shape']
-		del kwargs['batch_input_shape']
-	elif 'input_shape' in kwargs:
-		shape = (None,) + tuple(kwargs['input_shape'])
-		del kwargs['input_shape']
-	elif 'input_dim' in kwargs:
-		if 'input_length' in kwargs:
-			shape = (None, kwargs['input_length'], kwargs['input_dim'])
-			del kwargs['input_length']
-		else:
-			shape = (None, None, kwargs['input_dim'])
-		del kwargs['input_dim']
-	if 'unroll' in kwargs:
-		unroll = kwargs['unroll']
-		del kwargs['unroll']
-	else:
-		unroll = False
-	if 'stateful' in kwargs:
-		stateful = kwargs['stateful']
-		del kwargs['stateful']
-	else:
-		stateful = False
-	if not hidden_dim:
-		hidden_dim = output_dim
-	encoder = RecurrentContainer(readout=True, state_sync=inner_broadcast_state, input_length=shape[1], unroll=unroll, stateful=stateful, return_states=broadcast_state)
-	for i in range(depth[0]):
-		encoder.add(LSTMCell(hidden_dim, batch_input_shape=(shape[0], hidden_dim), **kwargs))
-		encoder.add(Dropout(dropout))
-	dense1 = TimeDistributed(Dense(hidden_dim))
-	dense1.supports_masking = True
-	dense2 = Dense(output_dim)
-	decoder = RecurrentContainer(readout='add' if peek else 'readout_only', state_sync=inner_broadcast_state, output_length=output_length, unroll=unroll, stateful=stateful, decode=True, input_length=shape[1])
-	for i in range(depth[1]):
-		decoder.add(Dropout(dropout, batch_input_shape=(shape[0], output_dim)))
-		decoder.add(LSTMDecoderCell(output_dim=output_dim, hidden_dim=hidden_dim, batch_input_shape=(shape[0], output_dim), **kwargs))
-	input = Input(batch_shape=shape)
-	input._keras_history[0].supports_masking = True
-	encoded_seq = dense1(input)
-	encoded_seq = encoder(encoded_seq)
-	if broadcast_state:
-		states = encoded_seq[-2:]
-		encoded_seq = encoded_seq[0]
-	else:
-		states = [None] * 2
-	encoded_seq = dense2(encoded_seq)
-	inputs = [input]
-	if teacher_force:
-		truth_tensor = Input(batch_shape=(shape[0], output_length, output_dim))
-		truth_tensor._keras_history[0].supports_masking = True
-		inputs += [truth_tensor]
-	decoded_seq = decoder({'input': encoded_seq, 'ground_truth': inputs[1] if teacher_force else None, 'initial_readout': encoded_seq, 'states': states})
-	model = Model(inputs, decoded_seq)
-	model.encoder = encoder
-	model.decoder = decoder
-	return model
+
+    # =========================================================================
+    # Argument checking
+    # =========================================================================
+
+    # Ensure the non-kwargs arguments are set appropriately.
+    if type(depth) == int:  depth = [depth, depth]
+    if not hidden_dim:      hidden_dim = output_dim
+
+    # Ensure the kwargs arguments are set appropriately.
+    batch_input_shape   = _shape_from_kwargs(**kwargs)
+    unroll              = _get_bool_kwarg('unroll', **kwargs)
+    stateful            = _get_bool_kwarg('stateful', **kwargs)
+
+
+    # Note: RecurrentContainer inherits from the keras.Layer class.
+    encoder = RecurrentContainer(readout=True,                      # "Output of final layer at t-1 is available as input to 1st layer at t.
+                                 state_sync=inner_broadcast_state,  # "All cells will use the same state(s) if True.
+                                 input_length=batch_input_shape[1],
+                                 unroll=unroll,                     # Not entirely clear what this means here.
+                                 stateful=stateful,
+                                 return_states=broadcast_state)
+    for i in range(depth[0]):
+        encoder.add(LSTMCell(hidden_dim, batch_input_shape=(shape[0], hidden_dim), **kwargs))
+        encoder.add(Dropout(dropout))
+    dense1 = TimeDistributed(Dense(hidden_dim))
+    dense1.supports_masking = True
+    dense2 = Dense(output_dim)
+    decoder = RecurrentContainer(readout='add' if peek else 'readout_only', state_sync=inner_broadcast_state, output_length=output_length,
+                                 unroll=unroll, stateful=stateful, decode=True, input_length=shape[1])
+    for i in range(depth[1]):
+        decoder.add(Dropout(dropout, batch_input_shape=(shape[0], output_dim)))
+        decoder.add(LSTMDecoderCell(output_dim=output_dim, hidden_dim=hidden_dim, batch_input_shape=(shape[0], output_dim), **kwargs))
+    input = Input(batch_shape=shape)
+    input._keras_history[0].supports_masking = True
+    encoded_seq = dense1(input)
+    encoded_seq = encoder(encoded_seq)
+    if broadcast_state:
+        states = encoded_seq[-2:]
+        encoded_seq = encoded_seq[0]
+    else:
+        states = [None] * 2
+    encoded_seq = dense2(encoded_seq)
+    inputs = [input]
+    if teacher_force:
+        truth_tensor = Input(batch_shape=(shape[0], output_length, output_dim))
+        truth_tensor._keras_history[0].supports_masking = True
+        inputs += [truth_tensor]
+    decoded_seq = decoder(
+        {'input': encoded_seq, 'ground_truth': inputs[1] if teacher_force else None, 'initial_readout': encoded_seq, 'states': states})
+    model = Model(inputs, decoded_seq)
+    model.encoder = encoder
+    model.decoder = decoder
+    return model
 
 
 def AttentionSeq2Seq(output_dim, output_length, hidden_dim=None, depth=1, bidirectional=True, dropout=0., **kwargs):
-	'''
+    '''
 	This is an attention Seq2seq model based on [3].
 	Here, there is a soft allignment between the input and output sequence elements.
 	A bidirection encoder is used by default. There is no hidden state transfer in this
@@ -224,62 +244,95 @@ def AttentionSeq2Seq(output_dim, output_length, hidden_dim=None, depth=1, bidire
         Where a is a feed forward network.
 
 	'''
-	if type(depth) == int:
-		depth = [depth, depth]
-	if 'batch_input_shape' in kwargs:
-		shape = kwargs['batch_input_shape']
-		del kwargs['batch_input_shape']
-	elif 'input_shape' in kwargs:
-		shape = (None,) + tuple(kwargs['input_shape'])
-		del kwargs['input_shape']
-	elif 'input_dim' in kwargs:
-		if 'input_length' in kwargs:
-			shape = (None, kwargs['input_length'], kwargs['input_dim'])
-			del kwargs['input_length']
-		else:
-			shape = (None, None, kwargs['input_dim'])
-		del kwargs['input_dim']
-	if 'unroll' in kwargs:
-		unroll = kwargs['unroll']
-		del kwargs['unroll']
-	else:
-		unroll = False
-	if 'stateful' in kwargs:
-		stateful = kwargs['stateful']
-		del kwargs['stateful']
-	else:
-		stateful = False
-	if not hidden_dim:
-		hidden_dim = output_dim
-	encoder = RecurrentContainer(unroll=unroll, stateful=stateful, return_sequences=True, input_length=shape[1])
-	encoder.add(LSTMCell(hidden_dim, batch_input_shape=(shape[0], shape[2]), **kwargs))
-	for _ in range(1, depth[0]):
-		encoder.add(Dropout(dropout))
-		encoder.add(LSTMCell(hidden_dim, **kwargs))
-	input = Input(batch_shape=shape)
-	input._keras_history[0].supports_masking = True
-	if bidirectional:
-		encoder = Bidirectional(encoder, merge_mode='sum')
-	encoded = encoder(input)
+    if type(depth) == int:
+        depth = [depth, depth]
+    if 'batch_input_shape' in kwargs:
+        shape = kwargs['batch_input_shape']
+        del kwargs['batch_input_shape']
+    elif 'input_shape' in kwargs:
+        shape = (None,) + tuple(kwargs['input_shape'])
+        del kwargs['input_shape']
+    elif 'input_dim' in kwargs:
+        if 'input_length' in kwargs:
+            shape = (None, kwargs['input_length'], kwargs['input_dim'])
+            del kwargs['input_length']
+        else:
+            shape = (None, None, kwargs['input_dim'])
+        del kwargs['input_dim']
+    if 'unroll' in kwargs:
+        unroll = kwargs['unroll']
+        del kwargs['unroll']
+    else:
+        unroll = False
+    if 'stateful' in kwargs:
+        stateful = kwargs['stateful']
+        del kwargs['stateful']
+    else:
+        stateful = False
+    if not hidden_dim:
+        hidden_dim = output_dim
+    encoder = RecurrentContainer(unroll=unroll, stateful=stateful, return_sequences=True, input_length=shape[1])
+    encoder.add(LSTMCell(hidden_dim, batch_input_shape=(shape[0], shape[2]), **kwargs))
+    for _ in range(1, depth[0]):
+        encoder.add(Dropout(dropout))
+        encoder.add(LSTMCell(hidden_dim, **kwargs))
+    input = Input(batch_shape=shape)
+    input._keras_history[0].supports_masking = True
+    if bidirectional:
+        encoder = Bidirectional(encoder, merge_mode='sum')
+    encoded = encoder(input)
 
-	decoder = RecurrentContainer(decode=True, output_length=output_length, unroll=unroll, stateful=stateful, input_length=shape[1])
-	decoder.add(Dropout(dropout, batch_input_shape=(shape[0], shape[1], hidden_dim)))
-	if depth[1] == 1:
-		decoder.add(AttentionDecoderCell(output_dim=output_dim, hidden_dim=hidden_dim))
-	else:
-		decoder.add(AttentionDecoderCell(output_dim=hidden_dim, hidden_dim=hidden_dim))
-		for _ in range(depth[1] - 2):
-			decoder.add(Dropout(dropout))
-			decoder.add(LSTMDecoderCell(output_dim=hidden_dim, hidden_dim=hidden_dim))
-		decoder.add(Dropout(dropout))
-		decoder.add(LSTMDecoderCell(output_dim=output_dim, hidden_dim=hidden_dim))
-	inputs = [input]
-	'''
+    decoder = RecurrentContainer(decode=True, output_length=output_length, unroll=unroll, stateful=stateful, input_length=shape[1])
+    decoder.add(Dropout(dropout, batch_input_shape=(shape[0], shape[1], hidden_dim)))
+    if depth[1] == 1:
+        decoder.add(AttentionDecoderCell(output_dim=output_dim, hidden_dim=hidden_dim))
+    else:
+        decoder.add(AttentionDecoderCell(output_dim=hidden_dim, hidden_dim=hidden_dim))
+        for _ in range(depth[1] - 2):
+            decoder.add(Dropout(dropout))
+            decoder.add(LSTMDecoderCell(output_dim=hidden_dim, hidden_dim=hidden_dim))
+        decoder.add(Dropout(dropout))
+        decoder.add(LSTMDecoderCell(output_dim=output_dim, hidden_dim=hidden_dim))
+    inputs = [input]
+    '''
 	if teacher_force:
 		truth_tensor = Input(batch_shape=(shape[0], output_length, output_dim))
 		inputs += [truth_tensor]
 		decoder.set_truth_tensor(truth_tensor)
 	'''
-	decoded = decoder(encoded)
-	model = Model(inputs, decoded)
-	return model
+    decoded = decoder(encoded)
+    model = Model(inputs, decoded)
+    return model
+
+def _shape_from_kwargs(**kwargs):
+    """ Bottom line: return in the form of batch_input_shape convention, which is
+        batch_input_shape   := (None, input_length, input_dim)
+                            ==  (None,) + input_shape
+    """
+    if 'batch_input_shape' in kwargs:
+        shape = kwargs['batch_input_shape']
+        del kwargs['batch_input_shape']
+    elif 'input_shape' in kwargs:
+        shape = (None,) + tuple(kwargs['input_shape'])
+        del kwargs['input_shape']
+    elif 'input_dim' in kwargs:
+        if 'input_length' in kwargs:
+            shape = (None, kwargs['input_length'], kwargs['input_dim'])
+            del kwargs['input_length']
+        else:
+            # NOTE: This would be the desired shape format for seq2seq (since arbitrary input lengths)
+            shape = (None, None, kwargs['input_dim'])
+        del kwargs['input_dim']
+    else:
+        raise KeyError("ERROR: Could not find the required shape information in kwargs.")
+    return shape
+
+def _get_bool_kwarg(kwarg, **kwargs):
+    if kwarg in kwargs:
+        res = kwargs[kwarg]
+        del kwargs[kwarg]
+    else:
+        res = False
+    return res
+
+
