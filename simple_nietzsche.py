@@ -36,36 +36,9 @@ tokenizer.fit_on_texts(text_as_words)
 word_index = tokenizer.word_index
 index_word = {i:w for w, i in word_index.items()}
 
-#unique_words = list(tokenizer.word_counts.keys())
-#print("There are {} unique words in the {} dataset.".format(len(unique_words), DATASET))
-#print("There are {} words total in the document.".format(len(text_as_words)))
-
-#vocab_freqs = nltk.FreqDist(text_as_words).most_common(vocab_size - 1)
-#vocab_freqs = sorted(tokenizer.word_counts, key=tokenizer.word_counts.get)[::-1]
-#vocab_freqs = [(w, tokenizer.word_counts[w]) for w in vocab_freqs][:vocab_size]
-
-#print("Most common word is {} and occurs {} times".format(*vocab_freqs[0]))
-#print("Null rate:", float(vocab_freqs[0][1])/float(len(text_as_words)))
-#
-#vocab_words = [w for w, _ in vocab_freqs]
-##vocab_words.append(unknown_token)
-#
-## Replace all non-vocab words with the 'unknown' token.
-##text_as_words = [w if w in vocab_words else unknown_token for w in text_as_words]
-##print("Now There are {} unique words in the {} dataset.".format(len(sorted(list(set(text_as_words)))), #DATASET))
-#assert(len(vocab_words) == vocab_size)
-
-#print("Least common word was {} and appeared {} times.".format(*vocab_freqs[-1]))
-#word_to_idx = {w: i for i, w in enumerate(vocab_words)}
-#idx_to_word = {i: w for i, w in enumerate(vocab_words)}
-#word_to_idx = tokenizer.word_index
-#idx_to_word = {i:w for w, i  in word_to_idx.items()}
-
 # Get full text document in format of indices into vocabulary.
 text_as_idx = [word_index[w] for w in text_as_words]
 print("len(text_as_idx) =", len(text_as_idx))
-print("textasdf", text_as_idx[:20])
-print("textasdf", [index_word[i] for i in text_as_idx[:20]])
 
 # =========================================================================
 # Make the training data.

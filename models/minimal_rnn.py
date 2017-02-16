@@ -13,10 +13,9 @@ class MyRNN:
         self.embed_dim = embed_dim
 
         self.model = Sequential([
-            # First two args: input_DIM and output_DIM (not shape!)
             Embedding(self.vocab_size, self.embed_dim, input_length=self.seq_len),
-            LSTM(32, return_sequences=True, input_shape=(self.seq_len, self.embed_dim)), # Returns seq_len number of vectors.
-            LSTM(32), #, input_shape=(self.seq_len, self.embed_dim)), # Returns one vector (of dimension embed_dim).
+            LSTM(32, return_sequences=True, input_shape=(self.seq_len, self.embed_dim)),
+            LSTM(32),
             Dropout(0.5),
             Dense(self.vocab_size, activation='softmax')
         ])
@@ -33,4 +32,5 @@ class MyRNN:
 
     def summary(self):
         self.model.summary()
+
 

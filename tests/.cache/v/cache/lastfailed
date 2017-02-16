@@ -1,1 +1,3 @@
-{}
+{
+  "test_stripped_seq2seq.py::TestStrippedSeq2Seq::test_init": true
+}
