@@ -24,6 +24,7 @@ input_length = None #3
 embed_dim = 64
 vocab_size =  1000
 max_sent_len = 20
+hidden_dim = 256
 # ---------------------------------------------------
 
 data, dicts = get_ubuntu(vocab_size)
@@ -39,22 +40,38 @@ print(df_index_train.head())
 # ===================================================================
 print("Building model . . . ")
 # Need to setup in this way since variable-length inputs.
-raw_input   = Input(shape=(None,), dtype='int64', name='main_input')
-X           = Embedding(input_dim=vocab_size, output_dim=embed_dim)(raw_input)
-C           = LSTM(output_dim=vocab_size, input_dim=embed_dim)(X)
+context_inputs   = Input(shape=(None,), dtype='int64', name='main_input')
+X           = Embedding(input_dim=vocab_size, output_dim=embed_dim)(context_inputs)
+C           = LSTM(output_dim=hidden_dim, input_dim=embed_dim)(X)
 
-model = Model(input=[raw_input], output=C)
+# y_train one-hotted is fed to utter_inputs.
+# TODO: look at the diagram in ur notes.  We are almost there.
+# Need to make it such that, if target output is 'WXYZ' and context is 'ABC', that mapping is:
+# Encoder: A,B,C,<EOS> -> W
+# Decoder:  W -> X
+#           X -> Y
+#           Y -> Z
+#           Z -> <EOS>
+utter_inputs = Input(shape=(None, vocab_size), name='utter_inputs')
+decode      = LSTM(output_dim=vocab_size, input_dim=vocab_size, return_sequences=True)
+
+
+
+model = Model(input=[context_inputs, utter_inputs], output=C)
 model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
 model.summary()
 # ===================================================================
 
 print("Padding training sequences . . . ")
 X_train = pad_sequences(context_as_indices, maxlen=max_sent_len)
+_y_train = pad_sequences(utter_as_indices, maxlen=max_sent_len)
 print("X_train.shape:", X_train.shape)
 
-y_train = np.zeros(shape=(X_train.shape[0], vocab_size))
-for i_sample in range(X_train.shape[0]):
-    y_train[i_sample, utter_as_indices[i_sample][0]] = 1
+y_train = np.zeros(shape=(_y_train.shape[0], _y_train.shape[1], vocab_size))
+for i_sent, sent in enumerate(_y_train):
+    for i_word, word in enumerate(sent):
+        y_train[i_sent, i_word, word] = 1
 print("y_train.shape:", y_train.shape)
+exit()
 
 model.fit(X_train, y_train, batch_size=1, nb_epoch=1, verbose=1)
