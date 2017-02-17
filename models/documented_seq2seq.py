@@ -177,6 +177,10 @@ def Seq2Seq(output_dim, output_length, hidden_dim=None, depth=1, broadcast_state
     stateful            = _get_bool_kwarg('stateful', **kwargs)
 
 
+    # =======================================================
+    # Build the encoder.
+    # =======================================================
+
     # Note: RecurrentContainer inherits from the keras.Layer class.
     encoder = RecurrentContainer(readout=True,                      # "Output of final layer at t-1 is available as input to 1st layer at t.
                                  state_sync=inner_broadcast_state,  # "All cells will use the same state(s) if True.
@@ -185,18 +189,40 @@ def Seq2Seq(output_dim, output_length, hidden_dim=None, depth=1, broadcast_state
                                  stateful=stateful,
                                  return_states=broadcast_state)
     for i in range(depth[0]):
-        encoder.add(LSTMCell(hidden_dim, batch_input_shape=(shape[0], hidden_dim), **kwargs))
+        encoder.add(LSTMCell(hidden_dim, batch_input_shape=(batch_input_shape[0], hidden_dim), **kwargs))
         encoder.add(Dropout(dropout))
+
+    # =======================================================
+    # Build the [something related to context/thought vector]
+    # =======================================================
+
     dense1 = TimeDistributed(Dense(hidden_dim))
     dense1.supports_masking = True
     dense2 = Dense(output_dim)
-    decoder = RecurrentContainer(readout='add' if peek else 'readout_only', state_sync=inner_broadcast_state, output_length=output_length,
-                                 unroll=unroll, stateful=stateful, decode=True, input_length=shape[1])
+
+    # =======================================================
+    # Build the decoder.
+    # =======================================================
+
+    decoder = RecurrentContainer(readout='add' if peek else 'readout_only',
+                                 state_sync=inner_broadcast_state,
+                                 output_length=output_length,
+                                 unroll=unroll,
+                                 stateful=stateful,
+                                 decode=True,
+                                 input_length=batch_input_shape[1])
     for i in range(depth[1]):
-        decoder.add(Dropout(dropout, batch_input_shape=(shape[0], output_dim)))
+        decoder.add(Dropout(dropout, batch_input_shape=(batch_input_shape[0], output_dim)))
         decoder.add(LSTMDecoderCell(output_dim=output_dim, hidden_dim=hidden_dim, batch_input_shape=(shape[0], output_dim), **kwargs))
-    input = Input(batch_shape=shape)
+
+    # =======================================================
+    # Put the pieces together & construct the model.
+    # =======================================================
+
+    input = Input(batch_shape=batch_input_shape)
     input._keras_history[0].supports_masking = True
+
+    # TODO: why????
     encoded_seq = dense1(input)
     encoded_seq = encoder(encoded_seq)
     if broadcast_state:
@@ -205,13 +231,18 @@ def Seq2Seq(output_dim, output_length, hidden_dim=None, depth=1, broadcast_state
     else:
         states = [None] * 2
     encoded_seq = dense2(encoded_seq)
+
     inputs = [input]
     if teacher_force:
         truth_tensor = Input(batch_shape=(shape[0], output_length, output_dim))
         truth_tensor._keras_history[0].supports_masking = True
         inputs += [truth_tensor]
-    decoded_seq = decoder(
-        {'input': encoded_seq, 'ground_truth': inputs[1] if teacher_force else None, 'initial_readout': encoded_seq, 'states': states})
+
+    decoded_seq = decoder({'input': encoded_seq,
+                           'ground_truth': inputs[1] if teacher_force else None,
+                           'initial_readout': encoded_seq,
+                           'states': states})
+
     model = Model(inputs, decoded_seq)
     model.encoder = encoder
     model.decoder = decoder

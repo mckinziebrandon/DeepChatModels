@@ -3,9 +3,12 @@ from keras.utils.data_utils import get_file
 from keras.preprocessing.text import text_to_word_sequence, one_hot, Tokenizer
 import numpy as np
 import nltk
+import pandas as pd
 
+unknown_token = 'UNKNOWN'
 DATASETS = {
-    'nietzsche': get_file('nietzsche.txt', origin="https://s3.amazonaws.com/text-datasets/nietzsche.txt")
+    'nietzsche': get_file('nietzsche.txt', origin="https://s3.amazonaws.com/text-datasets/nietzsche.txt"),
+    'ubuntu': '/home/brandon/terabyte/Datasets/ubuntu_dialogue_corpus/src/train.csv'
 }
 
 def get(dataset_name):
@@ -30,7 +33,6 @@ def get_train_data(dataset_name, vocab_size=1000):
     SEQ_LEN = 3
     N_STEPS = 2
     if dataset_name == 'nietzsche':
-        unknown_token = 'UNKNOWN'
         text = get_text(dataset_name)
         text_tokenized = nltk.word_tokenize(text)
         unique_words = sorted(list(set(text_tokenized)))
@@ -58,4 +60,41 @@ def get_train_data(dataset_name, vocab_size=1000):
 
     return X_train, y_train
 
+def get_ubuntu(vocab_size):
+    # First, we need to load the data directly into a dataframe from the train.csv file.
+    df_train = pd.read_csv(get('ubuntu'))
+    # Remove all examples with label = 0. (why would i want to train on false examples?)
+    df_train = df_train.loc[df_train['Label'] == 1.0]
+    # Don't care about the pandas indices in the df, so remove them.
+    df_train = df_train.reset_index(drop=True)
+    # Get the df as a single text string.
+    def df_to_string(df):
+        """ Expects df to be 3 columns of form above. """
+        # Remove the 'label' column since we are only interested in the text here.
+        df_text = df.copy()
+        del df_text['Label']
+        text = df_text['Context'].str.cat(sep=' ') + ' ' + df_text['Utterance'].str.cat(sep=' ')
+        return text
+    text_train = df_to_string(df_train)
+    print("Tokenizing data string....")
+    tokens_train = nltk.word_tokenize(text_train)
+    vocab_train = sorted(set(tokens_train)) # Sorted 'alphabetically', NOT frequency!!
+    freq_dist = nltk.FreqDist(tokens_train)
+    most_common = freq_dist.most_common(vocab_size - 1)
+    print("Constructing dictionaries . . . ")
+    word_to_index = {w: i for i, w in enumerate(np.array(most_common)[:, 0])}
+    word_to_index[unknown_token] = len(word_to_index)
+    index_to_word = {i: w for i, w in word_to_index.items()}
+    assert(len(word_to_index) == vocab_size)
+
+    def array_to_indices(arr):
+        text_tokenized = [nltk.word_tokenize(sent) for sent in arr]
+        text_tokenized = [[w if w in word_to_index else unknown_token for w in sent]
+            for sent in text_tokenized]
+        return np.array([[word_to_index[w] for w in sent] for sent in text_tokenized])
+
+    print("Converting words to indices . . . ")
+    context_as_indices = array_to_indices(df_train['Context'].values)
+    utter_as_indices = array_to_indices(df_train['Utterance'].values)
+    return (context_as_indices, utter_as_indices), (word_to_index, index_to_word)
 

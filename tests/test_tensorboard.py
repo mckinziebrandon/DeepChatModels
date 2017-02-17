@@ -69,6 +69,8 @@ class PLEASETestTensorBoardPLEASE(unittest.TestCase):
         # Launch tensorboard.
         os.system('tensorboard --logdir=./logs')
 
+        # well, that wasn't very illuminating . . . . :/
+
 
 
 
