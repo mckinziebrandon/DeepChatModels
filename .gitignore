@@ -35,3 +35,6 @@ models/*ckpt*
 models/*checkpoint*
 models/*out*
 models/*.pbtxt*
+models/*index*
+models/*meta*
+models/*.data*

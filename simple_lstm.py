@@ -1,3 +1,4 @@
+# Heavily uses code from: https://www.tensorflow.org/tutorials/recurrent
 import tensorflow as tf
 import numpy as np
 import time
@@ -5,8 +6,26 @@ from util.printer import *
 from util.reader import ptb_raw_data, ptb_producer
 import pdb
 
-# https://www.tensorflow.org/tutorials/recurrent
+flags = tf.flags
+flags.DEFINE_string("save_path", "./models/", "Model output directory.")
+FLAGS=flags.FLAGS
+
 DATA_PATH='/home/brandon/terabyte/Datasets/simple-examples/data'
+
+# Global hyperparameters.
+PARAMS = {'learning_rate': 1.0,
+          'max_grad_norm': 5,
+          'num_layers': 2,
+          'num_steps': 20,
+          'hidden_size': 200,
+          'max_epoch': 4,
+          'max_max_epoch': 13,
+          'keep_prob': 1.0,
+          'lr_decay': 0.5,
+          'batch_size': 20,
+          'vocab_size': 10000}
+
+
 def run_epoch(session, model, eval_op=None, verbose=False):
     """Runs the model on the given data."""
     start_time = time.time()
@@ -42,108 +61,69 @@ def run_epoch(session, model, eval_op=None, verbose=False):
     return np.exp(costs / iters)
 
 
-flags = tf.flags
-flags.DEFINE_string("save_path", "./models/", "Model output directory.")
-FLAGS=flags.FLAGS
 
 class SimpleInput(object):
-    def __init__(self, data, batch_size=32, num_steps=20, name=None):
-        self.batch_size = batch_size
-        self.num_steps = num_steps
-        # TODO: weird, am i right?
-        self.epoch_size = ((len(data) // self.batch_size) - 1) // self.num_steps
-        self.input_data, self.targets = ptb_producer(data, self.batch_size, self.num_steps, name=name)
+    def __init__(self, data, name=None):
+        self.epoch_size = ((len(data) // PARAMS['batch_size'] - 1) // PARAMS['num_steps']
+        self.input_data, self.targets = ptb_producer(data, PARAMS['batch_size'], PARAMS['num_steps'], name=name)
 
 class SimpleModel(object):
 
-    # Stuff removed:
-    # - dropout layers
-    # - attention
-    def __init__(self, hidden_size, vocab_size, is_training, input_):
+    def __init__(self, is_training, input):
+        # Imports drastically improve readability, as opposed to retyping tf.contrib.... everywhere.
+        # It also allows PyCharm to give descriptive hover-documentation.
+        from tensorflow.contrib.rnn import MultiRNNCell, static_rnn, BasicLSTMCell
+        from tensorflow.contrib.legacy_seq2seq import sequence_loss_by_example
+        self._input = input
 
         # ==========================================================
-        # All instance variables AND CONFIG VALUES here.
+        # Define the model architecture.
         # ==========================================================
-        self._input = input_
-        batch_size  = input_.batch_size
-        num_steps   = input_.num_steps
-        size        = hidden_size
-        vocab_size  = vocab_size
-        num_layers = 3 # config value
-        max_grad_norm = 5 # config value
 
-        def lstm(num_units=hidden_size):
-            # BasicLSTMCell Path: tensorflow /contrib/rnn/python/ops/core_rnn_cell_impl.py.
-            return tf.contrib.rnn.BasicLSTMCell(num_units=num_units,
-                                                forget_bias=0.0,        # default: 1.0
-                                                state_is_tuple=True)    # default: True
+        # The recurrent components.
+        def lstm(): return BasicLSTMCell(num_units=PARAMS['hidden_size'], forget_bias=0.0)
+        cell = MultiRNNCell([lstm() for _ in range(PARAMS['num_layers'])])
+        self._initial_state = cell.zero_state(batch_size, tf.float32)           # "return zero-filled state tensors."
+
+        # The input components.
+        embedding       = tf.get_variable("embedding", [PARAMS['vocab_size'], PARAMS['hidden_size']], dtype=tf.float32)
+        inputs          = tf.nn.embedding_lookup(embedding, input_.input_data)
+        inputs          = tf.unstack(inputs, num=PARAMS['num_steps'], axis=1)
+
+        # The output components.
+        outputs, state  = static_rnn(cell, inputs, initial_state=self._initial_state)
+        output = tf.reshape(tf.concat(outputs, 1), [-1, PARAMS['hidden_size']])
+        softmax_w = tf.get_variable("softmax_w", [PARAMS['hidden_size'], PARAMS['vocab_size']], dtype=tf.float32)
+        softmax_b = tf.get_variable("softmax_b", [PARAMS['vocab_size']], dtype=tf.float32)
 
 
-        cell = tf.contrib.rnn.MultiRNNCell([lstm() for _ in range(num_layers)], state_is_tuple=True)
-        self._initial_state = cell.zero_state(batch_size, tf.float32)
+        # ==========================================================
+        # Configure the learning process.
+        # ==========================================================
 
-        embedding   = tf.get_variable("embedding", [vocab_size, size], dtype=tf.float32)
-        inputs      = tf.nn.embedding_lookup(embedding, input_.input_data)
-#
-        inputs = tf.unstack(inputs, num=num_steps, axis=1)
-        outputs, state = tf.contrib.rnn.static_rnn(cell, inputs, initial_state=self._initial_state)
+        # Choose logistic loss for training function.
+        logits  = tf.matmul(output, softmax_w) + softmax_b
+        loss    = sequence_loss_by_example(logits=[logits],
+                                           targets=[tf.reshape(input_.targets, [-1])],
+                                           weights=[tf.ones([batch_size * PARAMS['num_steps']], dtype=tf.float32)])
 
-        output = tf.reshape(tf.concat(outputs, 1), [-1, size])
-        softmax_w = tf.get_variable("softmax_w", [size, vocab_size], dtype=tf.float32)
-        softmax_b = tf.get_variable("softmax_b", [vocab_size], dtype=tf.float32)
+        self.cost           = tf.reduce_sum(loss) / batch_size
+        self.final_state    = state
+        if not is_training: return
 
-        logits = tf.matmul(output, softmax_w) + softmax_b
-
-        loss = tf.contrib.legacy_seq2seq.sequence_loss_by_example([logits],
-                                                                  [tf.reshape(input_.targets, [-1])],
-                                                                  [tf.ones([batch_size * num_steps], dtype=tf.float32)])
-
-        self._cost = cost = tf.reduce_sum(loss) / batch_size
-        self._final_state = state
-
-        if not is_training:
-            return
-
-        self._lr        = tf.Variable(0.0, trainable=False)
-        tvars           = tf.trainable_variables()
-        grads, _        = tf.clip_by_global_norm(tf.gradients(cost, tvars), max_grad_norm)
-        optimizer       = tf.train.GradientDescentOptimizer(self._lr)
-        self._train_op  = optimizer.apply_gradients(zip(grads, tvars),
+        # TODO: Why is this set to zero?
+        self.learning_rate  = tf.Variable(initial_value=0.0, trainable=False)
+        grads, _            = tf.clip_by_global_norm(tf.gradients(self.cost, tf.trainable_variables()), max_grad_norm)
+        optimizer           = tf.train.GradientDescentOptimizer(self.learning_rate)
+        self._train_op  = optimizer.apply_gradients(zip(grads, tf.trainable_variables()),
                                                     global_step=tf.contrib.framework.get_or_create_global_step())
 
-        self._new_lr = tf.placeholder(tf.float32,
-                                      shape=[],
-                                      name="new_learning_rate")
-
-        self._lr_update = tf.assign(self._lr, self._new_lr)
+        # wth is this code design
+        self._new_lr = tf.placeholder(tf.float32, shape=[], name="new_learning_rate")
+        self._lr_update = tf.assign(self.learning_rate, self._new_lr)
 
     def assign_lr(self, session, lr_value):
         session.run(self._lr_update, feed_dict={self._new_lr: lr_value})
-
-    @property
-    def input(self):
-        return self._input
-
-    @property
-    def initial_state(self):
-        return self._initial_state
-
-    @property
-    def cost(self):
-        return self._cost
-
-    @property
-    def final_state(self):
-        return self._final_state
-
-    @property
-    def lr(self):
-        return self._lr
-
-    @property
-    def train_op(self):
-        return self._train_op
-
 
 
 if __name__ == "__main__":
@@ -152,37 +132,44 @@ if __name__ == "__main__":
     batch_size = 32
     num_time_steps = 1
 
-    # Setup data.
-    train_data, valid_data, test_data, vocab_size = ptb_raw_data(DATA_PATH)
+    # ===========================================================================================
+    # Setup
+    # ===========================================================================================
+
+    # Get data in the form of integer lists.
+    # The integers are indices to a vocabulary (size 'vocab_size') of words.
+    train_data, valid_data, test_data, _ = ptb_raw_data(DATA_PATH)
     describe_list("train_data", train_data)
     describe_list("valid_data", train_data)
     describe_list("test_data", test_data)
-    print("vocabulary=", vocab_size)
-
-    # y_train is just X_train time-shifted by one (think about it).
-    # They both have shape [batch_size, num_steps]
-    #X_train, y_train = ptb_producer(train_data, batch_size, num_steps=num_time_steps)
-    #print("X_train.shape =", X_train.shape)
-    #print("y_train.shape =", y_train.shape)
+    print("vocabulary=", PARAMS['vocab_size'])
 
 
-    # Setup model.
-    #initial_state = tf.zeros(shape=[batch_size, model.state_size[1]])
-
-    probabilities = []
-    loss = 0.0
-
+    # Open tf.Graph.as_default context manager, which overrides the current default graph for the lifetime of the context.
     with tf.Graph().as_default():
 
+        # random_uniform_initializer generates tensors with a uniform distribution over the specified range.
         initializer = tf.random_uniform_initializer(-0.1, 0.1)
 
+        def createModel(name_scope, data, is_training=False, reuse=True):
+            with tf.name_scope(name_scope):
+                input = SimpleInput(data=data, name=name_scope+"Input")
+                with tf.variable_scope("Model", reuse=reuse, initializer=initializer):
+                    model = SimpleModel(is_training=is_training, input=input)
+                if name_scope == "Train":
+                    tf.summary.scalar("Training Loss", model.cost)
+                    tf.summary.scalar("Learning Rate", model.learning_rate)
+                elif name_scope == "Valid":
+                    tf.summary.scalar("Validation Loss", model.cost)
+
+
+
+
+
         with tf.name_scope("Train"):
-            train_input = SimpleInput(data=train_data)
+            train_input = SimpleInput(data=train_data, name="TrainInput")
             with tf.variable_scope("Model", reuse=None, initializer=initializer):
-                model = SimpleModel(hidden_size=200,
-                                    vocab_size=vocab_size,
-                                    is_training=True,
-                                    input_=train_input)
+                model = SimpleModel(is_training=True, input_=train_input)
 
                 tf.summary.scalar("Training Loss", model.cost)
                 tf.summary.scalar("Learning Rate", model.lr)
@@ -197,7 +184,7 @@ if __name__ == "__main__":
         with tf.name_scope("Test"):
             test_input = SimpleInput(data=test_data, name="TestInput")
             with tf.variable_scope("Model", reuse=True, initializer=initializer):
-                mtest = SimpleModel(hidden_size=200, vocab_size=vocab_size, is_training=False, input_=test_input)
+                mtest = SimpleModel(is_training=False, input_=test_input)
 
         sv = tf.train.Supervisor(logdir=FLAGS.save_path)
 
