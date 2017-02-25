@@ -1,5 +1,6 @@
 import unittest
-from models.stripped_seq2seq import StrippedSimpleSeq2Seq
+
+from reference.stripped_seq2seq import StrippedSimpleSeq2Seq
 from util.datasets import get_train_data
 
 

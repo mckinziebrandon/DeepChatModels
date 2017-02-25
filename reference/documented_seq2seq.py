@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 from recurrentshop import LSTMCell, RecurrentContainer
-from .cells import LSTMDecoderCell, AttentionDecoderCell
+from cells import LSTMDecoderCell, AttentionDecoderCell
 from keras.models import Sequential, Model
 from keras.layers import Dense, Dropout, TimeDistributed, Bidirectional, Input
 

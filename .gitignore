@@ -28,3 +28,10 @@ __pycache__/*
 *logs/*
 logs/*
 **logs**
+
+**ckpt*
+*ckpt*
+models/*ckpt*
+models/*checkpoint*
+models/*out*
+models/*.pbtxt*

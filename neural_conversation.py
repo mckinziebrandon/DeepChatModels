@@ -36,6 +36,7 @@ df_index_train = pd.DataFrame(np.hstack((context_as_indices[:, None], utter_as_i
                               columns=['Context', 'Utterance'])
 print(len(df_index_train))
 print(df_index_train.head())
+exit()
 
 # ===================================================================
 print("Building model . . . ")
