@@ -3,12 +3,13 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-
+# Standard python imports.
 import random
-
-import numpy as np
+import sys
+# ML/DL-specific imports.
 import tensorflow as tf
-
+import numpy as np
+# User-defined imports.
 import data_utils as data_utils
 
 
@@ -18,7 +19,6 @@ class Seq2SeqModel(object):
     This class implements a multi-layer recurrent neural network as encoder,
     and an attention-based decoder.
     """
-
 
     def __init__(self,
                  source_vocab_size,
@@ -53,6 +53,10 @@ class Seq2SeqModel(object):
 
         from tensorflow.contrib.legacy_seq2seq import embedding_attention_seq2seq, model_with_buckets
 
+        # =====================================================================================================
+        # Store instance variables.
+        # =====================================================================================================
+
         self.source_vocab_size = source_vocab_size
         self.target_vocab_size = target_vocab_size
         self.buckets        = buckets
@@ -61,10 +65,14 @@ class Seq2SeqModel(object):
         self.lr_decay_op    = self.learning_rate.assign(lr_decay * self.learning_rate)
         self.global_step    = tf.Variable(initial_value=0, trainable=False)
 
-        # If we use sampled softmax, we need an output projection.
-        softmax_loss_function, output_projection = self._get_loss_fn(num_samples, size, self.target_vocab_size)
+        # =====================================================================================================
+        # Define basic components: cell(s) state, encoder, decoder.
+        # =====================================================================================================
 
-        # Create the internal multi-layer cell for our RNN.
+        # If we use sampled softmax, we need an output projection.
+        softmax_loss_function, output_projection = Seq2SeqModel._get_loss_fn(num_samples, size, self.target_vocab_size)
+
+        # Create the internal (potentially multi-layer) cell for our RNN.
         def single_cell():
             return tf.contrib.rnn.GRUCell(size)
         if num_layers > 1:
@@ -73,14 +81,20 @@ class Seq2SeqModel(object):
             cell = single_cell()
 
         # Feeds for encoder inputs.
-        max_input_length = buckets[-1][0]
+        max_input_length    = buckets[-1][0]
         self.encoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="encoder{0}".format(i)) for i in range(max_input_length)]
+
         # Feeds & weights for decoder inputs.
-        max_output_length = buckets[-1][1] + 1 # because we always append EOS after
+        max_output_length   = buckets[-1][1] + 1  # because we always append EOS after
         self.decoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="decoder{0}".format(i)) for i in range(max_output_length)]
         self.target_weights = [tf.placeholder(dtype, shape=[None], name="weight{0}".format(i)) for i in range(max_output_length)]
+
         # Our targets are decoder inputs shifted by one.
         targets = [self.decoder_inputs[i + 1] for i in range(len(self.decoder_inputs) - 1)]
+
+        # =====================================================================================================
+        # Combine the components to construct desired model architecture.
+        # =====================================================================================================
 
         # The seq2seq function: we use embedding for the input and attention.
         def seq2seq_f(encoder_inputs, decoder_inputs, do_decode):
@@ -97,32 +111,32 @@ class Seq2SeqModel(object):
 
         # If we use output projection, we need to project outputs for decoding.
         if forward_only and output_projection is not None:
-            self.outputs = self._get_projections(len(buckets), self.outputs, output_projection)
+            self.outputs = Seq2SeqModel._get_projections(len(buckets), self.outputs, output_projection)
 
+        # =====================================================================================================
+        # Configure training process (backward pass).
+        # =====================================================================================================
 
-
-        # Gradients and SGD update operation for training the model.
         params = tf.trainable_variables()
         if not forward_only:
             self.gradient_norms = []
             self.updates = []
             opt = tf.train.GradientDescentOptimizer(self.learning_rate)
-            print("Looping over", len(buckets), "buckets . . . ")
+            print("Looping over", len(buckets), "buckets.")
             for b in range(len(buckets)):
+                print("\rCurrent bucket:", b, end="")
+                sys.stdout.flush()
                 gradients = tf.gradients(self.losses[b], params)
-                clipped_gradients, norm = tf.clip_by_global_norm(gradients,
-                                                                 max_gradient_norm)
+                clipped_gradients, norm = tf.clip_by_global_norm(gradients, max_gradient_norm)
                 self.gradient_norms.append(norm)
-                self.updates.append(opt.apply_gradients(
-                    zip(clipped_gradients, params), global_step=self.global_step))
+                self.updates.append(opt.apply_gradients(zip(clipped_gradients, params), global_step=self.global_step))
 
         print("Creating saver and exiting . . . ")
         self.saver = tf.train.Saver(tf.global_variables())
 
 
-
-
-    def _get_loss_fn(self, num_samples: int, hidden_size: int, target_vocab_size: int):
+    @staticmethod
+    def _get_loss_fn(num_samples: int, hidden_size: int, target_vocab_size: int):
         """TODO
         :param num_samples:     (context: importance sampling) size of subset of outputs for softmax.
         :param hidden_size:     number of units in the individual recurrent states.
@@ -151,7 +165,9 @@ class Seq2SeqModel(object):
 
         return sampled_loss, output_projection
 
-    def _get_projections(self, num_buckets, unprojected_vals, projection_operator):
+
+    @staticmethod
+    def _get_projections(num_buckets, unprojected_vals, projection_operator):
         """Apply projection operator to unprojected_vals, a tuple of length num_buckets.
 
         :param num_buckets:         the number of projections that will be applied.
@@ -163,6 +179,7 @@ class Seq2SeqModel(object):
         for b in range(num_buckets):
             projected_vals[b] = [tf.matmul(output, projection_operator[0]) + projection_operator[1] for output in unprojected_vals[b]]
         return projected_vals
+
 
     def step(self, session, encoder_inputs, decoder_inputs, target_weights,
              bucket_id, forward_only):
@@ -223,6 +240,7 @@ class Seq2SeqModel(object):
             return outputs[1], outputs[2], None  # Gradient norm, loss, no outputs.
         else:
             return None, outputs[0], outputs[1:]  # No gradient norm, loss, outputs.
+
 
     def get_batch(self, data, bucket_id):
         """Get a random batch of data from the specified bucket, prepare for step.
