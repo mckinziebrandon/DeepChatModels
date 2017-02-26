@@ -10,7 +10,7 @@ from util.reader import ptb_raw_data, ptb_producer
 import pdb
 
 flags = tf.flags
-flags.DEFINE_string("save_path", "./models/", "Model output directory.")
+flags.DEFINE_string("save_path", "./logs/", "Model output directory.")
 FLAGS=flags.FLAGS
 
 DATA_PATH='/home/brandon/terabyte/Datasets/simple-examples/data'
