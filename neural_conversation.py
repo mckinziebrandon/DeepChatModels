@@ -1,77 +1,42 @@
-import pandas as pd
+"""Train seq2seq attention model on ubuntu dialogue corpus and chat with it after."""
 import os
 import sys
 import time
-
-import numpy as np
 import tensorflow as tf
-
 import data_utils
 from datasets import *
 from seq2seq_model import Seq2SeqModel
 
 # ------------ File parameter choices: --------------
-input_length = None #3
-embed_dim = 64
-vocab_size =  1000
-max_sent_len = 20
-hidden_dim = 256
-# ---------------------------------------------------
-
-CWD      = os.getcwd()
-HOME     ='/home/brandon/'
+VOCAB_SIZE =  5000
+CWD = os.getcwd()
+HOME ='/home/brandon/'
 DATA_DIR = HOME + 'terabyte/Datasets/ubuntu_dialogue_corpus'
 CKPT_DIR = os.path.join(CWD, 'logs')
-
-QUICK_RUN = False
-DECODE    = False
-
-MAX_STEPS       = 100
-STEPS_PER_CKPT  = 50
+MAX_STEPS = 100
+STEPS_PER_CKPT = 50
 MAX_TRAIN_SAMPLES = 100
-SIZE=256
 _buckets = [(5, 10), (15, 20)]
-
-flags = tf.app.flags
-tf.app.flags.DEFINE_float("learning_rate",              0.5, "Learning rate.")
-tf.app.flags.DEFINE_float("learning_rate_decay_factor", 0.98, "Learning rate decays by this much.")
-tf.app.flags.DEFINE_float("max_gradient_norm",          5.0, "Clip gradients to this norm.")
-tf.app.flags.DEFINE_integer("batch_size",               64, "Batch size to use during training.")
-tf.app.flags.DEFINE_integer("size",                     SIZE, "Size of each model layer.")           # Previous default: 1024
-tf.app.flags.DEFINE_integer("num_layers",               2, "Number of layers in the model.")        # Prev default: 3
-tf.app.flags.DEFINE_integer("from_vocab_size",          5000, "English vocabulary size.")          # Previous default 40000
-tf.app.flags.DEFINE_integer("to_vocab_size",            5000, "French vocabulary size.")          # Previous default 40000
-tf.app.flags.DEFINE_string("data_dir",                  DATA_DIR, "Data directory")
-tf.app.flags.DEFINE_string("train_dir",                 CKPT_DIR, "Training (checkpoints) directory.")
-tf.app.flags.DEFINE_string("from_train_data",           None, "Training data.")
-tf.app.flags.DEFINE_string("to_train_data",             None, "Training data.")
-tf.app.flags.DEFINE_string("from_dev_data",             None, "Training data.")
-tf.app.flags.DEFINE_string("to_dev_data",               None, "Training data.")
-tf.app.flags.DEFINE_integer("max_train_data_size",      MAX_TRAIN_SAMPLES, "Limit training data size (0: no limit).")
-tf.app.flags.DEFINE_integer("steps_per_checkpoint",     STEPS_PER_CKPT, "How many training steps to do per checkpoint.") #Prev def: 200
-tf.app.flags.DEFINE_boolean("decode",                   DECODE, "Set to True for interactive decoding.")
-tf.app.flags.DEFINE_boolean("self_test",                False, "Run a self-test if this is set to True.")
-FLAGS = tf.app.flags.FLAGS
+NUM_LAYERS = 2
+SIZE = 256
+# ---------------------------------------------------
 
 def create_model(session, forward_only):
     """Create translation model and initialize or load parameters in session."""
     print("Calling model constructor . . .")
-    model = Seq2SeqModel(FLAGS.from_vocab_size,
-                         FLAGS.to_vocab_size,
+    model = Seq2SeqModel(VOCAB_SIZE, VOCAB_SIZE,
                          _buckets,
-                         FLAGS.size,
-                         FLAGS.num_layers,
-                         FLAGS.max_gradient_norm,
-                         FLAGS.batch_size,
-                         FLAGS.learning_rate,
-                         FLAGS.learning_rate_decay_factor,
+                         size=SIZE,
+                         num_layers=NUM_LAYERS,
+                         max_gradient_norm=5.0,
+                         batch_size=64,
+                         learning_rate=0.5,
+                         lr_decay=0.98,
                          forward_only=forward_only,
                          dtype=tf.float32)
 
-    # Check if we can both (1) find a checkpoint state, and (2) a valid V1/V2 checkpoint path.
-    # If we can't, then just re-initialize model with fresh params.
     print("Checking for checkpoints . . .")
-    checkpoint_state  = tf.train.get_checkpoint_state(FLAGS.train_dir)
+    checkpoint_state  = tf.train.get_checkpoint_state(CKPT_DIR)
     if checkpoint_state and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
         print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
         model.saver.restore(session, checkpoint_state.model_checkpoint_path)
@@ -86,23 +51,25 @@ def train():
 
     with tf.Session() as sess:
         # Create model.
-        print("Creating %d layers of %d units." % (FLAGS.num_layers, FLAGS.size))
+        print("Creating %d layers of %d units." % (NUM_LAYERS, SIZE))
         model = create_model(sess, False)
 
 
         # Read data into buckets and compute their sizes.
-        print ("Reading development and training data (limit: %d)." % FLAGS.max_train_data_size)
-        train_set, dev_set = data_utils.read_data("ubuntu", FLAGS.data_dir,
+        print ("Reading development and training data (limit: %d)." % MAX_TRAIN_SAMPLES)
+        train_set, dev_set = data_utils.read_data("ubuntu",
+                                                  DATA_DIR,
                                                   _buckets,
-                                                  FLAGS.from_vocab_size,
-                                                  FLAGS.to_vocab_size,
-                                                  FLAGS.max_train_data_size)
+                                                  VOCAB_SIZE,
+                                                  max_train_data_size=MAX_TRAIN_SAMPLES)
 
         # Get number of samples for each bucket (i.e. train_bucket_sizes[1] == num-trn-samples-in-bucket-1).
         train_bucket_sizes = [len(train_set[b]) for b in range(len(_buckets))]
         # The total number training samples, excluding the ones too long for our bucket choices.
         train_total_size   = float(sum(train_bucket_sizes))
 
+        # TODO: dont 4get this is here.
+        exit()
         # A bucket scale is a list of increasing numbers from 0 to 1 that we'll use
         # to select a bucket. Length of [scale[i], scale[i+1]] is proportional to
         # the size if i-th training bucket, as used later.
@@ -131,11 +98,11 @@ def train():
                                          bucket_id,
                                          False)
 
-            step_time += (time.time() - start_time) / FLAGS.steps_per_checkpoint
-            loss      += avg_perplexity / FLAGS.steps_per_checkpoint
+            step_time += (time.time() - start_time) / STEPS_PER_CKPT
+            loss      += avg_perplexity / STEPS_PER_CKPT
 
             # Once in a while, we save checkpoint, print statistics, and run evals.
-            if i_step % FLAGS.steps_per_checkpoint == 0:
+            if i_step % STEPS_PER_CKPT == 0:
                 # Print statistics for the previous epoch.
                 perplexity = np.exp(float(loss)) if loss < 300 else float("inf")
                 print("\nglobal step:", model.global_step.eval(), end="  ")
@@ -149,7 +116,7 @@ def train():
                 previous_losses.append(loss)
 
                 # Save checkpoint and zero timer and loss.
-                checkpoint_path = os.path.join(FLAGS.train_dir, "translate.ckpt")
+                checkpoint_path = os.path.join(CKPT_DIR, "translate.ckpt")
                 model.saver.save(sess, checkpoint_path, global_step=model.global_step)
                 step_time, loss = 0.0, 0.0
 
@@ -167,12 +134,9 @@ def train():
                     print("  eval: bucket %d perplexity %.2f" % (bucket_id, eval_ppx))
                 sys.stdout.flush()
 
-        checkpoint_path = os.path.join(FLAGS.train_dir, "translate.ckpt")
+        checkpoint_path = os.path.join(CKPT_DIR, "translate.ckpt")
         model.saver.save(sess, checkpoint_path, global_step=model.global_step)
 
-def main(_):
-    train()
-
 if __name__ == "__main__":
-  tf.app.run()
+    train()
 

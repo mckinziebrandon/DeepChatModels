@@ -211,15 +211,14 @@ def prepare_wmt_data(data_dir, en_vocabulary_size, fr_vocabulary_size):
                         fr_vocabulary_size)
 
 def prepare_ubuntu_data(data_dir, vocab_size):
-
-    from_train_path = data_dir + "/from_100.txt"
-    to_train_path = data_dir + "/from_100.txt"
-
-    from_dev_path = data_dir + "/valid_from_100.txt"
-    to_dev_path = data_dir + "/valid_from_100.txt"
-    return prepare_data(data_dir, from_train_path, to_train_path, from_dev_path, to_dev_path,
-                        vocab_size,
-                        vocab_size)
+    from_train_path = data_dir + "/train_from.txt"
+    to_train_path   = data_dir + "/train_to.txt"
+    from_dev_path   = data_dir + "/valid_from.txt"
+    to_dev_path     = data_dir + "/valid_from.txt"
+    return prepare_data(data_dir,
+                        from_train_path, to_train_path,
+                        from_dev_path, to_dev_path,
+                        vocab_size, vocab_size)
 
 def prepare_data(data_dir, from_train_path, to_train_path,
                  from_dev_path, to_dev_path, from_vocabulary_size, to_vocabulary_size):
@@ -269,7 +268,9 @@ def prepare_data(data_dir, from_train_path, to_train_path,
 
 
 def read_data(dataset_name, data_dir, _buckets,
-              from_vocab_size, to_vocab_size, max_train_data_size):
+              from_vocab_size,
+              to_vocab_size=None,
+              max_train_data_size=1e6):
     """This is the main, and perhaps only, method that other files should use to access data.
     :param data_dir:
     :param _buckets:
@@ -278,6 +279,9 @@ def read_data(dataset_name, data_dir, _buckets,
     :param max_train_data_size:
     :return:
     """
+    if to_vocab_size == None:
+        to_vocab_size = from_vocab_size
+
     if dataset_name == "wmt":
         print("Preparing WMT data in %s" % data_dir)
 
@@ -298,7 +302,6 @@ def read_data(dataset_name, data_dir, _buckets,
         train, dev, _ = prepare_ubuntu_data(data_dir, from_vocab_size)
         from_train, to_train = train
         from_dev, to_dev     = dev
-        exit()
 
         # Read data into buckets (e.g. len(train_set) == len(buckets)).
         train_set   = _read_data(from_train, to_train, _buckets, max_train_data_size)
