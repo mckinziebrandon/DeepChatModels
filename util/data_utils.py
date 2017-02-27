@@ -1,19 +1,4 @@
-# Copyright 2015 The TensorFlow Authors. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
-
-"""Utilities for downloading data from WMT, tokenizing, vocabularies."""
+"""Utilities for downloading data from various datasets, tokenizing, vocabularies."""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -23,86 +8,40 @@ import os
 import re
 import tarfile
 import sys
+import pandas as pd
 
 from six.moves import urllib
 
 from tensorflow.python.platform import gfile
 import tensorflow as tf
 
-# Special vocabulary symbols - we always put them at the start.
-_PAD = b"_PAD"
-_GO = b"_GO"
-_EOS = b"_EOS"
-_UNK = b"_UNK"
+# Special vocabulary symbols.
+_PAD = b"_PAD"      # Append to unused space for both encoder/decoder.
+_GO  = b"_GO"       # Prepend to each decoder input.
+_EOS = b"_EOS"      # Append to outputs only. Stopping signal when decoding.
+_UNK = b"_UNK"      # For any symbols not in our vocabulary.
 _START_VOCAB = [_PAD, _GO, _EOS, _UNK]
 
-PAD_ID = 0
-GO_ID = 1
-EOS_ID = 2
-UNK_ID = 3
+# Enumerations for ease of use by this and other files.
+PAD_ID  = 0
+GO_ID   = 1
+EOS_ID  = 2
+UNK_ID  = 3
 
 # Regular expressions used to tokenize.
 _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
-_DIGIT_RE = re.compile(br"\d")
-
-# URLs for WMT data.
-_WMT_ENFR_TRAIN_URL = "http://www.statmt.org/wmt10/training-giga-fren.tar"
-_WMT_ENFR_DEV_URL = "http://www.statmt.org/wmt15/dev-v2.tgz"
-
-
-def maybe_download(directory, filename, url):
-    """Download filename from url unless it's already in directory."""
-    if not os.path.exists(directory):
-        print("Creating directory %s" % directory)
-        os.mkdir(directory)
-    filepath = os.path.join(directory, filename)
-    if not os.path.exists(filepath):
-        print("Downloading %s to %s" % (url, filepath))
-        filepath, _ = urllib.request.urlretrieve(url, filepath)
-        statinfo = os.stat(filepath)
-        print("Successfully downloaded", filename, statinfo.st_size, "bytes")
-    return filepath
-
-
-def gunzip_file(gz_path, new_path):
-    """Unzips from gz_path into new_path."""
-    print("Unpacking %s to %s" % (gz_path, new_path))
-    with gzip.open(gz_path, "rb") as gz_file:
-        with open(new_path, "wb") as new_file:
-            for line in gz_file:
-                new_file.write(line)
-
+_DIGIT_RE   = re.compile(br"\d")
 
 def get_wmt_enfr_train_set(directory):
     """Download the WMT en-fr training corpus to directory unless it's there."""
-    train_path = os.path.join(directory, "giga-fren.release2.fixed")
-    if not (gfile.Exists(train_path +".fr") and gfile.Exists(train_path +".en")):
-        corpus_file = maybe_download(directory, "training-giga-fren.tar",
-                                     _WMT_ENFR_TRAIN_URL)
-        print("Extracting tar file %s" % corpus_file)
-        with tarfile.open(corpus_file, "r") as corpus_tar:
-            corpus_tar.extractall(directory)
-        gunzip_file(train_path + ".fr.gz", train_path + ".fr")
-        gunzip_file(train_path + ".en.gz", train_path + ".en")
-    return train_path
+    return os.path.join(directory, "giga-fren.release2.fixed")
 
 
 def get_wmt_enfr_dev_set(directory):
     """Download the WMT en-fr training corpus to directory unless it's there."""
     dev_name = "newstest2013"
     dev_path = os.path.join(directory, dev_name)
-    if not (gfile.Exists(dev_path + ".fr") and gfile.Exists(dev_path + ".en")):
-        dev_file = maybe_download(directory, "dev-v2.tgz", _WMT_ENFR_DEV_URL)
-        print("Extracting tgz file %s" % dev_file)
-        with tarfile.open(dev_file, "r:gz") as dev_tar:
-            fr_dev_file = dev_tar.getmember("dev/" + dev_name + ".fr")
-            en_dev_file = dev_tar.getmember("dev/" + dev_name + ".en")
-            fr_dev_file.name = dev_name + ".fr"  # Extract without "dev/" prefix.
-            en_dev_file.name = dev_name + ".en"
-            dev_tar.extract(fr_dev_file, directory)
-            dev_tar.extract(en_dev_file, directory)
     return dev_path
-
 
 def basic_tokenizer(sentence):
     """Very basic tokenizer: split the sentence into a list of tokens."""
@@ -112,8 +51,7 @@ def basic_tokenizer(sentence):
     return [w for w in words if w]
 
 
-def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size,
-                      tokenizer=None, normalize_digits=True):
+def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size, normalize_digits=True):
     """Create vocabulary file (if it does not exist yet) from data file.
 
     Data file is assumed to contain one sentence per line. Each sentence is
@@ -130,29 +68,35 @@ def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size,
         if None, basic_tokenizer will be used.
       normalize_digits: Boolean; if true, all digits are replaced by 0s.
     """
-    if not gfile.Exists(vocabulary_path):
-        print("Creating vocabulary %s from data %s" % (vocabulary_path, data_path))
-        vocab = {}
-        with gfile.GFile(data_path, mode="rb") as f:
-            counter = 0
-            for line in f:
-                counter += 1
-                if counter % 100000 == 0:
-                    print("  processing line %d" % counter)
-                line = tf.compat.as_bytes(line)
-                tokens = tokenizer(line) if tokenizer else basic_tokenizer(line)
-                for w in tokens:
-                    word = _DIGIT_RE.sub(b"0", w) if normalize_digits else w
-                    if word in vocab:
-                        vocab[word] += 1
-                    else:
-                        vocab[word] = 1
-            vocab_list = _START_VOCAB + sorted(vocab, key=vocab.get, reverse=True)
-            if len(vocab_list) > max_vocabulary_size:
-                vocab_list = vocab_list[:max_vocabulary_size]
-            with gfile.GFile(vocabulary_path, mode="wb") as vocab_file:
-                for w in vocab_list:
-                    vocab_file.write(w + b"\n")
+
+    if gfile.Exists(vocabulary_path): return
+
+    print("Creating vocabulary %s from data %s" % (vocabulary_path, data_path))
+    vocab = {}
+    with gfile.GFile(data_path, mode="rb") as f:
+        counter = 0
+        for line in f:
+            counter += 1
+            if counter % 100000 == 0:
+                print("  processing line %d" % counter)
+
+            line   = tf.compat.as_bytes(line)
+            tokens = basic_tokenizer(line)
+            for w in tokens:
+                word = _DIGIT_RE.sub(b"0", w) if normalize_digits else w
+                if word in vocab:
+                    vocab[word] += 1
+                else:
+                    vocab[word] = 1
+
+        # Get sorted vocabulary, from most frequent to least frequent.
+        vocab_list = _START_VOCAB + sorted(vocab, key=vocab.get, reverse=True)
+        vocab_list = vocab_list[:max_vocabulary_size]
+
+        # Write the list to a file.
+        with gfile.GFile(vocabulary_path, mode="wb") as vocab_file:
+            for w in vocab_list:
+                vocab_file.write(w + b"\n")
 
 
 def initialize_vocabulary(vocabulary_path):
@@ -185,8 +129,7 @@ def initialize_vocabulary(vocabulary_path):
         raise ValueError("Vocabulary file %s not found.", vocabulary_path)
 
 
-def sentence_to_token_ids(sentence, vocabulary,
-                          tokenizer=None, normalize_digits=True):
+def sentence_to_token_ids(sentence, vocabulary, normalize_digits=True):
     """Convert a string to list of integers representing token-ids.
 
     For example, a sentence "I have a dog" may become tokenized into
@@ -196,26 +139,21 @@ def sentence_to_token_ids(sentence, vocabulary,
     Args:
       sentence: the sentence in bytes format to convert to token-ids.
       vocabulary: a dictionary mapping tokens to integers.
-      tokenizer: a function to use to tokenize each sentence;
-        if None, basic_tokenizer will be used.
       normalize_digits: Boolean; if true, all digits are replaced by 0s.
 
     Returns:
       a list of integers, the token-ids for the sentence.
     """
+    words = basic_tokenizer(sentence)
 
-    if tokenizer:
-        words = tokenizer(sentence)
-    else:
-        words = basic_tokenizer(sentence)
     if not normalize_digits:
         return [vocabulary.get(w, UNK_ID) for w in words]
+
     # Normalize digits by 0 before looking words up in the vocabulary.
     return [vocabulary.get(_DIGIT_RE.sub(b"0", w), UNK_ID) for w in words]
 
 
-def data_to_token_ids(data_path, target_path, vocabulary_path,
-                      tokenizer=None, normalize_digits=True):
+def data_to_token_ids(data_path, target_path, vocabulary_path, normalize_digits=True):
     """Tokenize data file and turn into token-ids using given vocabulary file.
 
     This function loads data line-by-line from data_path, calls the above
@@ -226,8 +164,6 @@ def data_to_token_ids(data_path, target_path, vocabulary_path,
       data_path: path to the data file in one-sentence-per-line format.
       target_path: path where the file with token-ids will be created.
       vocabulary_path: path to the vocabulary file.
-      tokenizer: a function to use to tokenize each sentence;
-        if None, basic_tokenizer will be used.
       normalize_digits: Boolean; if true, all digits are replaced by 0s.
     """
     if not gfile.Exists(target_path):
@@ -240,20 +176,17 @@ def data_to_token_ids(data_path, target_path, vocabulary_path,
                     counter += 1
                     if counter % 100000 == 0:
                         print("  tokenizing line %d" % counter)
-                    token_ids = sentence_to_token_ids(tf.compat.as_bytes(line), vocab,
-                                                      tokenizer, normalize_digits)
+                    token_ids = sentence_to_token_ids(tf.compat.as_bytes(line), vocab, normalize_digits)
                     tokens_file.write(" ".join([str(tok) for tok in token_ids]) + "\n")
 
 
-def prepare_wmt_data(data_dir, en_vocabulary_size, fr_vocabulary_size, tokenizer=None):
+def prepare_wmt_data(data_dir, en_vocabulary_size, fr_vocabulary_size):
     """Get WMT data into data_dir, create vocabularies and tokenize data.
 
     Args:
       data_dir: directory in which the data sets will be stored.
       en_vocabulary_size: size of the English vocabulary to create and use.
       fr_vocabulary_size: size of the French vocabulary to create and use.
-      tokenizer: a function to use to tokenize each data sentence;
-        if None, basic_tokenizer will be used.
 
     Returns:
       A tuple of 6 elements:
@@ -263,6 +196,8 @@ def prepare_wmt_data(data_dir, en_vocabulary_size, fr_vocabulary_size, tokenizer
         (4) path to the token-ids for French development data-set,
         (5) path to the English vocabulary file,
         (6) path to the French vocabulary file.
+
+        DEV MEANS VALID IDK WHY THEY DID THIS
     """
     # Get wmt data to the specified directory.
     train_path = get_wmt_enfr_train_set(data_dir)
@@ -273,12 +208,22 @@ def prepare_wmt_data(data_dir, en_vocabulary_size, fr_vocabulary_size, tokenizer
     from_dev_path = dev_path + ".en"
     to_dev_path = dev_path + ".fr"
     return prepare_data(data_dir, from_train_path, to_train_path, from_dev_path, to_dev_path, en_vocabulary_size,
-                        fr_vocabulary_size, tokenizer)
+                        fr_vocabulary_size)
 
+def prepare_ubuntu_data(data_dir, vocab_size):
 
-def prepare_data(data_dir, from_train_path, to_train_path, from_dev_path, to_dev_path, from_vocabulary_size,
-                 to_vocabulary_size, tokenizer=None):
-    """Preapre all necessary files that are required for the training.
+    from_train_path = data_dir + "/from_100.txt"
+    to_train_path = data_dir + "/from_100.txt"
+
+    from_dev_path = data_dir + "/valid_from_100.txt"
+    to_dev_path = data_dir + "/valid_from_100.txt"
+    return prepare_data(data_dir, from_train_path, to_train_path, from_dev_path, to_dev_path,
+                        vocab_size,
+                        vocab_size)
+
+def prepare_data(data_dir, from_train_path, to_train_path,
+                 from_dev_path, to_dev_path, from_vocabulary_size, to_vocabulary_size):
+    """Prepare all necessary files that are required for the training.
 
       Args:
         data_dir: directory in which the data sets will be stored.
@@ -288,8 +233,6 @@ def prepare_data(data_dir, from_train_path, to_train_path, from_dev_path, to_dev
         to_dev_path: path to the file that includes "to" dev samples.
         from_vocabulary_size: size of the "from language" vocabulary to create and use.
         to_vocabulary_size: size of the "to language" vocabulary to create and use.
-        tokenizer: a function to use to tokenize each data sentence;
-          if None, basic_tokenizer will be used.
 
       Returns:
         A tuple of 6 elements:
@@ -303,20 +246,20 @@ def prepare_data(data_dir, from_train_path, to_train_path, from_dev_path, to_dev
     # Create vocabularies of the appropriate sizes.
     to_vocab_path = os.path.join(data_dir, "vocab%d.to" % to_vocabulary_size)
     from_vocab_path = os.path.join(data_dir, "vocab%d.from" % from_vocabulary_size)
-    create_vocabulary(to_vocab_path, to_train_path , to_vocabulary_size, tokenizer)
-    create_vocabulary(from_vocab_path, from_train_path , from_vocabulary_size, tokenizer)
+    create_vocabulary(to_vocab_path, to_train_path , to_vocabulary_size)
+    create_vocabulary(from_vocab_path, from_train_path , from_vocabulary_size)
 
     # Create token ids for the training data.
     to_train_ids_path = to_train_path + (".ids%d" % to_vocabulary_size)
     from_train_ids_path = from_train_path + (".ids%d" % from_vocabulary_size)
-    data_to_token_ids(to_train_path, to_train_ids_path, to_vocab_path, tokenizer)
-    data_to_token_ids(from_train_path, from_train_ids_path, from_vocab_path, tokenizer)
+    data_to_token_ids(to_train_path, to_train_ids_path, to_vocab_path)
+    data_to_token_ids(from_train_path, from_train_ids_path, from_vocab_path)
 
     # Create token ids for the development data.
     to_dev_ids_path = to_dev_path + (".ids%d" % to_vocabulary_size)
     from_dev_ids_path = from_dev_path + (".ids%d" % from_vocabulary_size)
-    data_to_token_ids(to_dev_path, to_dev_ids_path, to_vocab_path, tokenizer)
-    data_to_token_ids(from_dev_path, from_dev_ids_path, from_vocab_path, tokenizer)
+    data_to_token_ids(to_dev_path, to_dev_ids_path, to_vocab_path)
+    data_to_token_ids(from_dev_path, from_dev_ids_path, from_vocab_path)
 
     train_ids_path = [from_train_ids_path, to_train_ids_path]
     dev_ids_path = [from_dev_ids_path, to_dev_ids_path]
@@ -325,20 +268,42 @@ def prepare_data(data_dir, from_train_path, to_train_path, from_dev_path, to_dev
 
 
 
-def read_data(data_dir, _buckets, from_vocab_size, to_vocab_size, max_train_data_size):
-    print("Preparing WMT data in %s" % data_dir)
+def read_data(dataset_name, data_dir, _buckets,
+              from_vocab_size, to_vocab_size, max_train_data_size):
+    """This is the main, and perhaps only, method that other files should use to access data.
+    :param data_dir:
+    :param _buckets:
+    :param from_vocab_size:
+    :param to_vocab_size:
+    :param max_train_data_size:
+    :return:
+    """
+    if dataset_name == "wmt":
+        print("Preparing WMT data in %s" % data_dir)
 
-    # Setup the data in appropriate directories and return desired PATHS.
-    print("Vocab size is", from_vocab_size)
-    train, dev, _ = prepare_wmt_data(data_dir, from_vocab_size, to_vocab_size)
-    from_train, to_train = train
-    from_dev, to_dev     = dev
+        # Setup the data in appropriate directories and return desired PATHS.
+        print("Vocab size is", from_vocab_size)
+        train, dev, _ = prepare_wmt_data(data_dir, from_vocab_size, to_vocab_size)
+        from_train, to_train = train
+        from_dev, to_dev     = dev
 
-    # Read data into buckets (e.g. len(train_set) == len(buckets)).
-    train_set   = _read_data(from_train, to_train, _buckets, max_train_data_size)
-    dev_set     = _read_data(from_dev, to_dev, _buckets)
-    return train_set, dev_set
+        # Read data into buckets (e.g. len(train_set) == len(buckets)).
+        train_set   = _read_data(from_train, to_train, _buckets, max_train_data_size)
+        dev_set     = _read_data(from_dev, to_dev, _buckets)
+        return train_set, dev_set
+    else:
+        print("Preparing Ubuntu data in %s" % data_dir)
+        # Setup the data in appropriate directories and return desired PATHS.
+        print("Vocab size is", from_vocab_size)
+        train, dev, _ = prepare_ubuntu_data(data_dir, from_vocab_size)
+        from_train, to_train = train
+        from_dev, to_dev     = dev
+        exit()
 
+        # Read data into buckets (e.g. len(train_set) == len(buckets)).
+        train_set   = _read_data(from_train, to_train, _buckets, max_train_data_size)
+        dev_set     = _read_data(from_dev, to_dev, _buckets)
+        return train_set, dev_set
 
 def _read_data(source_path, target_path, _buckets, max_size=None):
     """Read data from source and target files and put into buckets.

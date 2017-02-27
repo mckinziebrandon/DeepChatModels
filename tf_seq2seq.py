@@ -37,11 +37,16 @@ QUICK_RUN = False
 DECODE    = False
 SIZE=1024
 
+# We use a number of buckets and pad to the closest one for efficiency.
+# Source (target) sentences longer than  _buckets[-1][0 (1)] will simply not be added to the dataset.
+_buckets = [(5, 10), (15, 20), (35, 45)]
+
 if DEBUG_RUN:
     MAX_STEPS       = 500
     STEPS_PER_CKPT  = 100
     MAX_TRAIN_SAMPLES = 1e5
     SIZE=256
+    _buckets = [(5, 10), (15, 20)]
 elif QUICK_RUN:
     MAX_STEPS           = 2000
     STEPS_PER_CKPT      = 200
@@ -51,9 +56,6 @@ else:
     STEPS_PER_CKPT      = 500
     MAX_TRAIN_SAMPLES   = 0
 
-# We use a number of buckets and pad to the closest one for efficiency.
-# Source (target) sentences longer than  _buckets[-1][0 (1)] will simply not be added to the dataset.
-_buckets = [(5, 10), (15, 20), (35, 45)]
 
 # WARNING: The french data file alone has over 22 MILLION LINES. So think before changing from defaults because time exists.
 flags = tf.app.flags
@@ -115,7 +117,7 @@ def train():
 
         # Read data into buckets and compute their sizes.
         print ("Reading development and training data (limit: %d)." % FLAGS.max_train_data_size)
-        train_set, dev_set = data_utils.read_data(FLAGS.data_dir,
+        train_set, dev_set = data_utils.read_data("wmt", FLAGS.data_dir,
                                                   _buckets,
                                                   FLAGS.from_vocab_size,
                                                   FLAGS.to_vocab_size,
@@ -145,6 +147,7 @@ def train():
             start_time = time.time()
             # Recall that target_weights are NOT parameter weights; they are weights in the sense of "weighted average."
             encoder_inputs, decoder_inputs, target_weights = model.get_batch(train_set, bucket_id)
+            print("hi")
             _, avg_perplexity, _ = model.step(sess,
                                          encoder_inputs,
                                          decoder_inputs,
@@ -154,7 +157,6 @@ def train():
 
             step_time += (time.time() - start_time) / FLAGS.steps_per_checkpoint
             loss      += avg_perplexity / FLAGS.steps_per_checkpoint
-
 
             # Once in a while, we save checkpoint, print statistics, and run evals.
             if i_step % FLAGS.steps_per_checkpoint == 0:
@@ -169,7 +171,6 @@ def train():
                 if len(previous_losses) > 1 and loss > max(previous_losses[-2:]):
                     sess.run(model.lr_decay_op)
                 previous_losses.append(loss)
-
 
                 # Save checkpoint and zero timer and loss.
                 checkpoint_path = os.path.join(FLAGS.train_dir, "translate.ckpt")
@@ -246,8 +247,6 @@ def decode():
             if sentence[:-1] == 'exit':
                 print("Fine, bye :(")
                 break
-
-
 
 
 def main(_):
