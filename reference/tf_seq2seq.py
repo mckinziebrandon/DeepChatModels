@@ -30,7 +30,7 @@ from seq2seq_model import Seq2SeqModel
 CWD      = os.getcwd()
 HOME     ='/home/brandon/'
 DATA_DIR = HOME + 'terabyte/Datasets/wmt'
-CKPT_DIR = os.path.join(CWD, 'logs')
+CKPT_DIR = os.path.join(CWD, 'out')
 
 DEBUG_RUN = True    # could also be called "RIDICULOUSLY_QUICK_RUN_FOR_TESTING_PURPOSES"
 QUICK_RUN = False

@@ -1,23 +1,25 @@
 """Train seq2seq attention model on ubuntu dialogue corpus and chat with it after."""
+import logging
 import os
 import sys
 import time
+
 import tensorflow as tf
+
 import data_utils
+from chatbot.model import Seq2SeqModel
 from datasets import *
-from seq2seq_model import Seq2SeqModel
-import logging
 
 # ------------ File parameter choices: --------------
-VOCAB_SIZE = 20000
+VOCAB_SIZE = 40000
 CWD = os.getcwd()
 HOME ='/home/brandon/'
 DATA_DIR = HOME + 'terabyte/Datasets/ubuntu_dialogue_corpus'
-CKPT_DIR = os.path.join(CWD, 'logs')
-MAX_STEPS = int(1e5)
-STEPS_PER_CKPT = 100
+CKPT_DIR = os.path.join(CWD, 'out')
+MAX_STEPS = int(3e5)
+STEPS_PER_CKPT = 500
 MAX_TRAIN_SAMPLES = int(1e6)
-_buckets = [(5, 10), (15, 20), (25, 40)]
+_buckets = [(5, 10), (20, 30), (40, 50)]
 NUM_LAYERS = 3
 SIZE = 512
 # ---------------------------------------------------

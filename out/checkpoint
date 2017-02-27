@@ -1,0 +1,6 @@
+model_checkpoint_path: "/home/brandon/Documents/seq2seq_projects/logs/converse.ckpt-136501"
+all_model_checkpoint_paths: "/home/brandon/Documents/seq2seq_projects/logs/converse.ckpt-134501"
+all_model_checkpoint_paths: "/home/brandon/Documents/seq2seq_projects/logs/converse.ckpt-135001"
+all_model_checkpoint_paths: "/home/brandon/Documents/seq2seq_projects/logs/converse.ckpt-135501"
+all_model_checkpoint_paths: "/home/brandon/Documents/seq2seq_projects/logs/converse.ckpt-136001"
+all_model_checkpoint_paths: "/home/brandon/Documents/seq2seq_projects/logs/converse.ckpt-136501"

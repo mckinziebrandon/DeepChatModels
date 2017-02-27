@@ -20,7 +20,7 @@ class TestTensorBoard(unittest.TestCase):
         X_train, y_train = get_train_data('nietzsche', vocab_size)
         testRNN = MyRNN(vocab_size)
         testRNN.fit(X_train, y_train, nb_epoch=1, verbose=1, callbacks=[tb_callback])
-        os.system('tensorboard --logdir=./logs')
+        os.system('tensorboard --logdir=./out')
 
 
 
@@ -43,7 +43,7 @@ class TestTensorBoard(unittest.TestCase):
 
 
         # Launch tensorboard.
-        os.system('tensorboard --logdir=./logs')
+        os.system('tensorboard --logdir=./out')
 
 class PLEASETestTensorBoardPLEASE(unittest.TestCase):
 
@@ -67,7 +67,7 @@ class PLEASETestTensorBoardPLEASE(unittest.TestCase):
         model.compile(loss='mse', optimizer='rmsprop')
         model.fit(X_train, y_train, nb_epoch=1, verbose=1, callbacks=[tb_callback])
         # Launch tensorboard.
-        os.system('tensorboard --logdir=./logs')
+        os.system('tensorboard --logdir=./out')
 
         # well, that wasn't very illuminating . . . . :/
 
