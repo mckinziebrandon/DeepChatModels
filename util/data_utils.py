@@ -2,14 +2,12 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-
 import gzip
 import os
 import re
 import tarfile
 import sys
 import pandas as pd
-
 from six.moves import urllib
 
 from tensorflow.python.platform import gfile
@@ -49,7 +47,6 @@ def basic_tokenizer(sentence):
     for space_separated_fragment in sentence.strip().split():
         words.extend(_WORD_SPLIT.split(space_separated_fragment))
     return [w for w in words if w]
-
 
 def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size, normalize_digits=True):
     """Create vocabulary file (if it does not exist yet) from data file.
@@ -265,8 +262,6 @@ def prepare_data(data_dir, from_train_path, to_train_path,
     vocab_path = [from_vocab_path, to_vocab_path]
     return (train_ids_path, dev_ids_path, vocab_path)
 
-
-
 def read_data(dataset_name, data_dir, _buckets,
               from_vocab_size,
               to_vocab_size=None,
@@ -282,31 +277,19 @@ def read_data(dataset_name, data_dir, _buckets,
     if to_vocab_size == None:
         to_vocab_size = from_vocab_size
 
-    if dataset_name == "wmt":
-        print("Preparing WMT data in %s" % data_dir)
+    # Setup the data in appropriate directories and return desired PATHS.
+    print("Preparing %s data in %s" % (dataset_name, data_dir))
+    print("Vocab size is", from_vocab_size)
+    if dataset_name == "wmt": train, dev, _ = prepare_wmt_data(data_dir, from_vocab_size, to_vocab_size)
+    else: train, dev, _ = prepare_ubuntu_data(data_dir, from_vocab_size)
 
-        # Setup the data in appropriate directories and return desired PATHS.
-        print("Vocab size is", from_vocab_size)
-        train, dev, _ = prepare_wmt_data(data_dir, from_vocab_size, to_vocab_size)
-        from_train, to_train = train
-        from_dev, to_dev     = dev
+    from_train, to_train = train
+    from_dev, to_dev     = dev
 
-        # Read data into buckets (e.g. len(train_set) == len(buckets)).
-        train_set   = _read_data(from_train, to_train, _buckets, max_train_data_size)
-        dev_set     = _read_data(from_dev, to_dev, _buckets)
-        return train_set, dev_set
-    else:
-        print("Preparing Ubuntu data in %s" % data_dir)
-        # Setup the data in appropriate directories and return desired PATHS.
-        print("Vocab size is", from_vocab_size)
-        train, dev, _ = prepare_ubuntu_data(data_dir, from_vocab_size)
-        from_train, to_train = train
-        from_dev, to_dev     = dev
-
-        # Read data into buckets (e.g. len(train_set) == len(buckets)).
-        train_set   = _read_data(from_train, to_train, _buckets, max_train_data_size)
-        dev_set     = _read_data(from_dev, to_dev, _buckets)
-        return train_set, dev_set
+    # Read data into buckets (e.g. len(train_set) == len(buckets)).
+    train_set   = _read_data(from_train, to_train, _buckets, max_train_data_size)
+    dev_set     = _read_data(from_dev, to_dev, _buckets)
+    return train_set, dev_set
 
 def _read_data(source_path, target_path, _buckets, max_size=None):
     """Read data from source and target files and put into buckets.
