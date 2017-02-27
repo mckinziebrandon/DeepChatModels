@@ -7,7 +7,7 @@ import time
 import tensorflow as tf
 
 import data_utils
-from chatbot.model import Seq2SeqModel
+from chatbot.model import Chatbot
 from datasets import *
 
 # ------------ File parameter choices: --------------
@@ -27,16 +27,16 @@ SIZE = 512
 def create_model(session, forward_only):
     """Create translation model and initialize or load parameters in session."""
     print("Calling model constructor . . .")
-    model = Seq2SeqModel(VOCAB_SIZE, VOCAB_SIZE,
-                         _buckets,
-                         size=SIZE,
-                         num_layers=NUM_LAYERS,
-                         max_gradient_norm=5.0,
-                         batch_size=64,
-                         learning_rate=0.5,
-                         lr_decay=0.98,
-                         forward_only=forward_only,
-                         dtype=tf.float32)
+    model = Chatbot(VOCAB_SIZE, VOCAB_SIZE,
+                    _buckets,
+                    layer_size=SIZE,
+                    num_layers=NUM_LAYERS,
+                    max_gradient=5.0,
+                    batch_size=64,
+                    learning_rate=0.5,
+                    lr_decay=0.98,
+                    is_decoding=forward_only,
+                    dtype=tf.float32)
 
     print("Checking for checkpoints . . .")
     checkpoint_state  = tf.train.get_checkpoint_state(CKPT_DIR)

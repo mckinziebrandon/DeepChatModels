@@ -4,7 +4,7 @@ from keras.callbacks import TensorBoard
 from keras.models import Sequential
 from keras.layers import Dense, Activation
 from models.minimal_rnn import MyRNN
-from util.datasets import *
+from utils.datasets import *
 import os
 import numpy as np
 import seq2seq

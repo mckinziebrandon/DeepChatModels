@@ -5,8 +5,8 @@
 import tensorflow as tf
 import numpy as np
 import time
-from util.printer import *
-from util.reader import ptb_raw_data, ptb_producer
+from utils.printer import *
+from utils.reader import ptb_raw_data, ptb_producer
 import pdb
 
 flags = tf.flags

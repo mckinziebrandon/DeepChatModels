@@ -1,6 +1,6 @@
 import unittest
 from models.minimal_rnn import MyRNN
-from util.datasets import *
+from utils.datasets import *
 
 
 class TestMinimalRNN(unittest.TestCase):

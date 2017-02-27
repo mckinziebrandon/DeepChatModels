@@ -1,19 +1,19 @@
 """Sequence-to-sequence model with an attention mechanism."""
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 # Standard python imports.
 import random
-import sys
 # ML/DL-specific imports.
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
+from tensorflow.contrib.legacy_seq2seq import embedding_attention_seq2seq
+from tensorflow.contrib.legacy_seq2seq import model_with_buckets
 # User-defined imports.
-import data_utils as data_utils
+from utils import *
 
 
-class Seq2SeqModel(object):
+class Chatbot(object):
     """Sequence-to-sequence model with attention and for multiple buckets.
 
     This class implements a multi-layer recurrent neural network as encoder,
@@ -21,49 +21,49 @@ class Seq2SeqModel(object):
     """
 
     def __init__(self,
-                 source_vocab_size,
-                 target_vocab_size,
+                 config,
                  buckets,
-                 size,
-                 num_layers,
-                 max_gradient_norm,
-                 batch_size,
-                 learning_rate,
-                 lr_decay,
-                 num_samples=512,
-                 forward_only=False,
-                 dtype=tf.float32):
+                 vocab_size=40000,
+                 layer_size=512,
+                 num_layers=3,
+                 max_gradient=5.0,
+                 batch_size=64,
+                 learning_rate=0.5,
+                 lr_decay=0.98,
+                 num_softmax_samp=512,
+                 is_decoding=False,
+                 dataset_name = "ubuntu"):
         """Create the model.
 
         Args:
-          source_vocab_size:    size of the source vocabulary.
-          target_vocab_size:    size of the target vocabulary.
-          buckets:              a list of pairs (I, O), where I (O) specifies maximum input (output) length
-                                that will be processed in that bucket
-          size:                 number of units in each layer of the model.
-          num_layers:           number of layers in the model.
-          max_gradient_norm:    gradients will be clipped to maximally this norm.
-          batch_size:           the size of the batches used during training;
-          learning_rate:        learning rate to start with.
-          lr_decay:             decay learning rate by this much when needed.
-          num_samples:          number of samples for sampled softmax.
-          forward_only:         if set, we do not construct the backward pass in the model.
-          dtype:                the data type to use to store internal variables.
+          vocab_size:   size of the source vocabulary.
+          buckets:      a list of pairs (I, O), where I (O) specifies maximum input (output) length
+                        that will be processed in that bucket
+          layer_size:   number of units in each layer of the model.
+          num_layers:   number of layers in the model.
+          max_gradient: gradients will be clipped to maximally this norm.
+          batch_size:   the size of the batches used during training;
+          learning_rate:    learning rate to start with.
+          lr_decay:         decay learning rate by this much when needed.
+          num_softmax_samp: number of samples for sampled softmax.
+          is_decoding:      if set, we do not construct the backward pass in the model.
+          config: TODO
         """
 
-        from tensorflow.contrib.legacy_seq2seq import embedding_attention_seq2seq, model_with_buckets
+        print("Beginning model construction . . . ")
 
         # =====================================================================================================
         # Store instance variables.
         # =====================================================================================================
 
-        self.source_vocab_size = source_vocab_size
-        self.target_vocab_size = target_vocab_size
+        self.vocab_size = vocab_size
         self.buckets        = buckets
         self.batch_size     = batch_size
-        self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=dtype)
-        self.lr_decay_op    = self.learning_rate.assign(lr_decay * self.learning_rate)
+        self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
+        self.lr_decay_op    = self.learning_rate.assign(learning_rate * lr_decay)
         self.global_step    = tf.Variable(initial_value=0, trainable=False)
+        self.dataset_name   = dataset_name
+        self.config = config
 
         # =====================================================================================================
         # Define basic components: cell(s) state, encoder, decoder.
@@ -71,7 +71,7 @@ class Seq2SeqModel(object):
 
         # Create the internal (potentially multi-layer) cell for our RNN.
         def single_cell():
-            return tf.contrib.rnn.GRUCell(size)
+            return tf.contrib.rnn.GRUCell(layer_size)
         if num_layers > 1:
             cell = tf.contrib.rnn.MultiRNNCell([single_cell() for _ in range(num_layers)])
         else:
@@ -86,17 +86,17 @@ class Seq2SeqModel(object):
         max_output_length   = buckets[-1][1] + 1  # because we always append EOS after
         self.decoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="decoder{0}".format(i))
                                for i in range(max_output_length)]
-        self.target_weights = [tf.placeholder(dtype, shape=[None], name="weight{0}".format(i))
+        self.target_weights = [tf.placeholder(tf.float32, shape=[None], name="weight{0}".format(i))
                                for i in range(max_output_length)]
 
         # Our targets are decoder inputs shifted by one.
         targets = [self.decoder_inputs[i + 1] for i in range(len(self.decoder_inputs) - 1)]
 
-        # Use sampled softmax if (1) user wants to: [num_samples>0],
-        # and (2) it makes sense to do so: [num_samples<target_vocab_size].
-        if 0 < num_samples < self.target_vocab_size:
-            softmax_loss_function, output_projection = Seq2SeqModel._sampled_softmax_loss(
-                                                        num_samples, size, self.target_vocab_size)
+        # Use sampled softmax if (1) user wants to: [num_softmax_samp>0],
+        # and (2) it makes sense to do so: [num_softmax_samp<vocab_size].
+        if 0 < num_softmax_samp < self.vocab_size:
+            softmax_loss_function, output_projection = Chatbot._sampled_softmax_loss(
+                                                        num_softmax_samp, layer_size, self.vocab_size)
         else:
             softmax_loss_function, output_projection = None, None
 
@@ -107,34 +107,34 @@ class Seq2SeqModel(object):
         # The seq2seq function: we use embedding for the input and attention.
         def seq2seq_f(encoder_inputs, decoder_inputs, do_decode):
             return embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
-                                               num_encoder_symbols=source_vocab_size,
-                                               num_decoder_symbols=target_vocab_size,
-                                               embedding_size=size, output_projection=output_projection,
-                                               feed_previous=do_decode, dtype=dtype)
+                                               num_encoder_symbols=vocab_size,
+                                               num_decoder_symbols=vocab_size,
+                                               embedding_size=layer_size, output_projection=output_projection,
+                                               feed_previous=do_decode, dtype=tf.float32)
 
         # Note: if softmax_loss_func is None, model_with_buckets will default to standard softmax.
         self.outputs, self.losses = model_with_buckets(self.encoder_inputs, self.decoder_inputs,
                                                        targets, self.target_weights,
-                                                       buckets, lambda x, y: seq2seq_f(x, y, forward_only),
+                                                       buckets, lambda x, y: seq2seq_f(x, y, is_decoding),
                                                        softmax_loss_function=softmax_loss_function)
 
         # If decoding, append projection to true output to the model.
-        if forward_only and output_projection is not None:
-            self.outputs = Seq2SeqModel._get_projections(len(buckets), self.outputs, output_projection)
+        if is_decoding and output_projection is not None:
+            self.outputs = Chatbot._get_projections(len(buckets), self.outputs, output_projection)
 
         # =====================================================================================================
         # Configure training process (backward pass).
         # =====================================================================================================
 
         params = tf.trainable_variables()
-        if not forward_only:
+        if not is_decoding:
             self.gradient_norms = []
             self.updates = []
             opt = tf.train.GradientDescentOptimizer(self.learning_rate)
             print("Looping over", len(buckets), "buckets.")
             for b in range(len(buckets)):
                 gradients = tf.gradients(self.losses[b], params)
-                clipped_gradients, norm = tf.clip_by_global_norm(gradients, max_gradient_norm)
+                clipped_gradients, norm = tf.clip_by_global_norm(gradients, max_gradient)
                 self.gradient_norms.append(norm)
                 self.updates.append(opt.apply_gradients(
                     zip(clipped_gradients, params), global_step=self.global_step))
@@ -142,50 +142,6 @@ class Seq2SeqModel(object):
         print("Creating saver and exiting . . . ")
         self.saver = tf.train.Saver(tf.global_variables())
 
-    @staticmethod
-    def _sampled_softmax_loss(num_samples: int, hidden_size: int, target_vocab_size: int):
-        """TODO
-        :param num_samples:     (context: importance sampling) size of subset of outputs for softmax.
-        :param hidden_size:     number of units in the individual recurrent states.
-        :param target_vocab_size: number of unique output words.
-        :return: sampled_loss, output_projection
-        """
-
-        assert(0 < num_samples < target_vocab_size)
-
-        # Define the standard affine-softmax transformation from hidden_size -> vocab_size.
-        # True output (for a given bucket) := tf.matmul(decoder_out, w) + b
-        w_t = tf.get_variable("proj_w", [target_vocab_size, hidden_size], dtype=tf.float32)
-        w = tf.transpose(w_t)
-        b = tf.get_variable("proj_b", [target_vocab_size], dtype=tf.float32)
-        output_projection = (w, b)
-
-        def sampled_loss(labels, inputs):
-            labels = tf.reshape(labels, [-1, 1])
-            return tf.nn.sampled_softmax_loss(
-                    weights=w_t,
-                    biases=b,
-                    labels=labels,
-                    inputs=inputs,
-                    num_sampled=num_samples,
-                    num_classes=target_vocab_size)
-
-        return sampled_loss, output_projection
-
-    @staticmethod
-    def _get_projections(num_buckets, unprojected_vals, projection_operator):
-        """Apply projection operator to unprojected_vals, a tuple of length num_buckets.
-
-        :param num_buckets:         the number of projections that will be applied.
-        :param unprojected_vals:    tuple of length num_buckets.
-        :param projection_operator: (in the mathematical meaning) tuple of shape unprojected_vals.shape[-1].
-        :return: tuple of length num_buckets, with entries the same shape as entries in unprojected_vals, except for the last dimension.
-        """
-        projected_vals = unprojected_vals
-        for b in range(num_buckets):
-            projected_vals[b] = [tf.matmul(output, projection_operator[0]) + projection_operator[1]
-                                 for output in unprojected_vals[b]]
-        return projected_vals
 
     def step(self, session, encoder_inputs, decoder_inputs, target_weights,
              bucket_id, forward_only):
@@ -313,3 +269,77 @@ class Seq2SeqModel(object):
             batch_weights[unit_id][ids_with_pad_target] = 0.0
 
         return batch_encoder_inputs, batch_decoder_inputs, batch_weights
+
+    def train(self, max_train_samples, data_dir, max_steps=10000):
+        """ Train chatbot using 1-on-1 ubuntu dialogue corpus. """
+        import chatbot.train as train
+        self.sess = self._create_session()
+        self._setup_parameters()
+        train.train(self)
+
+    def decode(self):
+        import chatbot.decode as decode
+        self.sess = self._create_session()
+        self._setup_parameters()
+        decode.decode(self)
+
+    def _setup_parameters(self):
+        # Check if we can both (1) find a checkpoint state, and (2) a valid V1/V2 checkpoint path.
+        # If we can't, then just re-initialize model with fresh params.
+        print("Checking for checkpoints . . .")
+        checkpoint_state  = tf.train.get_checkpoint_state(self.config.train_dir)
+        if checkpoint_state and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
+            print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
+            self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
+        else:
+            print("Created model with fresh parameters.")
+            self.sess.run(tf.global_variables_initializer())
+
+
+    def _create_session(self):
+        return tf.Session()
+
+    @staticmethod
+    def _sampled_softmax_loss(num_samples: int, hidden_size: int, vocab_size: int):
+        """TODO
+        :param num_samples:     (context: importance sampling) size of subset of outputs for softmax.
+        :param hidden_size:     number of units in the individual recurrent states.
+        :param vocab_size: number of unique output words.
+        :return: sampled_loss, output_projection
+        """
+
+        assert(0 < num_samples < vocab_size)
+
+        # Define the standard affine-softmax transformation from hidden_size -> vocab_size.
+        # True output (for a given bucket) := tf.matmul(decoder_out, w) + b
+        w_t = tf.get_variable("proj_w", [vocab_size, hidden_size], dtype=tf.float32)
+        w = tf.transpose(w_t)
+        b = tf.get_variable("proj_b", [vocab_size], dtype=tf.float32)
+        output_projection = (w, b)
+
+        def sampled_loss(labels, inputs):
+            labels = tf.reshape(labels, [-1, 1])
+            return tf.nn.sampled_softmax_loss(
+                    weights=w_t,
+                    biases=b,
+                    labels=labels,
+                    inputs=inputs,
+                    num_sampled=num_samples,
+                    num_classes=vocab_size)
+
+        return sampled_loss, output_projection
+
+    @staticmethod
+    def _get_projections(num_buckets, unprojected_vals, projection_operator):
+        """Apply projection operator to unprojected_vals, a tuple of length num_buckets.
+
+        :param num_buckets:         the number of projections that will be applied.
+        :param unprojected_vals:    tuple of length num_buckets.
+        :param projection_operator: (in the mathematical meaning) tuple of shape unprojected_vals.shape[-1].
+        :return: tuple of length num_buckets, with entries the same shape as entries in unprojected_vals, except for the last dimension.
+        """
+        projected_vals = unprojected_vals
+        for b in range(num_buckets):
+            projected_vals[b] = [tf.matmul(output, projection_operator[0]) + projection_operator[1]
+                                 for output in unprojected_vals[b]]
+        return projected_vals
