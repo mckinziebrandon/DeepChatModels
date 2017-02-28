@@ -32,8 +32,8 @@ class TestChatbot(unittest.TestCase):
     def test_train(self):
         config = Config(FLAGS)
         buckets = [(5, 10)]
-        bot = chatbot.Chatbot(config, buckets,
+        bot = chatbot.Chatbot(buckets,
                               layer_size=FLAGS.layer_size,
                               num_layers=FLAGS.num_layers,
                               debug_mode=True)
-        bot.train()
+        bot.train(config)

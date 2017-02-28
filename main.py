@@ -13,40 +13,39 @@ from utils import Config
 TEMP="/home/brandon/terabyte/Datasets/wmt"
 
 flags = tf.app.flags
-
-flags.DEFINE_string("chunk_size", int(2e6), "")
-flags.DEFINE_string("reset_model", False, "wipe output directory; new params")
-
-flags.DEFINE_integer("batch_size", 64, "Batch size to use during training.")
+# String flags -- directories and dataset name(s).
 flags.DEFINE_string("data_dir", TEMP, "Directory containing the data files.")
+flags.DEFINE_string("ckpt_dir", "out", "Directory in which checkpoint files will be saved.")
 flags.DEFINE_string("data_name", "wmt", "For now, either 'ubuntu' or 'wmt'.")
+# Boolean flags.
+flags.DEFINE_boolean("reset_model", True, "wipe output directory; new params")
 flags.DEFINE_boolean("decode", False, "If true, will activate chat session with user.")
+# Integer flags -- First three only need custom values if you're especially worried about RAM.
+flags.DEFINE_integer("max_train_samples", int(22e6), "Limit training data size (0: no limit).")
+flags.DEFINE_integer("chunk_size", int(2e6), "")
+flags.DEFINE_integer("steps_per_ckpt", 500, "How many training steps to do per checkpoint.")
+flags.DEFINE_integer("batch_size", 64, "Batch size to use during training.")
 flags.DEFINE_integer("vocab_size", 40000, "English vocabulary size.")
 flags.DEFINE_integer("layer_size", 1024, "Size of each model layer.")
+flags.DEFINE_integer("num_layers", 3, "Number of layers in the model.")
+# Float flags -- training hyperparameters.
 flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
 flags.DEFINE_float("lr_decay", 0.98, "Decay factor applied to learning rate.")
 flags.DEFINE_float("max_gradient", 5.0, "Clip gradients to this value.")
-flags.DEFINE_integer("max_train_samples", int(22e6), "Limit training data size (0: no limit).")
-# TODO: delete max_steps altogether, or reimplement better.
-flags.DEFINE_integer("max_steps", int(3e5), "Limit number of training steps.")
-flags.DEFINE_integer("num_layers", 3, "Number of layers in the model.")
-flags.DEFINE_integer("steps_per_ckpt", 200, "How many training steps to do per checkpoint.")
-flags.DEFINE_string("ckpt_dir", "out", "Directory in which checkpoint files will be saved.")
-flags.DEFINE_string("num_buckets", 3, "number of pad buckets to use")
 FLAGS = flags.FLAGS
 
 if __name__ == "__main__":
 
-    import os
-    print("data dir is ", FLAGS.data_dir)
-    os.listdir(FLAGS.data_dir)
-    config = Config(FLAGS)
-    buckets = [(5, 10), (20, 30), (40, 50)]
-    if len(buckets) > int(FLAGS.num_buckets): buckets = buckets[:int(FLAGS.num_buckets)]
-    chatbot = chatbot.Chatbot(config, buckets)
+    buckets = [(5, 10), (10, 15), (20, 25), (40, 50)]
+    # Note: I'm only specifying the flags that I tend to change; more options are available!
+    chatbot = chatbot.Chatbot(buckets,
+                              layer_size=FLAGS.layer_size,
+                              num_layers=FLAGS.num_layers)
 
+    # The Config object stores train/test-time pertinent info, like directories.
+    config = Config(FLAGS)
     if FLAGS.decode:
-        chatbot.decode()
+        chatbot.decode(config)
     else:
-        chatbot.train()
+        chatbot.train(config)
 

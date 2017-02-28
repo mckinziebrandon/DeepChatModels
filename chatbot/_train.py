@@ -4,21 +4,20 @@ import numpy as np
 from utils import *
 
 
-
-def _train(chatbot):   #, num_steps=100000):
+def _train(chatbot, config):   #, num_steps=100000):
     """ Train chatbot using 1-on-1 ubuntu dialogue corpus. """
 
     # Number of unique training samples to consider for training.
-    num_samples_total       = chatbot.config.max_train_samples
+    num_samples_total       = config.max_train_samples
     # User-specified choice of how many training samples they can comfortably store in RAM memory.
     # If this is less than the total, the training will be 'chunked' in portions of this size.
-    samples_per_chunk       = chatbot.config.chunk_size
+    samples_per_chunk       = config.chunk_size
     steps_per_chunk         = samples_per_chunk // chatbot.batch_size
     # Compute number of chunks.
     # Due to integer division, up to num_lines_per_chunk - 1 samples may not get used.
     num_chunks = num_samples_total // samples_per_chunk
 
-    current_chunk = _get_current_chunk(chatbot, steps_per_chunk)
+    current_chunk = _get_current_chunk(chatbot, config, steps_per_chunk)
     if chatbot.debug_mode:
         print("[DEBUG] ========== Chunking information: ================")
         print("[DEBUG] Starting at chunk", current_chunk, "out of", num_chunks, "total.")
@@ -29,9 +28,9 @@ def _train(chatbot):   #, num_steps=100000):
         for chunk in range(current_chunk, num_chunks):
             print("CHUNK NUMBER ", chunk)
             # Read data into buckets and compute their sizes.
-            print ("Reading development and training data (limit: %d)." % chatbot.config.max_train_samples)
-            train_set, dev_set = data_utils.read_data(chatbot.config.data_name,
-                                                      chatbot.config.data_dir,
+            print ("Reading development and training data (limit: %d)." % config.max_train_samples)
+            train_set, dev_set = data_utils.read_data(config.data_name,
+                                                      config.data_dir,
                                                       chatbot.buckets,
                                                       chatbot.vocab_size,
                                                       max_train_data_size=samples_per_chunk,
@@ -53,12 +52,12 @@ def _train(chatbot):   #, num_steps=100000):
                 start_time = time.time()
                 avg_perplexity = _step(sess, chatbot, train_set, bucket_id)
                 total_steps += 1
-                step_time += (time.time() - start_time) / chatbot.config.steps_per_ckpt
-                loss      += avg_perplexity / chatbot.config.steps_per_ckpt
+                step_time += (time.time() - start_time) / config.steps_per_ckpt
+                loss      += avg_perplexity / config.steps_per_ckpt
 
                 # Once in a while, we save checkpoint, print statistics, and run evals.
-                if total_steps % chatbot.config.steps_per_ckpt == 0:
-                    _run_checkpoint(sess, chatbot, step_time, loss, previous_losses, dev_set)
+                if total_steps % config.steps_per_ckpt == 0:
+                    _run_checkpoint(sess, chatbot, config, step_time, loss, previous_losses, dev_set)
                     step_time, loss = 0.0, 0.0
 
 
@@ -74,7 +73,7 @@ def _step(sess, model, train_set, bucket_id):
                                  False)
     return avg_perplexity
 
-def _run_checkpoint(sess, model, step_time, loss, previous_losses, dev_set):
+def _run_checkpoint(sess, model, config, step_time, loss, previous_losses, dev_set):
     # Print statistics for the previous epoch.
     perplexity = np.exp(float(loss)) if loss < 300 else float("inf")
     print("\nglobal step:", model.global_step.eval(), end="  ")
@@ -88,7 +87,7 @@ def _run_checkpoint(sess, model, step_time, loss, previous_losses, dev_set):
     previous_losses.append(loss)
 
     # Save checkpoint and zero timer and loss.
-    checkpoint_path = os.path.join(model.config.ckpt_dir, "{}.ckpt".format(model.config.data_name))
+    checkpoint_path = os.path.join(config.ckpt_dir, "{}.ckpt".format(config.data_name))
     model.saver.save(sess, checkpoint_path, global_step=model.global_step)
 
     # Run evals on development set and print their perplexity.
@@ -105,19 +104,18 @@ def _run_checkpoint(sess, model, step_time, loss, previous_losses, dev_set):
         print("  eval: bucket %d perplexity %.2f" % (bucket_id, eval_ppx))
     sys.stdout.flush()
 
-def _get_current_chunk(model, steps_per_chunk):
+def _get_current_chunk(model, config, steps_per_chunk):
     """Returns the chunk number to resume training on.
     """
-
-    checkpoint_state  = tf.train.get_checkpoint_state(model.config.ckpt_dir)
-    if not checkpoint_state or model.config.reset_model: return 0
+    checkpoint_state  = tf.train.get_checkpoint_state(config.ckpt_dir)
+    if not checkpoint_state or config.reset_model: return 0
     checkpoint_file  = checkpoint_state.model_checkpoint_path
     if model.debug_mode:
         print("[DEBUG] Getting chunk info from ckpt file: ", checkpoint_file)
 
     global_step =""
     started = False
-    rel_path_start = checkpoint_file.find(model.config.data_name)
+    rel_path_start = checkpoint_file.find(config.data_name)
     for ch in checkpoint_file[rel_path_start:]:
         if started and not ch.isdigit(): break
         if ch.isdigit():

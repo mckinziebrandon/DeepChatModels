@@ -5,6 +5,7 @@ from __future__ import print_function
 
 # Standard python imports.
 import random
+import os
 
 # ML/DL-specific imports.
 import numpy as np
@@ -27,7 +28,6 @@ class Chatbot(object):
     """
 
     def __init__(self,
-                 config: Config,
                  buckets: list,
                  vocab_size=40000,
                  layer_size=512,
@@ -42,7 +42,6 @@ class Chatbot(object):
         """Create the model.
 
         Args:
-            config: instance of the Config class; for extracting user-specified params.
             vocab_size: number of unique tokens in the dataset vocabulary as built in utils.data_utils
             buckets: a list of pairs (I, O), where I (O) specifies maximum input (output) length
                      that will be processed in that bucket
@@ -65,7 +64,6 @@ class Chatbot(object):
         # Store instance variables.
         # =====================================================================================================
 
-        self.config         = config
         self.vocab_size     = vocab_size
         self.buckets        = buckets
         self.batch_size     = batch_size
@@ -255,30 +253,32 @@ class Chatbot(object):
 
         return batch_encoder_inputs, batch_decoder_inputs, batch_weights
 
-    def train(self):
+    def train(self, config: Config):
         """ Train chatbot. """
         self.sess = self._create_session()
-        self._setup_parameters()
-        _train(self)#, self.config.max_steps)
+        self._setup_parameters(config)
+        _train(self, config)
 
-    def decode(self):
+    def decode(self, config: Config):
         """ Create chat session between user & chatbot. """
         self.sess = self._create_session()
-        self._setup_parameters()
-        _decode(self)
+        self._setup_parameters(config)
+        _decode(self, config)
 
-    def _setup_parameters(self):
+    def _setup_parameters(self, config):
         # Check if we can both (1) find a checkpoint state, and (2) a valid V1/V2 checkpoint path.
         # If we can't, then just re-initialize model with fresh params.
         print("Checking for checkpoints . . .")
-        checkpoint_state  = tf.train.get_checkpoint_state(self.config.ckpt_dir)
-        if checkpoint_state  and not self.config.reset_model \
+        checkpoint_state  = tf.train.get_checkpoint_state(config.ckpt_dir)
+        if checkpoint_state  and not config.reset_model \
                 and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path) \
-                and str(checkpoint_state.model_checkpoint_path).find(self.config.data_name) != -1:
+                and str(checkpoint_state.model_checkpoint_path).find(config.data_name) != -1:
             print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
             self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
         else:
             print("Created model with fresh parameters.")
+            # clear output dir contents.
+            os.popen('rm -f out/*')
             self.sess.run(tf.global_variables_initializer())
 
 

@@ -6,14 +6,14 @@ from utils import *
 import numpy as np
 
 
-def _decode(chatbot):
+def _decode(chatbot, config):
 
     with chatbot.sess as sess:
         chatbot.batch_size = 1  # We decode one sentence at a time.
 
         # Load vocabularies.
-        en_vocab_path = os.path.join(chatbot.config.data_dir, "vocab%d.from" % chatbot.vocab_size)
-        fr_vocab_path = os.path.join(chatbot.config.data_dir, "vocab%d.to" % chatbot.vocab_size)
+        en_vocab_path = os.path.join(config.data_dir, "vocab%d.from" % chatbot.vocab_size)
+        fr_vocab_path = os.path.join(config.data_dir, "vocab%d.to" % chatbot.vocab_size)
 
         # initialize_vocabulary returns word_to_idx, idx_to_word.
         en_vocab, _ = initialize_vocabulary(en_vocab_path)
