@@ -265,7 +265,8 @@ def prepare_data(data_dir, from_train_path, to_train_path,
 def read_data(dataset_name, data_dir, _buckets,
               from_vocab_size,
               to_vocab_size=None,
-              max_train_data_size=1e6):
+              max_train_data_size=int(1e6),
+              skip_first=0):
     """This is the main, and perhaps only, method that other files should use to access data.
     :param data_dir:
     :param _buckets:
@@ -276,22 +277,23 @@ def read_data(dataset_name, data_dir, _buckets,
     """
     if to_vocab_size == None:
         to_vocab_size = from_vocab_size
-
     # Setup the data in appropriate directories and return desired PATHS.
     print("Preparing %s data in %s" % (dataset_name, data_dir))
     print("Vocab size is", from_vocab_size)
-    if dataset_name == "wmt": train, dev, _ = prepare_wmt_data(data_dir, from_vocab_size, to_vocab_size)
-    else: train, dev, _ = prepare_ubuntu_data(data_dir, from_vocab_size)
+    if dataset_name == "wmt":
+        train, dev, _ = prepare_wmt_data(data_dir, from_vocab_size, to_vocab_size)
+    else:
+        train, dev, _ = prepare_ubuntu_data(data_dir, from_vocab_size)
 
     from_train, to_train = train
     from_dev, to_dev     = dev
 
     # Read data into buckets (e.g. len(train_set) == len(buckets)).
-    train_set   = _read_data(from_train, to_train, _buckets, max_train_data_size)
+    train_set   = _read_data(from_train, to_train, _buckets, max_train_data_size, skip_first)
     dev_set     = _read_data(from_dev, to_dev, _buckets)
     return train_set, dev_set
 
-def _read_data(source_path, target_path, _buckets, max_size=None):
+def _read_data(source_path, target_path, _buckets, max_size=None, skip_first=0):
     """Read data from source and target files and put into buckets.
 
     Args:
@@ -308,10 +310,15 @@ def _read_data(source_path, target_path, _buckets, max_size=None):
       into the n-th bucket, i.e., such that len(source) < _buckets[n][0] and
       len(target) < _buckets[n][1]; source and target are lists of token-ids.
     """
+    print("Beginning reading of ", max_size, "lines total.")
+    print("Starting at line ", skip_first)
     data_set = [[] for _ in _buckets]
     with tf.gfile.GFile(source_path, mode="r") as source_file:
         with tf.gfile.GFile(target_path, mode="r") as target_file:
             source, target = source_file.readline(), target_file.readline()
+            for _ in range(skip_first):
+                source, target = source_file.readline(), target_file.readline()
+
             counter = 0
             while source and target and (not max_size or counter < max_size):
                 counter += 1

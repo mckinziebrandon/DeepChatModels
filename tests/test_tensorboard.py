@@ -14,7 +14,7 @@ class TestTensorBoard(unittest.TestCase):
 
     def test_tb_rnn(self):
         # Function signature:
-        # TensorBoard(log_dir='./logs', histogram_freq=0, write_graph=True, write_images=False)
+        # TensorBoard(log_dir='./out', histogram_freq=0, write_graph=True, write_images=False)
         tb_callback = TensorBoard(histogram_freq=1, write_graph=True)
         vocab_size = 1000
         X_train, y_train = get_train_data('nietzsche', vocab_size)
@@ -26,7 +26,7 @@ class TestTensorBoard(unittest.TestCase):
 
     def test_tb_simple(self):
         # Function signature:
-        # TensorBoard(log_dir='./logs', histogram_freq=0, write_graph=True, write_images=False)
+        # TensorBoard(log_dir='./out', histogram_freq=0, write_graph=True, write_images=False)
         tb_callback = TensorBoard(histogram_freq=1, write_graph=True)
 
         vocab_size = 1000
@@ -49,7 +49,7 @@ class PLEASETestTensorBoardPLEASE(unittest.TestCase):
 
     def test_tb_simple_seq2seq(self):
         # Function signature:
-        # TensorBoard(log_dir='./logs', histogram_freq=0, write_graph=True, write_images=False)
+        # TensorBoard(log_dir='./out', histogram_freq=0, write_graph=True, write_images=False)
         tb_callback = TensorBoard(histogram_freq=1, write_graph=True)
 
         vocab_size      = 1000

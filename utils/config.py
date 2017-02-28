@@ -8,3 +8,6 @@ class Config(object):
         self.steps_per_ckpt = FLAGS.steps_per_ckpt
         self.data_name = FLAGS.data_name
         self.max_train_samples = FLAGS.max_train_samples
+        #self.max_steps = FLAGS.max_steps
+        self.chunk_size = FLAGS.chunk_size
+        self.reset_model = FLAGS.reset_model

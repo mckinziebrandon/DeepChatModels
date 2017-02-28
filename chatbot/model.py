@@ -37,7 +37,8 @@ class Chatbot(object):
                  learning_rate=0.5,
                  lr_decay=0.98,
                  num_softmax_samp=512,
-                 is_decoding=False):
+                 is_decoding=False,
+                 debug_mode=False):
         """Create the model.
 
         Args:
@@ -56,6 +57,9 @@ class Chatbot(object):
         """
 
         print("Beginning model construction . . . ")
+        if debug_mode:
+            print("[DEBUG] Layer size:", layer_size)
+            print("[DEBUG] Number of layers:", num_layers)
 
         # =====================================================================================================
         # Store instance variables.
@@ -68,6 +72,7 @@ class Chatbot(object):
         self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
         self.lr_decay_op    = self.learning_rate.assign(learning_rate * lr_decay)
         self.global_step    = tf.Variable(initial_value=0, trainable=False)
+        self.debug_mode = debug_mode
 
         # =====================================================================================================
         # Define basic components: cell(s) state, encoder, decoder.
@@ -96,6 +101,9 @@ class Chatbot(object):
                                                embedding_size=layer_size, output_projection=output_proj,
                                                feed_previous=is_decoding, dtype=tf.float32)
 
+        # Note that self.outputs and self.losses are lists of length len(buckets).
+        # This allows us to identify which outputs/losses to compute given a particular bucket.
+        # Furthermore, \forall i < j, len(self.outputs[i])  < len(self.outputs[j]). Same goes for losses.
         self.outputs, self.losses = model_with_buckets(self.encoder_inputs, self.decoder_inputs,
                                                        target_outputs, self.target_weights,
                                                        buckets, lambda x, y: seq2seq_f(x, y),
@@ -251,7 +259,7 @@ class Chatbot(object):
         """ Train chatbot. """
         self.sess = self._create_session()
         self._setup_parameters()
-        _train(self)
+        _train(self)#, self.config.max_steps)
 
     def decode(self):
         """ Create chat session between user & chatbot. """
@@ -264,7 +272,9 @@ class Chatbot(object):
         # If we can't, then just re-initialize model with fresh params.
         print("Checking for checkpoints . . .")
         checkpoint_state  = tf.train.get_checkpoint_state(self.config.ckpt_dir)
-        if checkpoint_state and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
+        if checkpoint_state  and not self.config.reset_model \
+                and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path) \
+                and str(checkpoint_state.model_checkpoint_path).find(self.config.data_name) != -1:
             print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
             self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
         else:
