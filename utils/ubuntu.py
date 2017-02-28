@@ -29,7 +29,7 @@ class Ubuntu(Dataset):
 
 
     # ===================================================================
-    # Required 'Dataset' method implementations.
+    # Required 'Dataset' method implementations:
     # ===================================================================
 
     def word_to_idx(self):
@@ -43,13 +43,6 @@ class Ubuntu(Dataset):
         return self._data_dir
 
     # ===================================================================
-    # Additional methods.
+    # Additional methods:
     # ===================================================================
-
-
-    def open_train_file(self, from_or_to):
-        if from_or_to == "from":
-            return gfile.GFile(self.from_train, mode="r")
-        else:
-            return gfile.GFile(self.to_train, mode="r")
 
