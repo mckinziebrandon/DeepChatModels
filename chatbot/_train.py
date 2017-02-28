@@ -117,11 +117,12 @@ def _get_current_chunk(model, steps_per_chunk):
 
     global_step =""
     started = False
-    for i, ch in enumerate(checkpoint_file):
+    rel_path_start = checkpoint_file.find(model.config.data_name)
+    for ch in checkpoint_file[rel_path_start:]:
         if started and not ch.isdigit(): break
         if ch.isdigit():
             started=True
-            global_step += str(i)
+            global_step += str(ch)
 
     global_step = int(global_step)
     return global_step // steps_per_chunk
