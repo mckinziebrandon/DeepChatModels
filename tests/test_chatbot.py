@@ -1,6 +1,5 @@
 import os
 import unittest
-from utils.datasets import get
 from utils import Config
 import chatbot
 import tensorflow as tf

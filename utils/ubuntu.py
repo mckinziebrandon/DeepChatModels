@@ -1,16 +1,32 @@
-from utils import Dataset
-from utils.data_utils import prepare_ubuntu_data
+from utils.dataset import Dataset
+from utils.data_utils import *
 from tensorflow import gfile
 
 class Ubuntu(Dataset):
 
     def __init__(self, vocab_size):
 
+        self.name = "ubuntu"
+        self.vocab_size = vocab_size
         self._data_dir = '/home/brandon/terabyte/Datasets/ubuntu_dialogue_corpus'
-        train, dev, _ = prepare_ubuntu_data(self._data_dir, vocab_size)
 
-        self.from_train, self.to_train = train
-        self.from_dev, self.to_dev     = dev
+        paths_triplet = prepare_data(self._data_dir,
+                                     self._data_dir + "/train_from.txt",
+                                     self._data_dir + "/train_to.txt",
+                                     self._data_dir + "/valid_from.txt",
+                                     self._data_dir + "/valid_to.txt",
+                                     vocab_size, vocab_size)
+
+        train_path, valid_path, vocab_path = paths_triplet
+
+        self.paths = {}
+        self.paths['from_train']    = train_path[0]
+        self.paths['to_train']      = train_path[1]
+        self.paths['from_valid']    = valid_path[0]
+        self.paths['to_valid']      = valid_path[1]
+        self.paths['from_vocab']    = vocab_path[0]
+        self.paths['to_vocab']      = vocab_path[1]
+
 
     # ===================================================================
     # Required 'Dataset' method implementations.
@@ -29,6 +45,7 @@ class Ubuntu(Dataset):
     # ===================================================================
     # Additional methods.
     # ===================================================================
+
 
     def open_train_file(self, from_or_to):
         if from_or_to == "from":

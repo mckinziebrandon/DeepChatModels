@@ -2,13 +2,10 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-import gzip
 import os
 import re
-import tarfile
 import sys
 import pandas as pd
-from six.moves import urllib
 
 from tensorflow.python.platform import gfile
 import tensorflow as tf
@@ -29,17 +26,6 @@ UNK_ID  = 3
 # Regular expressions used to tokenize.
 _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
 _DIGIT_RE   = re.compile(br"\d")
-
-def get_wmt_enfr_train_set(directory):
-    """Download the WMT en-fr training corpus to directory unless it's there."""
-    return os.path.join(directory, "giga-fren.release2.fixed")
-
-
-def get_wmt_enfr_dev_set(directory):
-    """Download the WMT en-fr training corpus to directory unless it's there."""
-    dev_name = "newstest2013"
-    dev_path = os.path.join(directory, dev_name)
-    return dev_path
 
 def basic_tokenizer(sentence):
     """Very basic tokenizer: split the sentence into a list of tokens."""
@@ -176,47 +162,6 @@ def data_to_token_ids(data_path, target_path, vocabulary_path, normalize_digits=
                     token_ids = sentence_to_token_ids(tf.compat.as_bytes(line), vocab, normalize_digits)
                     tokens_file.write(" ".join([str(tok) for tok in token_ids]) + "\n")
 
-
-def prepare_wmt_data(data_dir, en_vocabulary_size, fr_vocabulary_size):
-    """Get WMT data into data_dir, create vocabularies and tokenize data.
-
-    Args:
-      data_dir: directory in which the data sets will be stored.
-      en_vocabulary_size: size of the English vocabulary to create and use.
-      fr_vocabulary_size: size of the French vocabulary to create and use.
-
-    Returns:
-      A tuple of 6 elements:
-        (1) path to the token-ids for English training data-set,
-        (2) path to the token-ids for French training data-set,
-        (3) path to the token-ids for English development data-set,
-        (4) path to the token-ids for French development data-set,
-        (5) path to the English vocabulary file,
-        (6) path to the French vocabulary file.
-
-        DEV MEANS VALID IDK WHY THEY DID THIS
-    """
-    # Get wmt data to the specified directory.
-    train_path = get_wmt_enfr_train_set(data_dir)
-    dev_path = get_wmt_enfr_dev_set(data_dir)
-
-    from_train_path = train_path + ".en"
-    to_train_path = train_path + ".fr"
-    from_dev_path = dev_path + ".en"
-    to_dev_path = dev_path + ".fr"
-    return prepare_data(data_dir, from_train_path, to_train_path, from_dev_path, to_dev_path, en_vocabulary_size,
-                        fr_vocabulary_size)
-
-def prepare_ubuntu_data(data_dir, vocab_size):
-    from_train_path = data_dir + "/train_from.txt"
-    to_train_path   = data_dir + "/train_to.txt"
-    from_dev_path   = data_dir + "/valid_from.txt"
-    to_dev_path     = data_dir + "/valid_from.txt"
-    return prepare_data(data_dir,
-                        from_train_path, to_train_path,
-                        from_dev_path, to_dev_path,
-                        vocab_size, vocab_size)
-
 def prepare_data(data_dir, from_train_path, to_train_path,
                  from_dev_path, to_dev_path, from_vocabulary_size, to_vocabulary_size):
     """Prepare all necessary files that are required for the training.
@@ -262,35 +207,22 @@ def prepare_data(data_dir, from_train_path, to_train_path,
     vocab_path = [from_vocab_path, to_vocab_path]
     return (train_ids_path, dev_ids_path, vocab_path)
 
-def read_data(dataset_name, data_dir, _buckets,
-              from_vocab_size,
-              to_vocab_size=None,
-              max_train_data_size=int(1e6),
-              skip_first=0):
+def read_data(dataset, _buckets, max_train_data_size=int(1e6), skip_first=0):
     """This is the main, and perhaps only, method that other files should use to access data.
-    :param data_dir:
+    :param dataset:
     :param _buckets:
-    :param from_vocab_size:
-    :param to_vocab_size:
     :param max_train_data_size:
     :return:
     """
-    if to_vocab_size == None:
-        to_vocab_size = from_vocab_size
     # Setup the data in appropriate directories and return desired PATHS.
-    print("Preparing %s data in %s" % (dataset_name, data_dir))
-    print("Vocab size is", from_vocab_size)
-    if dataset_name == "wmt":
-        train, dev, _ = prepare_wmt_data(data_dir, from_vocab_size, to_vocab_size)
-    else:
-        train, dev, _ = prepare_ubuntu_data(data_dir, from_vocab_size)
-
-    from_train, to_train = train
-    from_dev, to_dev     = dev
+    print("Preparing %s data in %s" % (dataset.name, dataset.data_dir))
 
     # Read data into buckets (e.g. len(train_set) == len(buckets)).
-    train_set   = _read_data(from_train, to_train, _buckets, max_train_data_size, skip_first)
-    dev_set     = _read_data(from_dev, to_dev, _buckets)
+    train_set   = _read_data(dataset.paths['from_train'],
+                             dataset.paths['to_train'],
+                             _buckets, max_train_data_size, skip_first)
+    dev_set     = _read_data(dataset.paths['from_valid'],
+                             dataset.paths['to_valid'], _buckets)
     return train_set, dev_set
 
 def _read_data(source_path, target_path, _buckets, max_size=None, skip_first=0):

@@ -29,10 +29,8 @@ def _train(chatbot, config):   #, num_steps=100000):
             print("CHUNK NUMBER ", chunk)
             # Read data into buckets and compute their sizes.
             print ("Reading development and training data (limit: %d)." % config.max_train_samples)
-            train_set, dev_set = data_utils.read_data(config.data_name,
-                                                      config.data_dir,
+            train_set, dev_set = data_utils.read_data(config.dataset,
                                                       chatbot.buckets,
-                                                      chatbot.vocab_size,
                                                       max_train_data_size=samples_per_chunk,
                                                       skip_first=chunk*samples_per_chunk)
 
