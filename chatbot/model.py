@@ -2,15 +2,21 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+
 # Standard python imports.
 import random
+
 # ML/DL-specific imports.
 import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.legacy_seq2seq import embedding_attention_seq2seq
 from tensorflow.contrib.legacy_seq2seq import model_with_buckets
+
 # User-defined imports.
-from utils import *
+from utils import data_utils
+from utils import Config
+from chatbot._train import _train
+from chatbot._decode import _decode
 
 
 class Chatbot(object):
@@ -21,8 +27,8 @@ class Chatbot(object):
     """
 
     def __init__(self,
-                 config,
-                 buckets,
+                 config: Config,
+                 buckets: list,
                  vocab_size=40000,
                  layer_size=512,
                  num_layers=3,
@@ -31,23 +37,22 @@ class Chatbot(object):
                  learning_rate=0.5,
                  lr_decay=0.98,
                  num_softmax_samp=512,
-                 is_decoding=False,
-                 dataset_name = "ubuntu"):
+                 is_decoding=False):
         """Create the model.
 
         Args:
-          vocab_size:   size of the source vocabulary.
-          buckets:      a list of pairs (I, O), where I (O) specifies maximum input (output) length
-                        that will be processed in that bucket
-          layer_size:   number of units in each layer of the model.
-          num_layers:   number of layers in the model.
-          max_gradient: gradients will be clipped to maximally this norm.
-          batch_size:   the size of the batches used during training;
-          learning_rate:    learning rate to start with.
-          lr_decay:         decay learning rate by this much when needed.
-          num_softmax_samp: number of samples for sampled softmax.
-          is_decoding:      if set, we do not construct the backward pass in the model.
-          config: TODO
+            config: instance of the Config class; for extracting user-specified params.
+            vocab_size: number of unique tokens in the dataset vocabulary as built in utils.data_utils
+            buckets: a list of pairs (I, O), where I (O) specifies maximum input (output) length
+                     that will be processed in that bucket
+            layer_size: number of units in each layer of the model.
+            num_layers: number of layers in the model.
+            max_gradient: gradients will be clipped to maximally this norm.
+            batch_size: the size of the batches used during training;
+            learning_rate: learning rate to start with.
+            lr_decay: decay learning rate by this much when needed.
+            num_softmax_samp: number of samples for sampled softmax.
+            is_decoding: if True, don't build backward pass.
         """
 
         print("Beginning model construction . . . ")
@@ -56,71 +61,49 @@ class Chatbot(object):
         # Store instance variables.
         # =====================================================================================================
 
-        self.vocab_size = vocab_size
+        self.config         = config
+        self.vocab_size     = vocab_size
         self.buckets        = buckets
         self.batch_size     = batch_size
         self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
         self.lr_decay_op    = self.learning_rate.assign(learning_rate * lr_decay)
         self.global_step    = tf.Variable(initial_value=0, trainable=False)
-        self.dataset_name   = dataset_name
-        self.config = config
 
         # =====================================================================================================
         # Define basic components: cell(s) state, encoder, decoder.
         # =====================================================================================================
 
-        # Create the internal (potentially multi-layer) cell for our RNN.
-        def single_cell():
-            return tf.contrib.rnn.GRUCell(layer_size)
-        if num_layers > 1:
-            cell = tf.contrib.rnn.MultiRNNCell([single_cell() for _ in range(num_layers)])
-        else:
-            cell = single_cell()
+        cell = Chatbot._get_cell(num_layers, layer_size)
+        self.encoder_inputs = Chatbot._get_placeholder_list("encoder", buckets[-1][0])
+        self.decoder_inputs = Chatbot._get_placeholder_list("decoder", buckets[-1][1] + 1)
+        self.target_weights = Chatbot._get_placeholder_list("weight", buckets[-1][1] + 1, tf.float32)
+        target_outputs = [self.decoder_inputs[i + 1] for i in range(len(self.decoder_inputs) - 1)]
 
-        # Feeds for encoder inputs.
-        max_input_length    = buckets[-1][0]
-        self.encoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="encoder{0}".format(i))
-                               for i in range(max_input_length)]
-
-        # Feeds & weights for decoder inputs.
-        max_output_length   = buckets[-1][1] + 1  # because we always append EOS after
-        self.decoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="decoder{0}".format(i))
-                               for i in range(max_output_length)]
-        self.target_weights = [tf.placeholder(tf.float32, shape=[None], name="weight{0}".format(i))
-                               for i in range(max_output_length)]
-
-        # Our targets are decoder inputs shifted by one.
-        targets = [self.decoder_inputs[i + 1] for i in range(len(self.decoder_inputs) - 1)]
-
-        # Use sampled softmax if (1) user wants to: [num_softmax_samp>0],
-        # and (2) it makes sense to do so: [num_softmax_samp<vocab_size].
+        # Determine whether to draw sample subset from output softmax or just use default tensorflow softmax.
         if 0 < num_softmax_samp < self.vocab_size:
-            softmax_loss_function, output_projection = Chatbot._sampled_softmax_loss(
-                                                        num_softmax_samp, layer_size, self.vocab_size)
+            softmax_loss, output_proj = Chatbot._sampled_softmax_loss(num_softmax_samp, layer_size, self.vocab_size)
         else:
-            softmax_loss_function, output_projection = None, None
+            softmax_loss, output_proj = None, None
 
         # =====================================================================================================
         # Combine the components to construct desired model architecture.
         # =====================================================================================================
 
         # The seq2seq function: we use embedding for the input and attention.
-        def seq2seq_f(encoder_inputs, decoder_inputs, do_decode):
+        def seq2seq_f(encoder_inputs, decoder_inputs):
             return embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
-                                               num_encoder_symbols=vocab_size,
-                                               num_decoder_symbols=vocab_size,
-                                               embedding_size=layer_size, output_projection=output_projection,
-                                               feed_previous=do_decode, dtype=tf.float32)
+                                               num_encoder_symbols=vocab_size, num_decoder_symbols=vocab_size,
+                                               embedding_size=layer_size, output_projection=output_proj,
+                                               feed_previous=is_decoding, dtype=tf.float32)
 
-        # Note: if softmax_loss_func is None, model_with_buckets will default to standard softmax.
         self.outputs, self.losses = model_with_buckets(self.encoder_inputs, self.decoder_inputs,
-                                                       targets, self.target_weights,
-                                                       buckets, lambda x, y: seq2seq_f(x, y, is_decoding),
-                                                       softmax_loss_function=softmax_loss_function)
+                                                       target_outputs, self.target_weights,
+                                                       buckets, lambda x, y: seq2seq_f(x, y),
+                                                       softmax_loss_function=softmax_loss)
 
         # If decoding, append projection to true output to the model.
-        if is_decoding and output_projection is not None:
-            self.outputs = Chatbot._get_projections(len(buckets), self.outputs, output_projection)
+        if is_decoding and output_proj is not None:
+            self.outputs = Chatbot._get_projections(len(buckets), self.outputs, output_proj)
 
         # =====================================================================================================
         # Configure training process (backward pass).
@@ -142,9 +125,7 @@ class Chatbot(object):
         print("Creating saver and exiting . . . ")
         self.saver = tf.train.Saver(tf.global_variables())
 
-
-    def step(self, session, encoder_inputs, decoder_inputs, target_weights,
-             bucket_id, forward_only):
+    def step(self, session, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only):
         """Run a step of the model feeding the given inputs.
 
         Args:
@@ -207,10 +188,6 @@ class Chatbot(object):
     def get_batch(self, data, bucket_id):
         """Get a random batch of data from the specified bucket, prepare for step.
 
-        To feed data in step(..) it must be a list of batch-major vectors, while
-        data here contains single length-major cases. So the main logic of this
-        function is to re-index data cases to be in the proper format for feeding.
-
         Clarification on variables below:
             encoder_inputs[i]       == list(all words in i'th batch sentence).
             batch_encoder_inputs[i] == list(i'th wordID over all batch sentences)
@@ -270,24 +247,23 @@ class Chatbot(object):
 
         return batch_encoder_inputs, batch_decoder_inputs, batch_weights
 
-    def train(self, max_train_samples, data_dir, max_steps=10000):
-        """ Train chatbot using 1-on-1 ubuntu dialogue corpus. """
-        import chatbot.train as train
+    def train(self):
+        """ Train chatbot. """
         self.sess = self._create_session()
         self._setup_parameters()
-        train.train(self)
+        _train(self)
 
     def decode(self):
-        import chatbot.decode as decode
+        """ Create chat session between user & chatbot. """
         self.sess = self._create_session()
         self._setup_parameters()
-        decode.decode(self)
+        _decode(self)
 
     def _setup_parameters(self):
         # Check if we can both (1) find a checkpoint state, and (2) a valid V1/V2 checkpoint path.
         # If we can't, then just re-initialize model with fresh params.
         print("Checking for checkpoints . . .")
-        checkpoint_state  = tf.train.get_checkpoint_state(self.config.train_dir)
+        checkpoint_state  = tf.train.get_checkpoint_state(self.config.ckpt_dir)
         if checkpoint_state and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
             print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
             self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
@@ -343,3 +319,24 @@ class Chatbot(object):
             projected_vals[b] = [tf.matmul(output, projection_operator[0]) + projection_operator[1]
                                  for output in unprojected_vals[b]]
         return projected_vals
+
+    @staticmethod
+    def _get_cell(num_layers, layer_size):
+        # Create the internal (potentially multi-layer) cell for our RNN.
+        def single_cell():
+            return tf.contrib.rnn.GRUCell(layer_size)
+        if num_layers > 1:
+            return tf.contrib.rnn.MultiRNNCell([single_cell() for _ in range(num_layers)])
+        else:
+            return single_cell()
+
+    @staticmethod
+    def _get_placeholder_list(name, length, dtype=tf.int32):
+        """
+        Args:
+            name: prefix of name of each tf.placeholder list item, where i'th name is [name]i.
+            length: number of items (tf.placeholders) in the returned list.
+        Returns:
+            list of tensorflow placeholder of dtype=tf.int32 and unspecified shape.
+        """
+        return [tf.placeholder(dtype, shape=[None], name=name+str(i)) for i in range(length)]
