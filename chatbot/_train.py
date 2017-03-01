@@ -2,66 +2,58 @@
 import time
 import numpy as np
 from utils import *
+import tensorflow as tf
+import matplotlib as plt
 
+# Containers for matplotlib plots/visualizations.
+#global_step_ids = []
+#global_perplexities = []
+#bucket_perplexities = {}
 
 def _train(chatbot, config):
     """ Train chatbot using dataset given by config.dataset.
         chatbot: instance of Chatbot.
     """
 
-    # Number of unique training samples to consider for training.
-    num_samples_total       = config.max_train_samples
-    # User-specified choice of how many training samples they can comfortably store in RAM memory.
-    # If this is less than the total, the training will be 'chunked' in portions of this size.
-    samples_per_chunk       = config.chunk_size
-    steps_per_chunk         = samples_per_chunk // chatbot.batch_size
-    # Compute number of chunks.
-    # Due to integer division, up to num_lines_per_chunk - 1 samples may not get used.
-    num_chunks = num_samples_total // samples_per_chunk
+    # Initialize plotting dictionaries.
+    #for i in range(len(chatbot.buckets)):
+    #    bucket_perplexities[i] = []
 
-    current_chunk = _get_current_chunk(chatbot, config, steps_per_chunk)
-    if chatbot.debug_mode:
-        print("[DEBUG] ========== Chunking information: ================")
-        print("[DEBUG] Starting at chunk", current_chunk, "out of", num_chunks, "total.")
-        print("[DEBUG] Steps per chunk:", steps_per_chunk)
+    writer = tf.train.SummaryWriter("/tmp/tensorflowlogs", session.graph)
+    session.run(model)
 
     with chatbot.sess as sess:
-        total_steps = 0
-        for chunk in range(current_chunk, num_chunks):
-            print("CHUNK NUMBER ", chunk)
-            # Read data into buckets and compute their sizes.
-            print ("Reading development and training data (limit: %d)." % config.max_train_samples)
-            train_set, dev_set = data_utils.read_data(config.dataset,
-                                                      chatbot.buckets,
-                                                      max_train_data_size=samples_per_chunk,
-                                                      skip_first=chunk*samples_per_chunk)
+        # Read data into buckets and compute their sizes.
+        print ("Reading development and training data (limit: %d)." % config.max_train_samples)
+        train_set, dev_set = data_utils.read_data(config.dataset,
+                                                  chatbot.buckets,
+                                                  max_train_data_size=config.chunk_size)
 
-            # Interpret as: train_buckets_scale[i] == [cumulative] fraction of samples in bucket i or below.
-            train_buckets_scale = _get_data_distribution(train_set, chatbot.buckets)
+        # Interpret as: train_buckets_scale[i] == [cumulative] fraction of samples in bucket i or below.
+        train_buckets_scale = _get_data_distribution(train_set, chatbot.buckets)
 
-            # This is the training loop.
-            step_time, loss = 0.0, 0.0
-            previous_losses = []
-            for i_step in range(steps_per_chunk):
-                # Sample a random bucket index according to the data distribution,
-                # then get a batch of data from that bucket by calling chatbot.get_batch.
-                rand = np.random.random_sample()
-                bucket_id = min([i for i in range(len(train_buckets_scale)) if train_buckets_scale[i] > rand])
+        # This is the training loop.
+        step_time, loss = 0.0, 0.0
+        previous_losses = []
+        for i_step in range(config.chunk_size):
+            # Sample a random bucket index according to the data distribution,
+            # then get a batch of data from that bucket by calling chatbot.get_batch.
+            rand = np.random.random_sample()
+            bucket_id = min([i for i in range(len(train_buckets_scale)) if train_buckets_scale[i] > rand])
 
-                # Get a batch and make a step.
-                start_time = time.time()
-                avg_perplexity = _step(sess, chatbot, train_set, bucket_id)
-                total_steps += 1
-                step_time += (time.time() - start_time) / config.steps_per_ckpt
-                loss      += avg_perplexity / config.steps_per_ckpt
+            # Get a batch and make a step.
+            start_time = time.time()
+            avg_perplexity = _step(sess, chatbot, train_set, bucket_id)
+            step_time += (time.time() - start_time) / config.steps_per_ckpt
+            loss      += avg_perplexity / config.steps_per_ckpt
 
-                # Once in a while, we save checkpoint, print statistics, and run evals.
-                if total_steps % config.steps_per_ckpt == 0:
-                    _run_checkpoint(sess, chatbot, config, step_time, loss, previous_losses, dev_set)
-                    step_time, loss = 0.0, 0.0
+            # Once in a while, we save checkpoint, print statistics, and run evals.
+            if i_step % config.steps_per_ckpt == 0:
+                _run_checkpoint(sess, chatbot, config, step_time, loss, previous_losses, dev_set)
+                step_time, loss = 0.0, 0.0
 
 
-def _step(sess, model, train_set, bucket_id):
+def _step(sess, model, train_set, bucket_id, forward_only=False):
     # Recall that target_weights are NOT parameter weights; they are weights in the sense of "weighted average."
     encoder_inputs, decoder_inputs, target_weights = model.get_batch(train_set, bucket_id)
 
@@ -70,7 +62,7 @@ def _step(sess, model, train_set, bucket_id):
                                  decoder_inputs,
                                  target_weights,
                                  bucket_id,
-                                 False)
+                                 forward_only)
     return avg_perplexity
 
 def _run_checkpoint(sess, model, config, step_time, loss, previous_losses, dev_set):
@@ -80,6 +72,9 @@ def _run_checkpoint(sess, model, config, step_time, loss, previous_losses, dev_s
     print("learning rate: %.4f" %  model.learning_rate.eval(), end="  ")
     print("step time: %.2f" % step_time, end="  ")
     print("perplexity: %.2f" % perplexity)
+
+    #global_step_ids.append(model.global_step.eval())
+    #global_perplexities.append(perplexity)
 
     # Decrease learning rate more aggressively.
     if len(previous_losses) > 3 and loss > min(previous_losses[-3:]):
@@ -96,13 +91,10 @@ def _run_checkpoint(sess, model, config, step_time, loss, previous_losses, dev_s
         if len(dev_set[bucket_id]) == 0:
             print("  eval: empty bucket %d" % (bucket_id))
             continue
-        encoder_inputs, decoder_inputs, target_weights = model.get_batch(
-        dev_set, bucket_id)
-        _, eval_loss, _ = model.step(sess, encoder_inputs, decoder_inputs,
-        target_weights, bucket_id, True)
-        eval_ppx = np.exp(float(eval_loss)) if eval_loss < 300 else float(
-        "inf")
+        eval_loss = _step(sess, model, dev_set, bucket_id, forward_only=True)
+        eval_ppx = np.exp(float(eval_loss)) if eval_loss < 300 else float("inf")
         print("  eval: bucket %d perplexity %.2f" % (bucket_id, eval_ppx))
+        #bucket_perplexities[bucket_id].append(eval_ppx)
     sys.stdout.flush()
 
 def _get_current_chunk(model, config, steps_per_chunk):

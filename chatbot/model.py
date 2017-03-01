@@ -108,6 +108,9 @@ class Chatbot(object):
                                                        buckets, lambda x, y: seq2seq_f(x, y),
                                                        softmax_loss_function=softmax_loss)
 
+        for i, loss in enumerate(self.losses):
+            tf.summary.histogram("muhloss{}".format(i), loss)
+
         # If decoding, append projection to true output to the model.
         if is_decoding and output_proj is not None:
             self.outputs = Chatbot._get_projections(len(buckets), self.outputs, output_proj)
@@ -129,7 +132,7 @@ class Chatbot(object):
                 self.updates.append(opt.apply_gradients(
                     zip(clipped_gradients, params), global_step=self.global_step))
 
-        self._save_model()
+        #self._save_model()
         print("Creating saver and exiting . . . ")
         self.saver = tf.train.Saver(tf.global_variables())
 
@@ -257,6 +260,9 @@ class Chatbot(object):
 
     def train(self, config: Config):
         """ Train chatbot. """
+        # Merge all the summaries and write them out to /tmp/mnist_logs (by default)
+        merged = tf.summary.merge_all()
+        train_writer = tf.summary.FileWriter(config.ckpt_dir)
         self.sess = self._create_session()
         self._setup_parameters(config)
         _train(self, config)

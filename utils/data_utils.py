@@ -207,7 +207,7 @@ def prepare_data(data_dir, from_train_path, to_train_path,
     vocab_path = [from_vocab_path, to_vocab_path]
     return (train_ids_path, dev_ids_path, vocab_path)
 
-def read_data(dataset, _buckets, max_train_data_size=int(1e6), skip_first=0):
+def read_data(dataset, _buckets, max_train_data_size=int(1e6)):
     """This is the main, and perhaps only, method that other files should use to access data.
     :param dataset:
     :param _buckets:
@@ -220,12 +220,12 @@ def read_data(dataset, _buckets, max_train_data_size=int(1e6), skip_first=0):
     # Read data into buckets (e.g. len(train_set) == len(buckets)).
     train_set   = _read_data(dataset.paths['from_train'],
                              dataset.paths['to_train'],
-                             _buckets, max_train_data_size, skip_first)
+                             _buckets, max_train_data_size)
     dev_set     = _read_data(dataset.paths['from_valid'],
                              dataset.paths['to_valid'], _buckets)
     return train_set, dev_set
 
-def _read_data(source_path, target_path, _buckets, max_size=None, skip_first=0):
+def _read_data(source_path, target_path, _buckets, max_size=None):
     """Read data from source and target files and put into buckets.
 
     Args:
@@ -243,28 +243,32 @@ def _read_data(source_path, target_path, _buckets, max_size=None, skip_first=0):
       len(target) < _buckets[n][1]; source and target are lists of token-ids.
     """
     print("Beginning reading of ", max_size, "lines total.")
-    print("Starting at line ", skip_first)
     data_set = [[] for _ in _buckets]
+    # Counter for the number of source/target pairs that couldn't fit in _buckets.
+    num_samples_too_large = 0
     with tf.gfile.GFile(source_path, mode="r") as source_file:
         with tf.gfile.GFile(target_path, mode="r") as target_file:
             source, target = source_file.readline(), target_file.readline()
-            for _ in range(skip_first):
-                source, target = source_file.readline(), target_file.readline()
-
             counter = 0
             while source and target and (not max_size or counter < max_size):
                 counter += 1
                 if counter % 100000 == 0:
                     print("  reading data line %d" % counter)
                     sys.stdout.flush()
+                # Get source/target as list of word IDs.
                 source_ids = [int(x) for x in source.split()]
                 target_ids = [int(x) for x in target.split()]
                 target_ids.append(EOS_ID)
+                # Place the source/target pair if they fit in a bucket.
                 for bucket_id, (source_size, target_size) in enumerate(_buckets):
                     if len(source_ids) < source_size and len(target_ids) < target_size:
                         data_set[bucket_id].append([source_ids, target_ids])
                         break
+                    if bucket_id == len(_buckets) - 1:
+                        num_samples_too_large += 1
                 source, target = source_file.readline(), target_file.readline()
+
+    print("Number of training samples that were too large for buckets:", num_samples_too_large)
     return data_set
 
 
