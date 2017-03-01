@@ -1,1 +1,3 @@
-{}
+{
+  "test_tensorflow_saver.py::TestTensorflowSaver::test_restore": true
+}

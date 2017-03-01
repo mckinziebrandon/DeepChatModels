@@ -69,7 +69,6 @@ class Chatbot(object):
         self.batch_size     = batch_size
         self.debug_mode = debug_mode
 
-
         self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
         self.lr_decay_op    = self.learning_rate.assign(learning_rate * lr_decay)
         self.global_step    = tf.Variable(initial_value=0, trainable=False)
@@ -130,6 +129,7 @@ class Chatbot(object):
                 self.updates.append(opt.apply_gradients(
                     zip(clipped_gradients, params), global_step=self.global_step))
 
+        self._save_model()
         print("Creating saver and exiting . . . ")
         self.saver = tf.train.Saver(tf.global_variables())
 

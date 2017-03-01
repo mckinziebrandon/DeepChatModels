@@ -5,7 +5,9 @@ from utils import *
 
 
 def _train(chatbot, config):
-    """ Train chatbot using dataset given by config.dataset. """
+    """ Train chatbot using dataset given by config.dataset.
+        chatbot: instance of Chatbot.
+    """
 
     # Number of unique training samples to consider for training.
     num_samples_total       = config.max_train_samples
