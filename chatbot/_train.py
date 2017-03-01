@@ -1,11 +1,11 @@
-"""Train seq2seq attention chatbot on ubuntu dialogue corpus."""
+"""Train seq2seq attention chatbot."""
 import time
 import numpy as np
 from utils import *
 
 
-def _train(chatbot, config):   #, num_steps=100000):
-    """ Train chatbot using 1-on-1 ubuntu dialogue corpus. """
+def _train(chatbot, config):
+    """ Train chatbot using dataset given by config.dataset. """
 
     # Number of unique training samples to consider for training.
     num_samples_total       = config.max_train_samples
@@ -86,6 +86,7 @@ def _run_checkpoint(sess, model, config, step_time, loss, previous_losses, dev_s
 
     # Save checkpoint and zero timer and loss.
     checkpoint_path = os.path.join(config.ckpt_dir, "{}.ckpt".format(config.data_name))
+    # Saves the state of all global variables.
     model.saver.save(sess, checkpoint_path, global_step=model.global_step)
 
     # Run evals on development set and print their perplexity.

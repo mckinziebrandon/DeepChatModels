@@ -21,7 +21,7 @@ def _decode(chatbot, config):
 
         # Decode from standard input.
         print("Type \"exit\" to exit, obviously.")
-        print("Write stuff after the \">\" below and I, your robot friend, will translate it to robot French.")
+        print("Write stuff after the \">\" below and I, your robot friend, will respond.")
         sys.stdout.write("> ")
         sys.stdout.flush()
         sentence = sys.stdin.readline()
@@ -44,13 +44,31 @@ def _decode(chatbot, config):
             # Get output logits for the sentence.
             _, _, output_logits = chatbot.step(sess, encoder_inputs, decoder_inputs,
                                            target_weights, bucket_id, True)
+
             # This is a greedy decoder - outputs are just argmaxes of output_logits.
-            outputs = [int(np.argmax(logit, axis=1)) for logit in output_logits]
+            outputs = []
+            for logit in output_logits:
+                logit = logit.flatten()
+                wordID = logit.argmax()
+                num_attempts = 0
+                while wordID == UNK_ID:
+                    wordID = np.random.multinomial(1, logit).argmax()
+                    num_attempts += 1
+                    if num_attempts > 20:
+                        raise RuntimeError
+                outputs.append(wordID)
+
+            # outputs = [int(np.argmax(logit, axis=1)) for logit in output_logits]
+
             # If there is an EOS symbol in outputs, cut them at that point.
             if data_utils.EOS_ID in outputs:
-               outputs = outputs[:outputs.index(data_utils.EOS_ID)]
-            # Print out French sentence corresponding to outputs.
-            print(" ".join([tf.compat.as_str(rev_fr_vocab[output]) for output in outputs]))
+                outputs = outputs[:outputs.index(data_utils.EOS_ID)]
+
+            outputs = " ".join([tf.compat.as_str(rev_fr_vocab[output]) for output in outputs]) + "."
+            # Capitalize.
+            outputs = outputs[0].upper() + outputs[1:]
+            # Print out sentence corresponding to outputs.
+            print(outputs)
             print("> ", end="")
             sys.stdout.flush()
             sentence = sys.stdin.readline()

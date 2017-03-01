@@ -9,21 +9,21 @@ from utils import Config
 # - The flags are shown in alphabetical order (by name).
 # ==============================================================================================================================
 
-#DEFAULT_DATA_DIR="/home/brandon/terabyte/Datasets/ubuntu_dialogue_corpus"
-TEMP="/home/brandon/terabyte/Datasets/wmt"
+TEMP="/home/brandon/terabyte/Datasets/ubuntu_dialogue_corpus"
+#TEMP="/home/brandon/terabyte/Datasets/wmt"
 
 flags = tf.app.flags
 # String flags -- directories and dataset name(s).
+flags.DEFINE_string("data_name", "ubuntu", "For now, either 'ubuntu' or 'wmt'.")
 flags.DEFINE_string("data_dir", TEMP, "Directory containing the data files.")
 flags.DEFINE_string("ckpt_dir", "out", "Directory in which checkpoint files will be saved.")
-flags.DEFINE_string("data_name", "wmt", "For now, either 'ubuntu' or 'wmt'.")
 # Boolean flags.
 flags.DEFINE_boolean("reset_model", True, "wipe output directory; new params")
 flags.DEFINE_boolean("decode", False, "If true, will activate chat session with user.")
 # Integer flags -- First three only need custom values if you're especially worried about RAM.
 flags.DEFINE_integer("max_train_samples", int(22e6), "Limit training data size (0: no limit).")
 flags.DEFINE_integer("chunk_size", int(2e6), "")
-flags.DEFINE_integer("steps_per_ckpt", 500, "How many training steps to do per checkpoint.")
+flags.DEFINE_integer("steps_per_ckpt", 1000, "How many training steps to do per checkpoint.")
 flags.DEFINE_integer("batch_size", 64, "Batch size to use during training.")
 flags.DEFINE_integer("vocab_size", 40000, "English vocabulary size.")
 flags.DEFINE_integer("layer_size", 1024, "Size of each model layer.")

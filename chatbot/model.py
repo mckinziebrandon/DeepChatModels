@@ -60,21 +60,23 @@ class Chatbot(object):
             print("[DEBUG] Layer size:", layer_size)
             print("[DEBUG] Number of layers:", num_layers)
 
-        # =====================================================================================================
+        # ==============================================================================================
         # Store instance variables.
-        # =====================================================================================================
+        # ==============================================================================================
 
         self.vocab_size     = vocab_size
         self.buckets        = buckets
         self.batch_size     = batch_size
+        self.debug_mode = debug_mode
+
+
         self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
         self.lr_decay_op    = self.learning_rate.assign(learning_rate * lr_decay)
         self.global_step    = tf.Variable(initial_value=0, trainable=False)
-        self.debug_mode = debug_mode
 
-        # =====================================================================================================
+        # ==============================================================================================
         # Define basic components: cell(s) state, encoder, decoder.
-        # =====================================================================================================
+        # ==============================================================================================
 
         cell = Chatbot._get_cell(num_layers, layer_size)
         self.encoder_inputs = Chatbot._get_placeholder_list("encoder", buckets[-1][0])
@@ -88,9 +90,9 @@ class Chatbot(object):
         else:
             softmax_loss, output_proj = None, None
 
-        # =====================================================================================================
+        # ==============================================================================================
         # Combine the components to construct desired model architecture.
-        # =====================================================================================================
+        # ==============================================================================================
 
         # The seq2seq function: we use embedding for the input and attention.
         def seq2seq_f(encoder_inputs, decoder_inputs):
@@ -111,9 +113,9 @@ class Chatbot(object):
         if is_decoding and output_proj is not None:
             self.outputs = Chatbot._get_projections(len(buckets), self.outputs, output_proj)
 
-        # =====================================================================================================
+        # ==============================================================================================
         # Configure training process (backward pass).
-        # =====================================================================================================
+        # ==============================================================================================
 
         params = tf.trainable_variables()
         if not is_decoding:
