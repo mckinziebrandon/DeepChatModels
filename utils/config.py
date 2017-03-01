@@ -14,6 +14,7 @@ class Config(object):
             self.dataset = WMT(FLAGS.vocab_size)
 
         self.ckpt_dir = FLAGS.ckpt_dir
+        self.log_dir = FLAGS.log_dir
         self.steps_per_ckpt = FLAGS.steps_per_ckpt
         self.max_train_samples = FLAGS.max_train_samples
         #self.max_steps = FLAGS.max_steps

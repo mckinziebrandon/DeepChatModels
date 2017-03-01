@@ -109,7 +109,7 @@ class Chatbot(object):
                                                        softmax_loss_function=softmax_loss)
 
         for i, loss in enumerate(self.losses):
-            tf.summary.histogram("muhloss{}".format(i), loss)
+            tf.summary.scalar("loss{}".format(i), loss)
 
         # If decoding, append projection to true output to the model.
         if is_decoding and output_proj is not None:
@@ -134,6 +134,8 @@ class Chatbot(object):
 
         #self._save_model()
         print("Creating saver and exiting . . . ")
+        # Merge all the summaries
+        self.merged = tf.summary.merge_all()
         self.saver = tf.train.Saver(tf.global_variables())
 
     def step(self, session, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only):
@@ -181,7 +183,8 @@ class Chatbot(object):
 
         # Output feed: depends on whether we do a backward step or not.
         if not forward_only:
-            output_feed = [self.updates[bucket_id],  # Update Op that does SGD.
+            output_feed = [self.merged,
+                           self.updates[bucket_id],  # Update Op that does SGD.
                            self.gradient_norms[bucket_id],  # Gradient norm.
                            self.losses[bucket_id]]  # Loss for this batch.
         else:
@@ -191,9 +194,9 @@ class Chatbot(object):
 
         outputs = session.run(fetches=output_feed, feed_dict=input_feed)
         if not forward_only:
-            return outputs[1], outputs[2], None  # Gradient norm, loss, no outputs.
+            return outputs[0], outputs[2], outputs[3], None  # summaries,  Gradient norm, loss, no outputs.
         else:
-            return None, outputs[0], outputs[1:]  # No gradient norm, loss, outputs.
+            return None, None, outputs[0], outputs[1:]  #summary,  No gradient norm, loss, outputs.
 
 
     def get_batch(self, data, bucket_id):
@@ -260,9 +263,7 @@ class Chatbot(object):
 
     def train(self, config: Config):
         """ Train chatbot. """
-        # Merge all the summaries and write them out to /tmp/mnist_logs (by default)
-        merged = tf.summary.merge_all()
-        train_writer = tf.summary.FileWriter(config.ckpt_dir)
+
         self.sess = self._create_session()
         self._setup_parameters(config)
         _train(self, config)
@@ -286,7 +287,10 @@ class Chatbot(object):
         else:
             print("Created model with fresh parameters.")
             # clear output dir contents.
-            os.popen('rm -f out/*')
+            os.popen('rm -rf out/*')
+            os.popen('mkdir -p out/logs')
+            # Write all summaries to log_dir.
+            self.train_writer = tf.summary.FileWriter(config.log_dir, self.sess.graph)
             self.sess.run(tf.global_variables_initializer())
 
 

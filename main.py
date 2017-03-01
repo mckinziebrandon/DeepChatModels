@@ -17,6 +17,7 @@ flags = tf.app.flags
 flags.DEFINE_string("data_name", "ubuntu", "For now, either 'ubuntu' or 'wmt'.")
 flags.DEFINE_string("data_dir", TEMP, "Directory containing the data files.")
 flags.DEFINE_string("ckpt_dir", "out", "Directory in which checkpoint files will be saved.")
+flags.DEFINE_string("log_dir", "out/logs", "Directory in which checkpoint files will be saved.")
 # Boolean flags.
 flags.DEFINE_boolean("reset_model", True, "wipe output directory; new params")
 flags.DEFINE_boolean("decode", False, "If true, will activate chat session with user.")
@@ -36,7 +37,7 @@ FLAGS = flags.FLAGS
 
 if __name__ == "__main__":
 
-    buckets = [(5, 10), (15, 20), (30, 40)]
+    buckets = [(5, 10), (10, 15)]
     # Note: I'm only specifying the flags that I tend to change; more options are available!
     chatbot = chatbot.Chatbot(buckets,
                               layer_size=FLAGS.layer_size,

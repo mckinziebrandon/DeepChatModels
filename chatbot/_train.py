@@ -3,24 +3,11 @@ import time
 import numpy as np
 from utils import *
 import tensorflow as tf
-import matplotlib as plt
-
-# Containers for matplotlib plots/visualizations.
-#global_step_ids = []
-#global_perplexities = []
-#bucket_perplexities = {}
 
 def _train(chatbot, config):
     """ Train chatbot using dataset given by config.dataset.
         chatbot: instance of Chatbot.
     """
-
-    # Initialize plotting dictionaries.
-    #for i in range(len(chatbot.buckets)):
-    #    bucket_perplexities[i] = []
-
-    writer = tf.train.SummaryWriter("/tmp/tensorflowlogs", session.graph)
-    session.run(model)
 
     with chatbot.sess as sess:
         # Read data into buckets and compute their sizes.
@@ -35,7 +22,7 @@ def _train(chatbot, config):
         # This is the training loop.
         step_time, loss = 0.0, 0.0
         previous_losses = []
-        for i_step in range(config.chunk_size):
+        for i_step in range(10):
             # Sample a random bucket index according to the data distribution,
             # then get a batch of data from that bucket by calling chatbot.get_batch.
             rand = np.random.random_sample()
@@ -43,7 +30,8 @@ def _train(chatbot, config):
 
             # Get a batch and make a step.
             start_time = time.time()
-            avg_perplexity = _step(sess, chatbot, train_set, bucket_id)
+            summary, avg_perplexity = _step(sess, chatbot, train_set, bucket_id)
+            chatbot.train_writer.add_summary(summary, i_step)
             step_time += (time.time() - start_time) / config.steps_per_ckpt
             loss      += avg_perplexity / config.steps_per_ckpt
 
@@ -52,18 +40,21 @@ def _train(chatbot, config):
                 _run_checkpoint(sess, chatbot, config, step_time, loss, previous_losses, dev_set)
                 step_time, loss = 0.0, 0.0
 
+        chatbot.train_writer.close()
+
 
 def _step(sess, model, train_set, bucket_id, forward_only=False):
     # Recall that target_weights are NOT parameter weights; they are weights in the sense of "weighted average."
     encoder_inputs, decoder_inputs, target_weights = model.get_batch(train_set, bucket_id)
 
-    _, avg_perplexity, _ = model.step(sess,
+    summary, _, losses, _ = model.step(sess,
                                  encoder_inputs,
                                  decoder_inputs,
                                  target_weights,
                                  bucket_id,
                                  forward_only)
-    return avg_perplexity
+
+    return summary, losses
 
 def _run_checkpoint(sess, model, config, step_time, loss, previous_losses, dev_set):
     # Print statistics for the previous epoch.
@@ -72,9 +63,6 @@ def _run_checkpoint(sess, model, config, step_time, loss, previous_losses, dev_s
     print("learning rate: %.4f" %  model.learning_rate.eval(), end="  ")
     print("step time: %.2f" % step_time, end="  ")
     print("perplexity: %.2f" % perplexity)
-
-    #global_step_ids.append(model.global_step.eval())
-    #global_perplexities.append(perplexity)
 
     # Decrease learning rate more aggressively.
     if len(previous_losses) > 3 and loss > min(previous_losses[-3:]):
@@ -91,7 +79,7 @@ def _run_checkpoint(sess, model, config, step_time, loss, previous_losses, dev_s
         if len(dev_set[bucket_id]) == 0:
             print("  eval: empty bucket %d" % (bucket_id))
             continue
-        eval_loss = _step(sess, model, dev_set, bucket_id, forward_only=True)
+        _, eval_loss = _step(sess, model, dev_set, bucket_id, forward_only=True)
         eval_ppx = np.exp(float(eval_loss)) if eval_loss < 300 else float("inf")
         print("  eval: bucket %d perplexity %.2f" % (bucket_id, eval_ppx))
         #bucket_perplexities[bucket_id].append(eval_ppx)
