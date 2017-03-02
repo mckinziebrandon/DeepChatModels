@@ -22,25 +22,32 @@ def _train(chatbot, config):
         # This is the training loop.
         step_time, loss = 0.0, 0.0
         previous_losses = []
-        for i_step in range(100000):
-            # Sample a random bucket index according to the data distribution,
-            # then get a batch of data from that bucket by calling chatbot.get_batch.
-            rand = np.random.random_sample()
-            bucket_id = min([i for i in range(len(train_buckets_scale)) if train_buckets_scale[i] > rand])
+        try:
+            for i_step in range(100000):
+                # Sample a random bucket index according to the data distribution,
+                # then get a batch of data from that bucket by calling chatbot.get_batch.
+                rand = np.random.random_sample()
+                bucket_id = min([i for i in range(len(train_buckets_scale)) if train_buckets_scale[i] > rand])
 
-            # Get a batch and make a step.
-            start_time = time.time()
-            summary, avg_perplexity = _step(sess, chatbot, train_set, bucket_id, False)
-            chatbot.train_writer.add_summary(summary, i_step)
-            step_time += (time.time() - start_time) / config.steps_per_ckpt
-            loss      += avg_perplexity / config.steps_per_ckpt
+                # Get a batch and make a step.
+                start_time = time.time()
+                summary, step_loss = _step(sess, chatbot, train_set, bucket_id, False)
+                chatbot.train_writer.add_summary(summary, i_step)
+                step_time += (time.time() - start_time) / config.steps_per_ckpt
+                loss      += step_loss / config.steps_per_ckpt
 
-            # Once in a while, we save checkpoint, print statistics, and run evals.
-            if i_step % config.steps_per_ckpt == 0:
-                _run_checkpoint(sess, chatbot, config, step_time, loss, previous_losses, dev_set)
-                step_time, loss = 0.0, 0.0
-
-        chatbot.train_writer.close()
+                # Once in a while, we save checkpoint, print statistics, and run evals.
+                if i_step % config.steps_per_ckpt == 0:
+                    _run_checkpoint(sess, chatbot, config, step_time, loss, previous_losses, dev_set)
+                    step_time, loss = 0.0, 0.0
+        except (KeyboardInterrupt, SystemExit):
+            print("Training halted. Cleaning up . . . ")
+            chatbot.train_writer.close()
+            # Save checkpoint and zero timer and loss.
+            checkpoint_path = os.path.join(config.ckpt_dir, "{}.ckpt".format(config.data_name))
+            # Saves the state of all global variables.
+            chatbot.saver.save(sess, checkpoint_path, global_step=chatbot.global_step)
+            print("Done.")
 
 
 def _step(sess, model, train_set, bucket_id, forward_only=False):
@@ -60,7 +67,7 @@ def _run_checkpoint(sess, model, config, step_time, loss, previous_losses, dev_s
     print("perplexity: %.2f" % perplexity)
 
     # Decrease learning rate more aggressively.
-    if len(previous_losses) > 3 and loss > min(previous_losses[-3:]):
+    if len(previous_losses) > 4 and loss > min(previous_losses[-4:]):
         sess.run(model.lr_decay_op)
     previous_losses.append(loss)
 

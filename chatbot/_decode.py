@@ -12,12 +12,12 @@ def _decode(chatbot, config):
         chatbot.batch_size = 1  # We decode one sentence at a time.
 
         # Load vocabularies.
-        en_vocab_path = os.path.join(config.data_dir, "vocab%d.from" % chatbot.vocab_size)
-        fr_vocab_path = os.path.join(config.data_dir, "vocab%d.to" % chatbot.vocab_size)
+        from_vocab_path = os.path.join(config.data_dir, "vocab%d.from" % chatbot.vocab_size)
+        to_vocab_path   = os.path.join(config.data_dir, "vocab%d.to" % chatbot.vocab_size)
 
         # initialize_vocabulary returns word_to_idx, idx_to_word.
-        en_vocab, _ = initialize_vocabulary(en_vocab_path)
-        _, rev_fr_vocab = initialize_vocabulary(fr_vocab_path)
+        word_idx_from, _    = initialize_vocabulary(from_vocab_path)
+        _, idx_word_to      = initialize_vocabulary(to_vocab_path)
 
         # Decode from standard input.
         print("Type \"exit\" to exit, obviously.")
@@ -28,7 +28,7 @@ def _decode(chatbot, config):
         while sentence:
             sentence = sentence[:-1]
             # Get token-ids for the input sentence.
-            token_ids = data_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence), en_vocab)
+            token_ids = data_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence), word_idx_from)
             # Which bucket does it belong to?
             bucket_id = len(chatbot.buckets) - 1
             for i, bucket in enumerate(chatbot.buckets):
@@ -42,8 +42,7 @@ def _decode(chatbot, config):
             encoder_inputs, decoder_inputs, target_weights = chatbot.get_batch(
               {bucket_id: [(token_ids, [])]}, bucket_id)
             # Get output logits for the sentence.
-            _, _, output_logits = chatbot.step(sess, encoder_inputs, decoder_inputs,
-                                           target_weights, bucket_id, True)
+            _, _, _, output_logits = chatbot.step(sess, encoder_inputs, decoder_inputs, target_weights, bucket_id, True)
 
             # This is a greedy decoder - outputs are just argmaxes of output_logits.
             outputs = []
@@ -64,7 +63,7 @@ def _decode(chatbot, config):
             if data_utils.EOS_ID in outputs:
                 outputs = outputs[:outputs.index(data_utils.EOS_ID)]
 
-            outputs = " ".join([tf.compat.as_str(rev_fr_vocab[output]) for output in outputs]) + "."
+            outputs = " ".join([tf.compat.as_str(idx_word_to[output]) for output in outputs]) + "."
             # Capitalize.
             outputs = outputs[0].upper() + outputs[1:]
             # Print out sentence corresponding to outputs.

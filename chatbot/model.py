@@ -23,8 +23,18 @@ from chatbot._decode import _decode
 class Chatbot(object):
     """Sequence-to-sequence model with attention and for multiple buckets.
 
-    This class implements a multi-layer recurrent neural network as encoder,
-    and an attention-based decoder.
+    The input-to-output path can be thought of (on a high level) as follows:
+        1. Inputs:      Batches of integer lists, where each integer is a word ID to a pre-defined vocabulary.
+        2. Embedding:   each input integer is mapped to an embedding vector.
+                        Each embedding vector is of length 'layer_size', an argument to __init__.
+                        The encoder and decoder have their own distinct embedding spaces.
+        3. Encoding:    The embedded batch vectors are fed to a multi-layer cell containing GRUs.
+        4. Attention:   At each timestep, the output of the multi-layer cell is saved, so that
+                        the decoder can access them in the manner specified in the paper on
+                        jointly learning to align and translate. (should give a link to paper...)
+        5. Decoding:    The decoder, the same type of embedded-multi-layer cell as the encoder, is initialized
+                        with the last output of the encoder, the "context". Thereafter, we either feed it
+                        a target sequence (when training) or we feed its previous output as its next input (chatting).
     """
 
     def __init__(self,
@@ -42,11 +52,11 @@ class Chatbot(object):
         """Create the model.
 
         Args:
-            vocab_size: number of unique tokens in the dataset vocabulary as built in utils.data_utils
+            vocab_size: number of unique tokens in the dataset vocabulary.
             buckets: a list of pairs (I, O), where I (O) specifies maximum input (output) length
-                     that will be processed in that bucket
-            layer_size: number of units in each layer of the model.
-            num_layers: number of layers in the model.
+                     that will be processed in that bucket.
+            layer_size: number of units in each recurrent layer (contained within the model cell).
+            num_layers: number of recurrent layers in the model's cell state.
             max_gradient: gradients will be clipped to maximally this norm.
             batch_size: the size of the batches used during training;
             learning_rate: learning rate to start with.
@@ -95,6 +105,11 @@ class Chatbot(object):
 
         # The seq2seq function: we use embedding for the input and attention.
         def seq2seq_f(encoder_inputs, decoder_inputs):
+            # Note: the returned function uses separate embeddings for encoded/decoded sets.
+            #           Maybe try implementing with same embedding for both; makes more sense for our purposes.
+            # Question: the outputs are projected to vocab_size NO MATTER WHAT.
+            #           i.e. if output_proj is None, it uses its own OutputProjectionWrapper instead
+            #           --> How does this affect our model?? A bit misleading imo.
             return embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
                                                num_encoder_symbols=vocab_size, num_decoder_symbols=vocab_size,
                                                embedding_size=layer_size, output_projection=output_proj,
@@ -121,20 +136,27 @@ class Chatbot(object):
         # Configure training process (backward pass).
         # ==============================================================================================
 
+        # Note: variables are trainable=True by default.
         params = tf.trainable_variables()
         if not is_decoding:
             self.gradient_norms = []
+            # updates will store the parameter (S)GD updates.
             self.updates = []
-            opt = tf.train.GradientDescentOptimizer(self.learning_rate)
+            optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
             print("Looping over", len(buckets), "buckets.")
+            # TODO: Think about how this could optimized. There has to be a way.
             for b in range(len(buckets)):
+                # Note: tf.gradients returns in form: gradients[i] == sum([dy/dx_i for y in self.losses[b]]).
                 gradients = tf.gradients(self.losses[b], params)
+                # Gradient clipping is actually extremely simple, it basically just
+                # checks if L2Norm(gradients) > max_gradient, and if it is, it returns
+                # (gradients / L2Norm(gradients)) * max_grad.
+                # norm: literally just L2-norm of gradients.
                 clipped_gradients, norm = tf.clip_by_global_norm(gradients, max_gradient)
                 self.gradient_norms.append(norm)
-                self.updates.append(opt.apply_gradients(
-                    zip(clipped_gradients, params), global_step=self.global_step))
+                self.updates.append(optimizer.apply_gradients(zip(clipped_gradients, params),
+                                                              global_step=self.global_step))
 
-        #self._save_model()
         print("Creating saver and exiting . . . ")
         self.saver = tf.train.Saver(tf.global_variables())
 
@@ -265,6 +287,7 @@ class Chatbot(object):
         """ Train chatbot. """
 
         self.sess = self._create_session()
+        self.train_writer = tf.summary.FileWriter(config.log_dir, self.sess.graph)
         self._setup_parameters(config)
         _train(self, config)
 
@@ -290,7 +313,6 @@ class Chatbot(object):
             os.popen('rm -rf out/*')
             os.popen('mkdir -p out/logs')
             # Write all summaries to log_dir.
-            self.train_writer = tf.summary.FileWriter(config.log_dir, self.sess.graph)
             self.sess.run(tf.global_variables_initializer())
 
 
@@ -299,11 +321,15 @@ class Chatbot(object):
 
     @staticmethod
     def _sampled_softmax_loss(num_samples: int, hidden_size: int, vocab_size: int):
-        """TODO
-        :param num_samples:     (context: importance sampling) size of subset of outputs for softmax.
-        :param hidden_size:     number of units in the individual recurrent states.
-        :param vocab_size: number of unique output words.
-        :return: sampled_loss, output_projection
+        """Defines the samples softmax loss op and the associated output projection.
+        Args:
+            num_samples:     (context: importance sampling) size of subset of outputs for softmax.
+            hidden_size:     number of units in the individual recurrent states.
+            vocab_size: number of unique output words.
+        Returns:
+            sampled_loss, output_projection
+            - function: sampled_loss(labels, inputs)
+            - output_projection: transformation to full vocab space, applied to decoder output.
         """
 
         assert(0 < num_samples < vocab_size)
@@ -316,6 +342,7 @@ class Chatbot(object):
         output_projection = (w, b)
 
         def sampled_loss(labels, inputs):
+            # QUESTION: (1) Why reshape? (2) Explain the math (sec 3 of paper).
             labels = tf.reshape(labels, [-1, 1])
             return tf.nn.sampled_softmax_loss(
                     weights=w_t,
