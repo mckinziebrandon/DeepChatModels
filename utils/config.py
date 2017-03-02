@@ -20,3 +20,4 @@ class Config(object):
         #self.max_steps = FLAGS.max_steps
         self.chunk_size = FLAGS.chunk_size
         self.reset_model = FLAGS.reset_model
+        self.temperature = FLAGS.temperature

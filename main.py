@@ -33,10 +33,12 @@ flags.DEFINE_integer("vocab_size", 40000, "English vocabulary size.")
 flags.DEFINE_integer("layer_size", 512, "Size of each model layer.")
 flags.DEFINE_integer("num_layers", 3, "Number of layers in the model.")
 
-# Float flags -- training hyperparameters.
+# Float flags -- hyperparameters.
 flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
 flags.DEFINE_float("lr_decay", 0.95, "Decay factor applied to learning rate.")
 flags.DEFINE_float("max_gradient", 5.0, "Clip gradients to this value.")
+flags.DEFINE_float("temperature", 1.0, "Sampling temperature.")
+
 FLAGS = flags.FLAGS
 
 if __name__ == "__main__":

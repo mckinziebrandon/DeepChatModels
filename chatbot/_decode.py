@@ -38,27 +38,22 @@ def _decode(chatbot, config):
             else:
                 logging.warning("Sentence longer than  truncated: %s", sentence)
 
+            # ==============================================================
+            # Run model inference.
+            # ==============================================================
+
             # Get a 1-element batch to feed the sentence to the chatbot.
             encoder_inputs, decoder_inputs, target_weights = chatbot.get_batch(
               {bucket_id: [(token_ids, [])]}, bucket_id)
             # Get output logits for the sentence.
             _, _, _, output_logits = chatbot.step(sess, encoder_inputs, decoder_inputs, target_weights, bucket_id, True)
 
+            # ==============================================================
+            # Convert raw output to chat response & print.
+            # ==============================================================
+
             # This is a greedy decoder - outputs are just argmaxes of output_logits.
-            outputs = []
-            for logit in output_logits:
-                logit = logit.flatten()
-                wordID = logit.argmax()
-                num_attempts = 0
-                while wordID == UNK_ID:
-                    wordID = np.random.multinomial(1, logit).argmax()
-                    num_attempts += 1
-                    if num_attempts > 20:
-                        raise RuntimeError
-                outputs.append(wordID)
-
-            # outputs = [int(np.argmax(logit, axis=1)) for logit in output_logits]
-
+            outputs = _logits_to_indices(output_logits, config.temperature)
             # If there is an EOS symbol in outputs, cut them at that point.
             if data_utils.EOS_ID in outputs:
                 outputs = outputs[:outputs.index(data_utils.EOS_ID)]
@@ -68,6 +63,11 @@ def _decode(chatbot, config):
             outputs = outputs[0].upper() + outputs[1:]
             # Print out sentence corresponding to outputs.
             print(outputs)
+
+            # ==============================================================
+            # Wait for next input.
+            # ==============================================================
+
             print("> ", end="")
             sys.stdout.flush()
             sentence = sys.stdin.readline()
@@ -75,3 +75,25 @@ def _decode(chatbot, config):
             if sentence[:-1] == 'exit':
                 print("Fine, bye :(")
                 break
+
+def _logits_to_indices(output_logits, temperature=0.5):
+    """
+    Args:
+        output_logits: shape is [output_length, [vocab_size]]
+    :return:
+    """
+    # outputs = [int(np.argmax(logit, axis=1)) for logit in output_logits]
+    return [_sample(l, temperature) for l in output_logits]
+
+def _sample(logits, temperature):
+    if temperature == 0.0:
+        return int(np.argmax(logits, axis=1))
+    logits = logits.flatten()
+    logits = logits / temperature
+    logits = np.exp(logits - np.max(logits))
+    logits = logits / np.sum(logits)
+    sampleID = np.argmax(np.random.multinomial(1, logits, 1))
+    while sampleID == UNK_ID:
+        sampleID = np.argmax(np.random.multinomial(1, logits, 1))
+    return int(sampleID)
+

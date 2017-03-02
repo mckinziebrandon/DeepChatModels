@@ -13,7 +13,7 @@ TEST_CKPT_DIR = os.path.join(CWD, "out")
 flags = tf.app.flags
 flags.DEFINE_string("data_dir", DEFAULT_DATA_DIR, "Directory containing the data files.")
 flags.DEFINE_string("ckpt_dir", TEST_CKPT_DIR, "Directory in which checkpoint files will be saved.")
-flags.DEFINE_string("reset_model", False, "wipe output directory; new params")
+flags.DEFINE_string("reset_model", True, "wipe output directory; new params")
 
 flags.DEFINE_string("chunk_size", 10000, "")
 flags.DEFINE_integer("max_train_samples", int(22e6), "Limit training data size (0: no limit).")
