@@ -310,8 +310,11 @@ class Chatbot(object):
         else:
             print("Created model with fresh parameters.")
             # clear output dir contents.
-            os.popen('rm -rf out/*')
             os.popen('mkdir -p out/logs')
+            os.popen('mv out/logs .')
+            os.popen('rm -rf out/*')
+            os.popen('mv logs out/')
+            # TODO: should probably create filewriter both here and after if statement, its actually less clunky...
             # Write all summaries to log_dir.
             self.sess.run(tf.global_variables_initializer())
 

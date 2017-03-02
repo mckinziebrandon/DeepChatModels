@@ -48,12 +48,14 @@ if __name__ == "__main__":
     # Note: I'm only specifying the flags that I tend to change; more options are available!
     chatbot = chatbot.Chatbot(buckets,
                               layer_size=FLAGS.layer_size,
-                              num_layers=FLAGS.num_layers)
+                              num_layers=FLAGS.num_layers,
+                              lr_decay=FLAGS.lr_decay)
 
     # The Config object stores train/test-time pertinent info, like directories.
     config = Config(FLAGS)
     if FLAGS.decode:
         print("Preparing for chat session.")
+        print("Temperature set to", FLAGS.temperature)
         chatbot.decode(config)
     else:
         print("Preparing for training session.")
