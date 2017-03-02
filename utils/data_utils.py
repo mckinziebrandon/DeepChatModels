@@ -29,13 +29,12 @@ _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
 _DIGIT_RE   = re.compile(br"\d")
 
 DATASETS = {
-    'ubuntu': Ubuntu(),
-    'wmt': WMT()
+    'ubuntu': Ubuntu,
+    'wmt': WMT
 }
 
-def get_dataset(name):
-    return DATASETS[name]
-
+def get_dataset(name, vocab_size):
+    return DATASETS[name](vocab_size)
 
 def basic_tokenizer(sentence):
     """Very basic tokenizer: split the sentence into a list of tokens."""
