@@ -4,8 +4,8 @@ from __future__ import division
 from __future__ import print_function
 
 # Standard python imports.
-import random
 import os
+from pathlib import Path
 
 # ML/DL-specific imports.
 import numpy as np
@@ -15,15 +15,26 @@ from tensorflow.contrib.legacy_seq2seq import model_with_buckets
 
 # User-defined imports.
 from utils import data_utils
-from utils import Config
-from chatbot._train import _train
-from chatbot._decode import _decode
+from chatbot._train import train
+from chatbot._decode import decode
+
 
 class Model(object):
     """Abstract base model class."""
 
-    def initialize(self):
-        """Either restore the model from file(s) or create from scratch."""
+    def initialize(self, ckpt_dir, name):
+        """Either restore the model from file(s) or create from scratch.
+        TODO: Make code below actually useable. As is, it's just skeleton/proof-of-concept.
+        base_fname = os.path.join(ckpt_dir, name)
+        if Path(base_fname+'.meta').is_file():
+            self.saver = tf.train.import_meta_graph(base_fname+'.meta')
+            self.saver.restore(self.sess, base_fname)
+            # ... Load any desired variables ...
+            # When collection name corresponds to single var . . .
+            self.value_i_want = tf.get_collection("value_i_want")[0]
+            # When collection name corresponds to multiple vars . . .
+            self.hyperparams = tf.get_collection("hyperparams")
+        """
         raise NotImplemented
 
     def train(self, batch_size, nb_epoch=1):
@@ -173,6 +184,58 @@ class Chatbot(object):
         print("Creating saver and exiting . . . ")
         self.saver = tf.train.Saver(tf.global_variables())
 
+    def get_batch(self, data, bucket_id):
+        """Get a random batch of data from the specified bucket, prepare for step.
+            encoder_inputs[i]       == [words in sentences[i]], where 0 <  i < batch_size.
+            batch_encoder_inputs[i] == list(i'th wordID over all batch sentences)
+
+        Args:
+          data: tuple of len(self.buckets). data[bucket_id] == [source_ids, target_ids]
+          bucket_id: integer, which bucket to get the batch for.
+
+        Returns:
+          The triple (encoder_inputs, decoder_inputs, target_weights) for
+          the constructed batch that has the proper format to call step(...) later.
+        """
+        encoder_size, decoder_size = self.buckets[bucket_id]
+        encoder_inputs, decoder_inputs = [], []
+
+        # Get a random batch of encoder and decoder inputs from data,
+        # pad them if needed, reverse encoder inputs and add GO to decoder.
+        for _ in range(self.batch_size):
+            encoder_input, decoder_input = np.random.choice(data[bucket_id])
+            # Encoder inputs are padded and then reversed.
+            encoder_pad = [data_utils.PAD_ID] * (encoder_size - len(encoder_input))
+            encoder_inputs.append(list(reversed(encoder_input + encoder_pad)))
+            # Decoder inputs get an extra "GO" symbol, and are padded then.
+            decoder_pad= [data_utils.PAD_ID] * (decoder_size - len(decoder_input) - 1)
+            decoder_inputs.append([data_utils.GO_ID] + decoder_input + decoder_pad)
+
+        # Define some small helper functions before we re-index & weight.
+        def inputs_to_unit(uid, inputs):
+            """ Return re-indexed version of inputs array. Description in params below.
+            :param uid: index identifier for input timestep/unit/node of interest.
+            :param inputs:  single batch of data; inputs[i] is i'th sentence.
+            :return:        re-indexed version of inputs as numpy array.
+            """
+            return np.array([inputs[i][uid] for i in range(self.batch_size)], dtype=np.int32)
+
+        batch_encoder_inputs = [inputs_to_unit(i, encoder_inputs) for i in range(encoder_size)]
+        batch_decoder_inputs = [inputs_to_unit(i, decoder_inputs) for i in range(decoder_size)]
+        batch_weights        = list(np.ones(shape=(decoder_size, self.batch_size), dtype=np.float32))
+
+        # Set weight for the final decoder unit to 0.0 for all batches.
+        for i in range(self.batch_size):
+            batch_weights[-1][i] = 0.0
+
+        # Also set any decoder-input-weights to 0 that have PAD as target decoder output.
+        for unit_id in range(decoder_size - 1):
+            ids_with_pad_target = [b for b in range(self.batch_size)
+                                   if decoder_inputs[b][unit_id+1] == data_utils.PAD_ID]
+            batch_weights[unit_id][ids_with_pad_target] = 0.0
+
+        return batch_encoder_inputs, batch_decoder_inputs, batch_weights
+
     def step(self, session, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only):
         """Run a step of the model feeding the given inputs.
 
@@ -204,114 +267,49 @@ class Chatbot(object):
         check_input_length(len(decoder_inputs), decoder_size)
         check_input_length(len(target_weights), decoder_size)
 
-        # Input feed: encoder inputs, decoder inputs, target_weights, as provided.
+        # Input feed: Associate the parameters given with the model variables.
         input_feed = {}
         for l in range(encoder_size):
             input_feed[self.encoder_inputs[l].name] = encoder_inputs[l]
         for l in range(decoder_size):
             input_feed[self.decoder_inputs[l].name] = decoder_inputs[l]
             input_feed[self.target_weights[l].name] = target_weights[l]
-
         # Don't forget the additional EOS only in **SELF**.decoder_inputs.
-        last_target = self.decoder_inputs[decoder_size].name
-        input_feed[last_target] = np.zeros([self.batch_size], dtype=np.int32)
+        input_feed[self.decoder_inputs[decoder_size].name] = np.zeros([self.batch_size], dtype=np.int32)
 
-        # Output feed: depends on whether we do a backward step or not.
+        # Fetches: the Operations/Tensors we want executed/evaluated during session.run(...).
         if not forward_only:
-            output_feed = [self.summaries["loss{}".format(bucket_id)],
-                           self.updates[bucket_id],  # Update Op that does SGD.
-                           self.gradient_norms[bucket_id],  # Gradient norm.
-                           self.losses[bucket_id]]  # Loss for this batch.
-        else:
-            output_feed = [self.losses[bucket_id]]  # Loss for this batch.
-            for l in range(decoder_size):  # Output logits.
-                output_feed.append(self.outputs[bucket_id][l])
-
-        outputs = session.run(fetches=output_feed, feed_dict=input_feed)
-        if not forward_only:
+            fetches = [self.summaries["loss{}".format(bucket_id)],
+                       self.updates[bucket_id],         # Update Op that does SGD.
+                       self.gradient_norms[bucket_id],  # Gradient norm.
+                       self.losses[bucket_id]]          # Loss for this batch.
+            outputs = session.run(fetches=fetches, feed_dict=input_feed)
             return outputs[0], outputs[2], outputs[3], None  # summaries,  Gradient norm, loss, no outputs.
         else:
-            return None, None, outputs[0], outputs[1:]  #summary,  No gradient norm, loss, outputs.
-
-
-    def get_batch(self, data, bucket_id):
-        """Get a random batch of data from the specified bucket, prepare for step.
-
-        Clarification on variables below:
-            encoder_inputs[i]       == list(all words in i'th batch sentence).
-            batch_encoder_inputs[i] == list(i'th wordID over all batch sentences)
-
-        Args:
-          data: a tuple of size len(self.buckets) in which each element contains
-            lists of pairs of input and output data that we use to create a batch.
-          bucket_id: integer, which bucket to get the batch for.
-
-        Returns:
-          The triple (encoder_inputs, decoder_inputs, target_weights) for
-          the constructed batch that has the proper format to call step(...) later.
-        """
-        encoder_size, decoder_size = self.buckets[bucket_id]
-        encoder_inputs, decoder_inputs = [], []
-
-        # Get a random batch of encoder and decoder inputs from data,
-        # pad them if needed, reverse encoder inputs and add GO to decoder.
-        for _ in range(self.batch_size):
-            encoder_input, decoder_input = random.choice(data[bucket_id])
-
-            # Encoder inputs are padded and then reversed.
-            encoder_pad = [data_utils.PAD_ID] * (encoder_size - len(encoder_input))
-            encoder_inputs.append(list(reversed(encoder_input + encoder_pad)))
-
-            # Decoder inputs get an extra "GO" symbol, and are padded then.
-            decoder_pad_size = decoder_size - len(decoder_input) - 1
-            decoder_inputs.append([data_utils.GO_ID] + decoder_input +
-                                  [data_utils.PAD_ID] * decoder_pad_size)
-
-        # Define some small helper functions before we re-index & weight.
-        def inputs_to_unit(unit_id, inputs):
-            """ Return re-indexed version of inputs array. Description in params below.
-            :param unit_id: index identifier for input timestep/unit/node of interest.
-            :param inputs:  array of length batch_size, where inputs[i]
-                            is the sentence corresp. to i'th batch.
-            :return:        re-indexed version of inputs as numpy array, where now indices are:
-                            returned_arr[i] == list of input (words) to i'th unit/node/timestep over all batches.
-            """
-            return np.array([inputs[i][unit_id] for i in range(self.batch_size)], dtype=np.int32)
-
-        def next_unit_is_pad(bid, uid):
-            return decoder_inputs[bid][uid + 1] == data_utils.PAD_ID
-
-        batch_encoder_inputs = [inputs_to_unit(i, encoder_inputs) for i in range(encoder_size)]
-        batch_decoder_inputs = [inputs_to_unit(i, decoder_inputs) for i in range(decoder_size)]
-        batch_weights        = list(np.ones(shape=(decoder_size, self.batch_size), dtype=np.float32))
-
-        # Set weight for the final decoder unit to 0.0 for all batches.
-        for i in range(self.batch_size):
-            batch_weights[-1][i] = 0.0
-
-        # Also set any decoder-input-weights to 0 that have PAD as target decoder output.
-        for unit_id in range(decoder_size - 1):
-            ids_with_pad_target = [i for i in range(self.batch_size) if next_unit_is_pad(i, unit_id)]
-            batch_weights[unit_id][ids_with_pad_target] = 0.0
-
-        return batch_encoder_inputs, batch_decoder_inputs, batch_weights
+            fetches = [self.losses[bucket_id]]  # Loss for this batch.
+            for l in range(decoder_size):       # Output logits.
+                fetches.append(self.outputs[bucket_id][l])
+            outputs = session.run(fetches=fetches, feed_dict=input_feed)
+            return None, None, outputs[0], outputs[1:]  #No summary,  No gradient norm, loss, outputs.
 
     def train(self, dataset, train_config):
         """ Train chatbot. """
-        self.sess = self._create_session()
-        self.train_writer = tf.summary.FileWriter(train_config.log_dir, self.sess.graph)
+        self.sess = tf.Session()
         self._setup_parameters(train_config.ckpt_dir, train_config.reset_)
-        _train(self, dataset, train_config)
+        self.train_writer = tf.summary.FileWriter(train_config.log_dir, self.sess.graph)
+        train(self, dataset, train_config)
 
     def decode(self, test_config):
         """ Create chat session between user & chatbot. """
-        self.sess = self._create_session()
+        self.sess = tf.Session()
         self._setup_parameters(test_config.ckpt_dir, test_config.reset_model)
-        _decode(self, test_config)
+        decode(self, test_config)
 
     def _setup_parameters(self, ckpt_dir, reset_model):
-        # Check if we can both (1) find a checkpoint state, and (2) a valid V1/V2 checkpoint path.
-        # If we can't, then just re-initialize model with fresh params.
+        """Either restore model parameters or create fresh ones.
+            - Checks if we can both (1) find a checkpoint state, and (2) a valid V1/V2 checkpoint path.
+            - If we can't, then just re-initialize model with fresh params.
+        """
         print("Checking for checkpoints . . .")
         checkpoint_state  = tf.train.get_checkpoint_state(ckpt_dir)
         # Note: If you want to prevent from loading models trained on different dataset,
@@ -322,18 +320,9 @@ class Chatbot(object):
             self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
         else:
             print("Created model with fresh parameters.")
-            # clear output dir contents.
-            os.popen('mkdir -p out/logs')
-            os.popen('mv out/logs .')
-            os.popen('rm -rf out/*')
-            os.popen('mv logs out/')
-            # TODO: should probably create filewriter both here and after if statement, its actually less clunky...
-            # Write all summaries to log_dir.
+            # Clear output dir contents.
+            os.popen('rm -rf out/* && mkdir -p out/logs')
             self.sess.run(tf.global_variables_initializer())
-
-
-    def _create_session(self):
-        return tf.Session()
 
     @staticmethod
     def _sampled_softmax_loss(num_samples: int, hidden_size: int, vocab_size: int):

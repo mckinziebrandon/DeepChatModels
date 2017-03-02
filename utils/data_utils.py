@@ -217,12 +217,12 @@ def prepare_data(data_dir, from_train_path, to_train_path,
     vocab_path = [from_vocab_path, to_vocab_path]
     return (train_ids_path, dev_ids_path, vocab_path)
 
-def read_data(dataset, _buckets, max_train_data_size=int(1e6)):
+def read_data(dataset, _buckets, max_train_data_size=None):
     """This is the main, and perhaps only, method that other files should use to access data.
     :param dataset:
     :param _buckets:
     :param max_train_data_size:
-    :return:
+    :return: train and validation sets of word IDS.
     """
     # Setup the data in appropriate directories and return desired PATHS.
     print("Preparing %s data in %s" % (dataset.name, dataset.data_dir))
@@ -252,7 +252,6 @@ def _read_data(source_path, target_path, _buckets, max_size=None):
       into the n-th bucket, i.e., such that len(source) < _buckets[n][0] and
       len(target) < _buckets[n][1]; source and target are lists of token-ids.
     """
-    print("Beginning reading of ", max_size, "lines total.")
     data_set = [[] for _ in _buckets]
     # Counter for the number of source/target pairs that couldn't fit in _buckets.
     num_samples_too_large = 0

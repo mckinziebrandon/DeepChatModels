@@ -2,20 +2,16 @@
 import time
 import numpy as np
 from utils import *
-import tensorflow as tf
 
-
-def _train(chatbot, dataset, train_config):
+def train(chatbot, dataset, train_config):
     """ Train chatbot using dataset given by train_config.dataset.
         chatbot: instance of Chatbot.
     """
 
     with chatbot.sess as sess:
-        # Read data into buckets and compute their sizes.
-        print ("Reading development and training data (limit: %d)." % train_config.max_train_samples)
-        train_set, dev_set = data_utils.read_data(dataset,
-                                                  chatbot.buckets,
-                                                  max_train_data_size=train_config.max_train_samples)
+        print("Reading development and training data (limit: %d)." % train_config.max_train_samples)
+        # Get data as token-ids.
+        train_set, dev_set = data_utils.read_data(dataset, chatbot.buckets)
 
         # Interpret as: train_buckets_scale[i] == [cumulative] fraction of samples in bucket i or below.
         train_buckets_scale = _get_data_distribution(train_set, chatbot.buckets)

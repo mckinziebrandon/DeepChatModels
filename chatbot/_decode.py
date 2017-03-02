@@ -6,7 +6,7 @@ from utils import *
 import numpy as np
 
 
-def _decode(chatbot, config):
+def decode(chatbot, config):
 
     chatbot.batch_size = 1  # We decode one sentence at a time.
     # Load vocabularies.
