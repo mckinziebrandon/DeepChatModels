@@ -37,7 +37,7 @@ FLAGS = flags.FLAGS
 
 if __name__ == "__main__":
 
-    buckets = [(5, 10), (10, 15)]
+    buckets = [(5, 10), (10, 15), (20, 35)]
     # Note: I'm only specifying the flags that I tend to change; more options are available!
     chatbot = chatbot.Chatbot(buckets,
                               layer_size=FLAGS.layer_size,

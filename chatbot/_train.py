@@ -22,7 +22,7 @@ def _train(chatbot, config):
         # This is the training loop.
         step_time, loss = 0.0, 0.0
         previous_losses = []
-        for i_step in range(10):
+        for i_step in range(100000):
             # Sample a random bucket index according to the data distribution,
             # then get a batch of data from that bucket by calling chatbot.get_batch.
             rand = np.random.random_sample()
@@ -30,7 +30,7 @@ def _train(chatbot, config):
 
             # Get a batch and make a step.
             start_time = time.time()
-            summary, avg_perplexity = _step(sess, chatbot, train_set, bucket_id)
+            summary, avg_perplexity = _step(sess, chatbot, train_set, bucket_id, False)
             chatbot.train_writer.add_summary(summary, i_step)
             step_time += (time.time() - start_time) / config.steps_per_ckpt
             loss      += avg_perplexity / config.steps_per_ckpt
@@ -47,13 +47,8 @@ def _step(sess, model, train_set, bucket_id, forward_only=False):
     # Recall that target_weights are NOT parameter weights; they are weights in the sense of "weighted average."
     encoder_inputs, decoder_inputs, target_weights = model.get_batch(train_set, bucket_id)
 
-    summary, _, losses, _ = model.step(sess,
-                                 encoder_inputs,
-                                 decoder_inputs,
-                                 target_weights,
-                                 bucket_id,
-                                 forward_only)
-
+    step_returns = model.step(sess, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only)
+    summary, gradient_norms, losses, _ = step_returns
     return summary, losses
 
 def _run_checkpoint(sess, model, config, step_time, loss, previous_losses, dev_set):
@@ -82,29 +77,7 @@ def _run_checkpoint(sess, model, config, step_time, loss, previous_losses, dev_s
         _, eval_loss = _step(sess, model, dev_set, bucket_id, forward_only=True)
         eval_ppx = np.exp(float(eval_loss)) if eval_loss < 300 else float("inf")
         print("  eval: bucket %d perplexity %.2f" % (bucket_id, eval_ppx))
-        #bucket_perplexities[bucket_id].append(eval_ppx)
     sys.stdout.flush()
-
-def _get_current_chunk(model, config, steps_per_chunk):
-    """Returns the chunk number to resume training on.
-    """
-    checkpoint_state  = tf.train.get_checkpoint_state(config.ckpt_dir)
-    if not checkpoint_state or config.reset_model: return 0
-    checkpoint_file  = checkpoint_state.model_checkpoint_path
-    if model.debug_mode:
-        print("[DEBUG] Getting chunk info from ckpt file: ", checkpoint_file)
-
-    global_step =""
-    started = False
-    rel_path_start = checkpoint_file.find(config.data_name)
-    for ch in checkpoint_file[rel_path_start:]:
-        if started and not ch.isdigit(): break
-        if ch.isdigit():
-            started=True
-            global_step += str(ch)
-
-    global_step = int(global_step)
-    return global_step // steps_per_chunk
 
 def _get_data_distribution(train_set, buckets):
     # Get number of samples for each bucket (i.e. train_bucket_sizes[1] == num-trn-samples-in-bucket-1).
@@ -115,4 +88,5 @@ def _get_data_distribution(train_set, buckets):
     # Interpret as: train_buckets_scale[i] == [cumulative] fraction of samples in bucket i or below.
     return [sum(train_bucket_sizes[:i + 1]) / train_total_size
                      for i in range(len(train_bucket_sizes))]
+
 

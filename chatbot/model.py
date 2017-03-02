@@ -108,8 +108,10 @@ class Chatbot(object):
                                                        buckets, lambda x, y: seq2seq_f(x, y),
                                                        softmax_loss_function=softmax_loss)
 
+        self.summaries = {}
         for i, loss in enumerate(self.losses):
-            tf.summary.scalar("loss{}".format(i), loss)
+            name = "loss{}".format(i)
+            self.summaries[name] = tf.summary.scalar("loss{}".format(i), loss)
 
         # If decoding, append projection to true output to the model.
         if is_decoding and output_proj is not None:
@@ -134,8 +136,6 @@ class Chatbot(object):
 
         #self._save_model()
         print("Creating saver and exiting . . . ")
-        # Merge all the summaries
-        self.merged = tf.summary.merge_all()
         self.saver = tf.train.Saver(tf.global_variables())
 
     def step(self, session, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only):
@@ -183,7 +183,7 @@ class Chatbot(object):
 
         # Output feed: depends on whether we do a backward step or not.
         if not forward_only:
-            output_feed = [self.merged,
+            output_feed = [self.summaries["loss{}".format(bucket_id)],
                            self.updates[bucket_id],  # Update Op that does SGD.
                            self.gradient_norms[bucket_id],  # Gradient norm.
                            self.losses[bucket_id]]  # Loss for this batch.
