@@ -57,6 +57,6 @@ if __name__ == "__main__":
     else:
         print("Preparing for training session.")
         config  = TrainConfig(FLAGS)
-        dataset = get_dataset(FLAGS.data_name)
+        dataset = get_dataset(FLAGS.data_name, FLAGS.vocab_size)
         chatbot.train(dataset, config)
 

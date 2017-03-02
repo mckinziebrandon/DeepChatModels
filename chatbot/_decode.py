@@ -6,41 +6,46 @@ from utils import *
 import numpy as np
 
 
-def decode(chatbot, config):
+def decode(chatbot, test_config):
+    """Runs a chat session between the given chatbot and user."""
 
     chatbot.batch_size = 1  # We decode one sentence at a time.
     # Load vocabularies.
-    from_vocab_path = os.path.join(config.data_dir, "vocab%d.from" % chatbot.vocab_size)
-    to_vocab_path   = os.path.join(config.data_dir, "vocab%d.to" % chatbot.vocab_size)
+    from_vocab_path = os.path.join(test_config.data_dir, "vocab%d.from" % chatbot.vocab_size)
+    to_vocab_path   = os.path.join(test_config.data_dir, "vocab%d.to" % chatbot.vocab_size)
     # initialize_vocabulary returns word_to_idx, idx_to_word.
-    word_idx_from, _    = initialize_vocabulary(from_vocab_path)
-    _, idx_word_to      = initialize_vocabulary(to_vocab_path)
+    inputs_to_idx, _    = initialize_vocabulary(from_vocab_path)
+    _, idx_to_outputs   = initialize_vocabulary(to_vocab_path)
     # Decode from standard input.
     print("Type \"exit\" to exit, obviously.")
     print("Write stuff after the \">\" below and I, your robot friend, will respond.")
     sys.stdout.write("> ")
     sys.stdout.flush()
-    sentence = sys.stdin.readline()
+    # Store sentence without the newline symbol.
+    sentence = sys.stdin.readline()[:-1]
     while sentence:
-        sentence = sentence[:-1]
-        # Get token-ids for the input sentence.
-        token_ids = data_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence), word_idx_from)
-        # Which bucket does it belong to?
-        bucket_id = _assign_to_bucket(token_ids, chatbot.buckets)
-        # Run model inference.
-        output_logits = _run_chatbot(chatbot, token_ids, bucket_id)
-        # Convert raw output to chat response & print.
-        outputs = _logits_to_outputs(output_logits, config.temperature, idx_word_to)
-        # Print out sentence corresponding to outputs.
+        # Convert input sentence to token-ids.
+        token_ids = data_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence), inputs_to_idx)
+        # Get output sentence from the chatbot.
+        outputs = decode_inputs(token_ids, idx_to_outputs, chatbot, test_config.temperature)
+        # Print the chatbot's response.
         print(outputs)
         # Wait for next input.
         print("> ", end="")
         sys.stdout.flush()
-        sentence = sys.stdin.readline()
+        sentence = sys.stdin.readline()[:-1]
         # Stop program if sentence == 'exit\n'.
-        if sentence[:-1] == 'exit':
+        if sentence == 'exit':
             print("Fine, bye :(")
             break
+
+def decode_inputs(inputs, idx_to_word, chatbot, temperature):
+    # Which bucket does it belong to?
+    bucket_id = _assign_to_bucket(inputs, chatbot.buckets)
+    # Run model inference.
+    output_logits = _step(chatbot, inputs, bucket_id)
+    # Convert raw output to chat response & print.
+    return _logits_to_outputs(output_logits, temperature, idx_to_word)
 
 def _logits_to_outputs(output_logits, temperature, idx_word):
     """
@@ -81,7 +86,7 @@ def _assign_to_bucket(token_ids, buckets):
         logging.warning("Sentence longer than  truncated: %s", len(token_ids))
     return bucket_id
 
-def _run_chatbot(chatbot, token_ids, bucket_id):
+def _step(chatbot, token_ids, bucket_id):
     # Get a 1-element batch to feed the sentence to the chatbot.
     encoder_inputs, decoder_inputs, target_weights = chatbot.get_batch({bucket_id: [(token_ids, [])]}, bucket_id)
     # Get output logits for the sentence.

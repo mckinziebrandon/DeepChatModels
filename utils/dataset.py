@@ -1,5 +1,5 @@
 """ ABC for datasets. """
-from abc import ABCMeta, abstractmethod
+from abc import ABCMeta, abstractmethod, abstractproperty
 
 # TODO: Require a method that returns a generator over data samples.
 class Dataset(metaclass=ABCMeta):
@@ -13,7 +13,13 @@ class Dataset(metaclass=ABCMeta):
         """Return dictionary map from int -> str. """
         pass
 
-    @abstractmethod
+    @abstractproperty
     def data_dir(self):
         """Return path to directory that contains the data."""
         pass
+
+    @abstractproperty
+    def name(self):
+        """Returns name of the dataset as a string."""
+        pass
+

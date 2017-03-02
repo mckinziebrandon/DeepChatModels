@@ -17,10 +17,11 @@ def train(chatbot, dataset, train_config):
         train_buckets_scale = _get_data_distribution(train_set, chatbot.buckets)
 
         # This is the training loop.
+        i_step = 0
         step_time, loss = 0.0, 0.0
         previous_losses = []
         try:
-            for i_step in range(100000):
+            while True:
                 # Sample a random bucket index according to the data distribution,
                 # then get a batch of data from that bucket by calling chatbot.get_batch.
                 rand = np.random.random_sample()
@@ -28,8 +29,7 @@ def train(chatbot, dataset, train_config):
 
                 # Get a batch and make a step.
                 start_time = time.time()
-                summary, step_loss = _step(sess, chatbot, train_set, bucket_id, False)
-                chatbot.train_writer.add_summary(summary, i_step)
+                step_loss = run_train_step(sess, chatbot, train_set, bucket_id, False)
                 step_time += (time.time() - start_time) / train_config.steps_per_ckpt
                 loss      += step_loss / train_config.steps_per_ckpt
 
@@ -37,23 +37,26 @@ def train(chatbot, dataset, train_config):
                 if i_step % train_config.steps_per_ckpt == 0:
                     _run_checkpoint(sess, chatbot, train_config, step_time, loss, previous_losses, dev_set)
                     step_time, loss = 0.0, 0.0
+                i_step += 1
         except (KeyboardInterrupt, SystemExit):
             print("Training halted. Cleaning up . . . ")
-            chatbot.train_writer.close()
             # Save checkpoint and zero timer and loss.
             checkpoint_path = os.path.join(train_config.ckpt_dir, "{}.ckpt".format(train_config.data_name))
             # Saves the state of all global variables.
             chatbot.saver.save(sess, checkpoint_path, global_step=chatbot.global_step)
+            # Flush event file to disk.
+            chatbot.train_writer.close()
             print("Done.")
 
 
-def _step(sess, model, train_set, bucket_id, forward_only=False):
+def run_train_step(sess, model, train_set, bucket_id, forward_only=False):
     # Recall that target_weights are NOT parameter weights; they are weights in the sense of "weighted average."
     encoder_inputs, decoder_inputs, target_weights = model.get_batch(train_set, bucket_id)
-
     step_returns = model.step(sess, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only)
-    summary, gradient_norms, losses, _ = step_returns
-    return summary, losses
+    summary, _, losses, _ = step_returns
+    if not forward_only:
+        model.train_writer.add_summary(summary, model.global_step)
+    return losses
 
 def _run_checkpoint(sess, model, config, step_time, loss, previous_losses, dev_set):
     # Print statistics for the previous epoch.
@@ -78,7 +81,7 @@ def _run_checkpoint(sess, model, config, step_time, loss, previous_losses, dev_s
         if len(dev_set[bucket_id]) == 0:
             print("  eval: empty bucket %d" % (bucket_id))
             continue
-        _, eval_loss = _step(sess, model, dev_set, bucket_id, forward_only=True)
+        _, eval_loss = run_train_step(sess, model, dev_set, bucket_id, forward_only=True)
         eval_ppx = np.exp(float(eval_loss)) if eval_loss < 300 else float("inf")
         print("  eval: bucket %d perplexity %.2f" % (bucket_id, eval_ppx))
     sys.stdout.flush()
