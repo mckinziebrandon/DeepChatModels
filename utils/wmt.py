@@ -4,7 +4,7 @@ from tensorflow import gfile
 
 class WMT(Dataset):
 
-    def __init__(self, from_vocab_size, to_vocab_size=None):
+    def __init__(self, from_vocab_size=40000, to_vocab_size=None):
         self.name = "wmt"
 
         if to_vocab_size == None:

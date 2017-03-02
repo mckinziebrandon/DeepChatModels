@@ -7,7 +7,7 @@ import time
 import tensorflow as tf
 
 import data_utils
-from chatbot.model import Chatbot
+from chatbot.models import Chatbot
 from datasets import *
 
 # ------------ File parameter choices: --------------

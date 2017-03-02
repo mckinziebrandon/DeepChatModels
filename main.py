@@ -1,6 +1,6 @@
 import tensorflow as tf
 import chatbot
-from utils import Config
+from utils import *
 
 # ==============================================================================================================================
 # Parser for command-line arguments.
@@ -25,8 +25,7 @@ flags.DEFINE_boolean("reset_model", False, "wipe output directory; new params")
 flags.DEFINE_boolean("decode", False, "If true, will activate chat session with user.")
 
 # Integer flags -- First three only need custom values if you're especially worried about RAM.
-flags.DEFINE_integer("max_train_samples", int(22e6), "Limit training data size (0: no limit).")
-flags.DEFINE_integer("chunk_size", int(3e6), "")
+flags.DEFINE_integer("max_train_samples", int(3e6), "Limit training data size (0: no limit).")
 flags.DEFINE_integer("steps_per_ckpt", 100, "How many training steps to do per checkpoint.")
 flags.DEFINE_integer("batch_size", 64, "Batch size to use during training.")
 flags.DEFINE_integer("vocab_size", 40000, "English vocabulary size.")
@@ -43,7 +42,6 @@ FLAGS = flags.FLAGS
 
 if __name__ == "__main__":
 
-
     buckets = [(5, 10), (20, 45), (50, 80)]
     # Note: I'm only specifying the flags that I tend to change; more options are available!
     chatbot = chatbot.Chatbot(buckets,
@@ -51,13 +49,14 @@ if __name__ == "__main__":
                               num_layers=FLAGS.num_layers,
                               lr_decay=FLAGS.lr_decay)
 
-    # The Config object stores train/test-time pertinent info, like directories.
-    config = Config(FLAGS)
     if FLAGS.decode:
         print("Preparing for chat session.")
+        config = TestConfig(FLAGS)
         print("Temperature set to", FLAGS.temperature)
         chatbot.decode(config)
     else:
         print("Preparing for training session.")
-        chatbot.train(config)
+        config  = TrainConfig(FLAGS)
+        dataset = get_dataset(FLAGS.data_name)
+        chatbot.train(dataset, config)
 

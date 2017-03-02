@@ -19,6 +19,19 @@ from utils import Config
 from chatbot._train import _train
 from chatbot._decode import _decode
 
+class Model(object):
+    """Abstract base model class."""
+
+    def initialize(self):
+        """Either restore the model from file(s) or create from scratch."""
+        raise NotImplemented
+
+    def train(self, batch_size, nb_epoch=1):
+        """Run SGD on model in batches of batch_size for nb_epoch epochs."""
+        raise NotImplemented
+
+
+
 
 class Chatbot(object):
     """Sequence-to-sequence model with attention and for multiple buckets.
@@ -43,7 +56,7 @@ class Chatbot(object):
                  layer_size=512,
                  num_layers=3,
                  max_gradient=5.0,
-                 batch_size=64,
+                 batch_size=64,     # TODO: shouldn't be here -- training specific.
                  learning_rate=0.5,
                  lr_decay=0.98,
                  num_softmax_samp=512,
@@ -283,28 +296,28 @@ class Chatbot(object):
 
         return batch_encoder_inputs, batch_decoder_inputs, batch_weights
 
-    def train(self, config: Config):
+    def train(self, dataset, train_config):
         """ Train chatbot. """
-
         self.sess = self._create_session()
-        self.train_writer = tf.summary.FileWriter(config.log_dir, self.sess.graph)
-        self._setup_parameters(config)
-        _train(self, config)
+        self.train_writer = tf.summary.FileWriter(train_config.log_dir, self.sess.graph)
+        self._setup_parameters(train_config.ckpt_dir, train_config.reset_)
+        _train(self, dataset, train_config)
 
-    def decode(self, config: Config):
+    def decode(self, test_config):
         """ Create chat session between user & chatbot. """
         self.sess = self._create_session()
-        self._setup_parameters(config)
-        _decode(self, config)
+        self._setup_parameters(test_config.ckpt_dir, test_config.reset_model)
+        _decode(self, test_config)
 
-    def _setup_parameters(self, config):
+    def _setup_parameters(self, ckpt_dir, reset_model):
         # Check if we can both (1) find a checkpoint state, and (2) a valid V1/V2 checkpoint path.
         # If we can't, then just re-initialize model with fresh params.
         print("Checking for checkpoints . . .")
-        checkpoint_state  = tf.train.get_checkpoint_state(config.ckpt_dir)
-        if checkpoint_state  and not config.reset_model \
-                and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path) \
-                and str(checkpoint_state.model_checkpoint_path).find(config.data_name) != -1:
+        checkpoint_state  = tf.train.get_checkpoint_state(ckpt_dir)
+        # Note: If you want to prevent from loading models trained on different dataset,
+        # you should store them in their own out/dataname folder, and pass that as the ckpt_dir to config.
+        if checkpoint_state and not reset_model \
+                and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
             print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
             self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
         else:

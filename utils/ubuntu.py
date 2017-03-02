@@ -4,7 +4,9 @@ from tensorflow import gfile
 
 class Ubuntu(Dataset):
 
-    def __init__(self, vocab_size):
+    def __init__(self, vocab_size=40000):
+        # TODO: handle issue of needing vocab_size in constructor. As of now,
+        #it is an illusion that you can custom-choose it anywhere else!!!
 
         self.name = "ubuntu"
         self.vocab_size = vocab_size

@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import pandas as pd
+from utils import WMT, Ubuntu
 
 from tensorflow.python.platform import gfile
 import tensorflow as tf
@@ -26,6 +27,15 @@ UNK_ID  = 3
 # Regular expressions used to tokenize.
 _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
 _DIGIT_RE   = re.compile(br"\d")
+
+DATASETS = {
+    'ubuntu': Ubuntu(),
+    'wmt': WMT()
+}
+
+def get_dataset(name):
+    return DATASETS[name]
+
 
 def basic_tokenizer(sentence):
     """Very basic tokenizer: split the sentence into a list of tokens."""

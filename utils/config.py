@@ -1,23 +1,33 @@
-import tensorflow as tf
-from utils.wmt import WMT
-from utils.ubuntu import Ubuntu
+"""Container classes for command-line-provided information from user."""
 
-class Config(object):
-    """Small wrapper class for the many user-specified params for training from tf FLAGS."""
+
+class TrainConfig(object):
     def __init__(self, FLAGS):
-        self.data_dir = FLAGS.data_dir
-        self.data_name = FLAGS.data_name
-
-        if self.data_name == "ubuntu":
-            self.dataset = Ubuntu(FLAGS.vocab_size)
-        else:
-            self.dataset = WMT(FLAGS.vocab_size)
-
-        self.ckpt_dir = FLAGS.ckpt_dir
-        self.log_dir = FLAGS.log_dir
-        self.steps_per_ckpt = FLAGS.steps_per_ckpt
-        self.max_train_samples = FLAGS.max_train_samples
-        #self.max_steps = FLAGS.max_steps
-        self.chunk_size = FLAGS.chunk_size
+        # Should we train from scratch or load a previous model state?
         self.reset_model = FLAGS.reset_model
+        # Maximum number of samples used in a training session.
+        self.nb_max_samples = FLAGS.max_train_samples
+        # Number of samples used per step.
+        self.batch_size = FLAGS.batch_size
+        # Tensorboard's logdir.
+        self.log_dir    = FLAGS.log_dir
+        # Directory where model's saver will place TF checkpoints.
+        self.ckpt_dir = FLAGS.ckpt_dir
+        # Determines how frequently checkpoints are saved.
+        self.steps_per_ckpt = FLAGS.steps_per_ckpt
+        # TODO: change this later when applicable.
+        self.nb_epoch   = 1
+
+
+class TestConfig(object):
+    def __init__(self, FLAGS):
+        # TODO: too chatbot-specific. Move elsewhere.
         self.temperature = FLAGS.temperature
+        # For loading model parameters.
+        self.ckpt_dir = FLAGS.ckpt_dir
+        # For loading model graph. Question: Right?
+        self.log_dir = FLAGS.log_dir
+        # It makes no sense to test a newly created model.
+        self.reset_model = False
+
+

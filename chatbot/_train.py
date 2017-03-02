@@ -4,17 +4,18 @@ import numpy as np
 from utils import *
 import tensorflow as tf
 
-def _train(chatbot, config):
-    """ Train chatbot using dataset given by config.dataset.
+
+def _train(chatbot, dataset, train_config):
+    """ Train chatbot using dataset given by train_config.dataset.
         chatbot: instance of Chatbot.
     """
 
     with chatbot.sess as sess:
         # Read data into buckets and compute their sizes.
-        print ("Reading development and training data (limit: %d)." % config.max_train_samples)
-        train_set, dev_set = data_utils.read_data(config.dataset,
+        print ("Reading development and training data (limit: %d)." % train_config.max_train_samples)
+        train_set, dev_set = data_utils.read_data(dataset,
                                                   chatbot.buckets,
-                                                  max_train_data_size=config.chunk_size)
+                                                  max_train_data_size=train_config.max_train_samples)
 
         # Interpret as: train_buckets_scale[i] == [cumulative] fraction of samples in bucket i or below.
         train_buckets_scale = _get_data_distribution(train_set, chatbot.buckets)
@@ -33,18 +34,18 @@ def _train(chatbot, config):
                 start_time = time.time()
                 summary, step_loss = _step(sess, chatbot, train_set, bucket_id, False)
                 chatbot.train_writer.add_summary(summary, i_step)
-                step_time += (time.time() - start_time) / config.steps_per_ckpt
-                loss      += step_loss / config.steps_per_ckpt
+                step_time += (time.time() - start_time) / train_config.steps_per_ckpt
+                loss      += step_loss / train_config.steps_per_ckpt
 
                 # Once in a while, we save checkpoint, print statistics, and run evals.
-                if i_step % config.steps_per_ckpt == 0:
-                    _run_checkpoint(sess, chatbot, config, step_time, loss, previous_losses, dev_set)
+                if i_step % train_config.steps_per_ckpt == 0:
+                    _run_checkpoint(sess, chatbot, train_config, step_time, loss, previous_losses, dev_set)
                     step_time, loss = 0.0, 0.0
         except (KeyboardInterrupt, SystemExit):
             print("Training halted. Cleaning up . . . ")
             chatbot.train_writer.close()
             # Save checkpoint and zero timer and loss.
-            checkpoint_path = os.path.join(config.ckpt_dir, "{}.ckpt".format(config.data_name))
+            checkpoint_path = os.path.join(train_config.ckpt_dir, "{}.ckpt".format(train_config.data_name))
             # Saves the state of all global variables.
             chatbot.saver.save(sess, checkpoint_path, global_step=chatbot.global_step)
             print("Done.")

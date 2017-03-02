@@ -2,7 +2,6 @@
 from abc import ABCMeta, abstractmethod
 
 # TODO: Require a method that returns a generator over data samples.
-
 class Dataset(metaclass=ABCMeta):
     @abstractmethod
     def word_to_idx(self):
