@@ -56,29 +56,6 @@ class TestTensorflowSaver(unittest.TestCase):
         place_holder_2 = tf.placeholder(tf.float32, name="test_ph_2")
         tf.add_to_collection(name="test_save_placeholder", value=[place_holder,place_holder_2])
 
-    @unittest.skip("un-runnable code snippet for viewing only.")
-    def dont_even_try(self):
-
-        def _save_model():
-            """We save only the components needed to restore a graph for training/decoding."""
-
-            for b in range(len(self.buckets)):
-                # training fetches.
-                tf.add_to_collection("training", value=self.updates[b])
-                tf.add_to_collection("training", value=self.gradient_norms[b])
-                tf.add_to_collection("training", value=self.losses[b])
-
-        def restore_chatbot(sess, save_dir, model_name):
-            new_saver = tf.train.import_meta_graph(os.path.join(save_dir, model_name + ".meta"))
-            new_saver.restore(sess, os.path.join(save_dir, model_name))
-
-            updates = []
-            gradient_norms = []
-
-
-
-
-
 
 if __name__ == '__main__':
     unittest.main()

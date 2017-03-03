@@ -1,3 +1,3 @@
 {
-  "test_chatbot.py::TestChatbot::test_train": true
+  "test_liar.py::SomeTest::testSomething": true
 }

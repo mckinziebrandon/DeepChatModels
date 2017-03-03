@@ -11,8 +11,12 @@ from pathlib import Path
 # ML/DL-specific imports.
 import numpy as np
 import tensorflow as tf
+# Chatbot class.
 from tensorflow.contrib.legacy_seq2seq import embedding_attention_seq2seq
 from tensorflow.contrib.legacy_seq2seq import model_with_buckets
+# Just in case (temporary)
+from tensorflow.contrib.rnn.python.ops import core_rnn
+from tensorflow.contrib.rnn.python.ops import core_rnn_cell
 
 # User-defined imports.
 from utils import data_utils
@@ -54,7 +58,7 @@ class Model(object):
         #for b in range(len(chatbot.buckets)):
         #    tf.add_to_collection("losses", self.losses[b])
 
-    def _setup_parameters(self, config):
+    def setup_parameters(self, config):
         """Either restore model parameters or create fresh ones.
             - Checks if we can both (1) find a checkpoint state, and (2) a valid V1/V2 checkpoint path.
             - If we can't, then just re-initialize model with fresh params.
@@ -164,8 +168,10 @@ class Chatbot(Model):
             #           --> How does this affect our model?? A bit misleading imo.
             return embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
                                                num_encoder_symbols=vocab_size, num_decoder_symbols=vocab_size,
-                                               embedding_size=layer_size, output_projection=output_proj,
-                                               feed_previous=is_decoding, dtype=tf.float32)
+                                               embedding_size=layer_size,
+                                               output_projection=output_proj,
+                                               feed_previous=is_decoding,
+                                               dtype=tf.float32)
 
         # Note that self.outputs and self.losses are lists of length len(buckets).
         # This allows us to identify which outputs/losses to compute given a particular bucket.
@@ -302,7 +308,7 @@ class Chatbot(Model):
         for l in range(decoder_size):
             input_feed[self.decoder_inputs[l].name] = decoder_inputs[l]
             input_feed[self.target_weights[l].name] = target_weights[l]
-        # Don't forget the additional EOS only in **SELF**.decoder_inputs.
+        # The decoder is actually 1 step longer than bucket size, so don't forget to add final step.
         input_feed[self.decoder_inputs[decoder_size].name] = np.zeros([self.batch_size], dtype=np.int32)
 
         # Fetches: the Operations/Tensors we want executed/evaluated during session.run(...).
@@ -322,12 +328,12 @@ class Chatbot(Model):
 
     def train(self, dataset, train_config):
         """ Train chatbot. """
-        super(Chatbot, self)._setup_parameters(train_config)
+        super(Chatbot, self).setup_parameters(train_config)
         train(self, dataset, train_config)
 
     def decode(self, test_config):
         """ Create chat session between user & chatbot. """
-        super(Chatbot, self)._setup_parameters(test_config)
+        super(Chatbot, self).setup_parameters(test_config)
         decode(self, test_config)
 
     @staticmethod
@@ -400,3 +406,100 @@ class Chatbot(Model):
             list of tensorflow placeholder of dtype=tf.int32 and unspecified shape.
         """
         return [tf.placeholder(dtype, shape=[None], name=name+str(i)) for i in range(length)]
+
+
+class SimpleBot(Model):
+    """Primitive implementation from scratch, for learning purposes.
+            1. Inputs: same as Chatbot.
+            2. Embedding: same as Chatbot.
+            3. Encoder: Single GRUCell.
+            4. Decoder: Single GRUCell.
+    """
+
+    def __init__(self,
+                 max_seq_len = 20,
+                 vocab_size=40000,
+                 layer_size=512,
+                 max_gradient=5.0,
+                 batch_size=64,     # TODO: shouldn't be here -- training specific.
+                 learning_rate=0.5,
+                 lr_decay=0.98,
+                 is_decoding=False):
+
+
+        print("Beginning model construction . . . ")
+
+        # ==============================================================================================
+        # Store instance variables.
+        # ==============================================================================================
+
+        # Note: duplicate code -- move to superclass?
+        self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
+        self.lr_decay_op    = self.learning_rate.assign(learning_rate * lr_decay)
+        self.global_step    = tf.Variable(initial_value=0, trainable=False)
+
+        cell = tf.contrib.rnn.GRUCell(layer_size)
+        self.encoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="encoder"+str(i)) for i in range(max_seq_len)]
+        self.decoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="decoder"+str(i)) for i in range(max_seq_len+1)]
+        self.target_weights = [tf.placeholder(tf.float32, shape=[None], name="weight"+str(i)) for i in range(max_seq_len+1)]
+        target_outputs      = [self.decoder_inputs[i + 1] for i in range(len(self.decoder_inputs) - 1)]
+
+        def simple_seq2seq(encoder_inputs, decoder_inputs, cell):
+            from tensorflow.contrib.rnn import GRUCell, EmbeddingWrapper, OutputProjectionWrapper
+            from tensorflow.contrib.rnn import static_rnn
+            """Simpler (and non-deprecated) version of 'seq2seq_f' in Chatbot. """
+            cell        = GRUCell(layer_size)
+            # EmbeddingWrapper: Create a cell with add input embedding.
+            # embedded_encoder has (super-)type RNNCell.
+            embedded_encoder    = EmbeddingWrapper(cell=cell,
+                                           embedding_classes=vocab_size,
+                                           embedding_size=layer_size)
+            # Create an RNN specified by RNNCell 'embedded_encoder'.
+            _, encoder_state = static_rnn(cell=embedded_encoder,
+                                          inputs=self.encoder_inputs,
+                                          sequence_length=max_seq_len,
+                                          dtype=tf.float32)
+
+            # ------------------------------- DECODER --------------------------------------
+            decoder_cell = EmbeddingWrapper(cell=cell,
+                                                embedding_classes=vocab_size,
+                                                embedding_size=layer_size)
+
+            decoder_cell = OutputProjectionWrapper(decoder_cell,
+                                                   output_size=vocab_size)
+
+            assert(decoder_cell.state_size == layer_size)
+            assert(decoder_cell.output_size == vocab_size)
+
+            decoder_outputs, decoder_state = static_rnn(cell=decoder_cell,
+                                                        inputs=self.decoder_inputs,
+                                                        initial_state=encoder_state,
+                                                        sequence_length=max_seq_len,
+                                                        dtype=tf.float32)
+
+
+
+        super(SimpleBot, self).__init__(is_decoding)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -64,7 +64,7 @@ class TestTensorboard(unittest.TestCase):
                              for i in range(len(train_bucket_sizes))]
 
         self.bot.sess = self.bot._create_session()
-        self.bot._setup_parameters(self.config)
+        self.bot.setup_parameters(self.config)
 
         with self.bot.sess as sess:
             print ("Reading development and training data (limit: %d)." % self.config.max_train_samples)

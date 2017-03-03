@@ -2,9 +2,10 @@ import tensorflow as tf
 import logging
 import os
 import sys
-from utils import *
-import numpy as np
 
+import utils.data_utils as data_utils
+from utils.data_utils import sentence_to_token_ids, initialize_vocabulary
+import numpy as np
 
 def decode(chatbot, test_config):
     """Runs a chat session between the given chatbot and user."""
@@ -26,7 +27,7 @@ def decode(chatbot, test_config):
     sentence = sys.stdin.readline()[:-1]
     while sentence:
         # Convert input sentence to token-ids.
-        token_ids = data_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence), inputs_to_idx)
+        token_ids = sentence_to_token_ids(tf.compat.as_bytes(sentence), inputs_to_idx)
         # Get output sentence from the chatbot.
         outputs = decode_inputs(token_ids, idx_to_outputs, chatbot, test_config.temperature)
         # Print the chatbot's response.
@@ -36,16 +37,9 @@ def decode(chatbot, test_config):
             sys.stdout.write("> ")
             sys.stdout.flush()
             feedback = sys.stdin.readline()[:-1]
-            feedback_ids = data_utils.sentence_to_token_ids(tf.compat.as_bytes(feedback), inputs_to_idx)
-            bucket_id = _assign_to_bucket(feedback_ids, chatbot.buckets)
-            data = {bucket_id: [(token_ids, feedback_ids)]}
-            enc_in, dec_in, weights = chatbot.get_batch(data, bucket_id)
-            # Jack up learning rate.
-            chatbot.sess.run(chatbot.learning_rate.assign(0.7))
-            # Learn.
-            chatbot.step(chatbot.sess, enc_in, dec_in, weights, bucket_id, True)
+            feedback_ids = sentence_to_token_ids(tf.compat.as_bytes(feedback), inputs_to_idx)
+            outputs = train_on_feedback(token_ids, feedback_ids, idx_to_outputs, test_config.temperature)
             print("Okay. Here is my response after learning:")
-            outputs = decode_inputs(token_ids, idx_to_outputs, chatbot, test_config.temperature)
             print(outputs)
 
         # Wait for next input.
@@ -68,6 +62,15 @@ def decode_inputs(inputs, idx_to_word, chatbot, temperature):
     # Convert raw output to chat response & print.
     return _logits_to_outputs(output_logits, temperature, idx_to_word)
 
+def train_on_feedback(chatbot, input_ids, feedback_ids, idx_to_outputs, temperature):
+    bucket_id = _assign_to_bucket(feedback_ids, chatbot.buckets)
+    data = {bucket_id: [(input_ids, feedback_ids)]}
+    enc_in, dec_in, weights = chatbot.get_batch(data, bucket_id)
+    # Jack up learning rate.
+    chatbot.sess.run(chatbot.learning_rate.assign(0.7))
+    # Learn.
+    chatbot.step(chatbot.sess, enc_in, dec_in, weights, bucket_id, True)
+    return decode_inputs(input_ids, idx_to_outputs, chatbot, temperature)
 
 def _logits_to_outputs(output_logits, temperature, idx_word):
     """
@@ -93,7 +96,7 @@ def _sample(logits, temperature):
     logits = np.exp(logits - np.max(logits))
     logits = logits / np.sum(logits)
     sampleID = np.argmax(np.random.multinomial(1, logits, 1))
-    while sampleID == UNK_ID:
+    while sampleID == data_utils.UNK_ID:
         sampleID = np.argmax(np.random.multinomial(1, logits, 1))
     return int(sampleID)
 
