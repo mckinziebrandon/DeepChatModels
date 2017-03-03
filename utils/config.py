@@ -6,7 +6,7 @@ class TrainConfig(object):
         # Should we train from scratch or load a previous model state?
         self.reset_model = FLAGS.reset_model
         # Maximum number of samples used in a training session.
-        self.nb_max_samples = FLAGS.max_train_samples
+        self.max_train_samples = FLAGS.max_train_samples
         # Number of samples used per step.
         self.batch_size = FLAGS.batch_size
         # Tensorboard's logdir.
@@ -17,6 +17,8 @@ class TrainConfig(object):
         self.steps_per_ckpt = FLAGS.steps_per_ckpt
         # TODO: change this later when applicable.
         self.nb_epoch   = 1
+        # FIXME: hi
+        self.data_name = 'ubuntu'
 
 
 class TestConfig(object):
@@ -29,5 +31,9 @@ class TestConfig(object):
         self.log_dir = FLAGS.log_dir
         # It makes no sense to test a newly created model.
         self.reset_model = False
+        self.data_dir = FLAGS.data_dir
+
+        # TODO:
+        self.teacher_mode = True
 
 

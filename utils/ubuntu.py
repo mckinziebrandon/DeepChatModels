@@ -1,5 +1,5 @@
 from utils.dataset import Dataset
-from utils.data_utils import *
+import utils.data_utils
 from tensorflow import gfile
 
 class Ubuntu(Dataset):
@@ -9,7 +9,7 @@ class Ubuntu(Dataset):
         self.vocab_size = vocab_size
         self._data_dir = '/home/brandon/terabyte/Datasets/ubuntu_dialogue_corpus'
 
-        paths_triplet = prepare_data(self._data_dir,
+        paths_triplet = utils.data_utils.prepare_data(self._data_dir,
                                      self._data_dir + "/train_from.txt",
                                      self._data_dir + "/train_to.txt",
                                      self._data_dir + "/valid_from.txt",

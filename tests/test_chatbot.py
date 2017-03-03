@@ -36,3 +36,4 @@ class TestChatbot(unittest.TestCase):
                               num_layers=FLAGS.num_layers,
                               debug_mode=True)
         bot.train(config)
+

@@ -6,7 +6,8 @@ import os
 import re
 import sys
 import pandas as pd
-from utils import WMT, Ubuntu
+from utils.wmt import WMT
+from utils.ubuntu import Ubuntu
 
 from tensorflow.python.platform import gfile
 import tensorflow as tf

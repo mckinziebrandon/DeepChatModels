@@ -9,7 +9,8 @@ import numpy as np
 def decode(chatbot, test_config):
     """Runs a chat session between the given chatbot and user."""
 
-    chatbot.batch_size = 1  # We decode one sentence at a time.
+    # We decode one sentence at a time.
+    chatbot.batch_size = 1
     # Load vocabularies.
     from_vocab_path = os.path.join(test_config.data_dir, "vocab%d.from" % chatbot.vocab_size)
     to_vocab_path   = os.path.join(test_config.data_dir, "vocab%d.to" % chatbot.vocab_size)
@@ -30,6 +31,23 @@ def decode(chatbot, test_config):
         outputs = decode_inputs(token_ids, idx_to_outputs, chatbot, test_config.temperature)
         # Print the chatbot's response.
         print(outputs)
+        if test_config.teacher_mode:
+            print("What should I have said?")
+            sys.stdout.write("> ")
+            sys.stdout.flush()
+            feedback = sys.stdin.readline()[:-1]
+            feedback_ids = data_utils.sentence_to_token_ids(tf.compat.as_bytes(feedback), inputs_to_idx)
+            bucket_id = _assign_to_bucket(feedback_ids, chatbot.buckets)
+            data = {bucket_id: [(token_ids, feedback_ids)]}
+            enc_in, dec_in, weights = chatbot.get_batch(data, bucket_id)
+            # Jack up learning rate.
+            chatbot.sess.run(chatbot.learning_rate.assign(0.7))
+            # Learn.
+            chatbot.step(chatbot.sess, enc_in, dec_in, weights, bucket_id, True)
+            print("Okay. Here is my response after learning:")
+            outputs = decode_inputs(token_ids, idx_to_outputs, chatbot, test_config.temperature)
+            print(outputs)
+
         # Wait for next input.
         print("> ", end="")
         sys.stdout.flush()
@@ -42,10 +60,14 @@ def decode(chatbot, test_config):
 def decode_inputs(inputs, idx_to_word, chatbot, temperature):
     # Which bucket does it belong to?
     bucket_id = _assign_to_bucket(inputs, chatbot.buckets)
-    # Run model inference.
-    output_logits = _step(chatbot, inputs, bucket_id)
+    # Get a 1-element batch to feed the sentence to the chatbot.
+    data = {bucket_id: [(inputs, [])]}
+    encoder_inputs, decoder_inputs, target_weights = chatbot.get_batch(data, bucket_id)
+    # Get output logits for the sentence.
+    _, _, _, output_logits = chatbot.step(chatbot.sess, encoder_inputs, decoder_inputs, target_weights, bucket_id, True)
     # Convert raw output to chat response & print.
     return _logits_to_outputs(output_logits, temperature, idx_to_word)
+
 
 def _logits_to_outputs(output_logits, temperature, idx_word):
     """
@@ -86,10 +108,4 @@ def _assign_to_bucket(token_ids, buckets):
         logging.warning("Sentence longer than  truncated: %s", len(token_ids))
     return bucket_id
 
-def _step(chatbot, token_ids, bucket_id):
-    # Get a 1-element batch to feed the sentence to the chatbot.
-    encoder_inputs, decoder_inputs, target_weights = chatbot.get_batch({bucket_id: [(token_ids, [])]}, bucket_id)
-    # Get output logits for the sentence.
-    _, _, _, output_logits = chatbot.step(chatbot.sess, encoder_inputs, decoder_inputs, target_weights, bucket_id, True)
-    return output_logits
 

@@ -43,7 +43,9 @@ def train(chatbot, dataset, train_config):
             # Save checkpoint and zero timer and loss.
             checkpoint_path = os.path.join(train_config.ckpt_dir, "{}.ckpt".format(train_config.data_name))
             # Saves the state of all global variables.
-            chatbot.saver.save(sess, checkpoint_path, global_step=chatbot.global_step)
+            chatbot.saver.save(sess, checkpoint_path, global_step=chatbot.global_step.eval())
+            # Store the model's graph in ckpt directory.
+            chatbot.saver.export_meta_graph(train_config.ckpt_dir+dataset.name+'.meta')
             # Flush event file to disk.
             chatbot.train_writer.close()
             print("Done.")
@@ -55,7 +57,7 @@ def run_train_step(sess, model, train_set, bucket_id, forward_only=False):
     step_returns = model.step(sess, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only)
     summary, _, losses, _ = step_returns
     if not forward_only:
-        model.train_writer.add_summary(summary, model.global_step)
+        model.train_writer.add_summary(summary, model.global_step.eval())
     return losses
 
 def _run_checkpoint(sess, model, config, step_time, loss, previous_losses, dev_set):
@@ -81,7 +83,7 @@ def _run_checkpoint(sess, model, config, step_time, loss, previous_losses, dev_s
         if len(dev_set[bucket_id]) == 0:
             print("  eval: empty bucket %d" % (bucket_id))
             continue
-        _, eval_loss = run_train_step(sess, model, dev_set, bucket_id, forward_only=True)
+        eval_loss = run_train_step(sess, model, dev_set, bucket_id, forward_only=True)
         eval_ppx = np.exp(float(eval_loss)) if eval_loss < 300 else float("inf")
         print("  eval: bucket %d perplexity %.2f" % (bucket_id, eval_ppx))
     sys.stdout.flush()

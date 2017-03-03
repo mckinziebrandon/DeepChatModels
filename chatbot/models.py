@@ -5,6 +5,7 @@ from __future__ import print_function
 
 # Standard python imports.
 import os
+import random
 from pathlib import Path
 
 # ML/DL-specific imports.
@@ -41,6 +42,38 @@ class Model(object):
         """Run SGD on model in batches of batch_size for nb_epoch epochs."""
         raise NotImplemented
 
+class Saver(object):
+
+    def __init__(self, is_decoding):
+        BASE='/home/brandon/Documents/seq2seq_projects/tests'
+        self.is_decoding = is_decoding
+        self.ckpt_dir  = BASE + '/out'
+        self.sess = tf.Session()
+
+    def restore_model(self, meta_name, buckets):
+        """The exact order as seen in tf tutorials:"""
+        with self.sess as sess:
+            self.saver = tf.train.import_meta_graph(meta_name)
+            checkpoint_state  = tf.train.get_checkpoint_state(self.ckpt_dir)
+            if not checkpoint_state:
+                raise RuntimeError("Can't find ckpt.")
+            self.saver.restore(sess, checkpoint_state.model_checkpoint_path)
+            self.learning_rate = tf.get_collection("learning_rate")[0]
+            self.losses = tf.get_collection("losses")
+            self.outputs = [tf.get_collection("outputs{}".format(b)) for b in range(len(buckets))]
+
+    def save_model(self, chatbot):
+            self.saver = tf.train.Saver(tf.global_variables())
+            tf.add_to_collection("learning_rate", self.learning_rate)
+            if self.is_decoding and chatbot.output_proj is not None:
+                dec_outputs = Chatbot._get_projections(len(chatbot.buckets), self.outputs, chatbot.output_proj)
+            else:
+                dec_outputs = self.outputs
+            for b in range(len(chatbot.buckets)):
+                for o in dec_outputs[b]:
+                    tf.add_to_collection("outputs{}".format(b), o)
+            for b in range(len(chatbot.buckets)):
+                tf.add_to_collection("losses", self.losses[b])
 
 
 
@@ -89,10 +122,19 @@ class Chatbot(object):
             is_decoding: if True, don't build backward pass.
         """
 
+        # The seq2seq function: we use embedding for the input and attention.
+        def seq2seq_f(encoder_inputs, decoder_inputs):
+            # Note: the returned function uses separate embeddings for encoded/decoded sets.
+            #           Maybe try implementing with same embedding for both; makes more sense for our purposes.
+            # Question: the outputs are projected to vocab_size NO MATTER WHAT.
+            #           i.e. if output_proj is None, it uses its own OutputProjectionWrapper instead
+            #           --> How does this affect our model?? A bit misleading imo.
+            return embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
+                                               num_encoder_symbols=vocab_size, num_decoder_symbols=vocab_size,
+                                               embedding_size=layer_size, output_projection=output_proj,
+                                               feed_previous=is_decoding, dtype=tf.float32)
+
         print("Beginning model construction . . . ")
-        if debug_mode:
-            print("[DEBUG] Layer size:", layer_size)
-            print("[DEBUG] Number of layers:", num_layers)
 
         # ==============================================================================================
         # Store instance variables.
@@ -126,18 +168,6 @@ class Chatbot(object):
         # ==============================================================================================
         # Combine the components to construct desired model architecture.
         # ==============================================================================================
-
-        # The seq2seq function: we use embedding for the input and attention.
-        def seq2seq_f(encoder_inputs, decoder_inputs):
-            # Note: the returned function uses separate embeddings for encoded/decoded sets.
-            #           Maybe try implementing with same embedding for both; makes more sense for our purposes.
-            # Question: the outputs are projected to vocab_size NO MATTER WHAT.
-            #           i.e. if output_proj is None, it uses its own OutputProjectionWrapper instead
-            #           --> How does this affect our model?? A bit misleading imo.
-            return embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
-                                               num_encoder_symbols=vocab_size, num_decoder_symbols=vocab_size,
-                                               embedding_size=layer_size, output_projection=output_proj,
-                                               feed_previous=is_decoding, dtype=tf.float32)
 
         # Note that self.outputs and self.losses are lists of length len(buckets).
         # This allows us to identify which outputs/losses to compute given a particular bucket.
@@ -203,7 +233,7 @@ class Chatbot(object):
         # Get a random batch of encoder and decoder inputs from data,
         # pad them if needed, reverse encoder inputs and add GO to decoder.
         for _ in range(self.batch_size):
-            encoder_input, decoder_input = np.random.choice(data[bucket_id])
+            encoder_input, decoder_input = random.choice(data[bucket_id])
             # Encoder inputs are padded and then reversed.
             encoder_pad = [data_utils.PAD_ID] * (encoder_size - len(encoder_input))
             encoder_inputs.append(list(reversed(encoder_input + encoder_pad)))
@@ -295,7 +325,7 @@ class Chatbot(object):
     def train(self, dataset, train_config):
         """ Train chatbot. """
         self.sess = tf.Session()
-        self._setup_parameters(train_config.ckpt_dir, train_config.reset_)
+        self._setup_parameters(train_config.ckpt_dir, train_config.reset_model)
         self.train_writer = tf.summary.FileWriter(train_config.log_dir, self.sess.graph)
         train(self, dataset, train_config)
 
@@ -303,6 +333,7 @@ class Chatbot(object):
         """ Create chat session between user & chatbot. """
         self.sess = tf.Session()
         self._setup_parameters(test_config.ckpt_dir, test_config.reset_model)
+        self.train_writer = tf.summary.FileWriter(test_config.log_dir, self.sess.graph)
         decode(self, test_config)
 
     def _setup_parameters(self, ckpt_dir, reset_model):
