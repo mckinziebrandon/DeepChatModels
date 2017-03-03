@@ -26,8 +26,8 @@ flags.DEFINE_string("ckpt_dir", BASE+'/out', "Directory in which checkpoint file
 flags.DEFINE_string("log_dir", BASE+'/out/logs' , "Directory in which checkpoint files will be saved.")
 
 # Boolean flags.
-flags.DEFINE_boolean("reset_model", False, "wipe output directory; new params")
-flags.DEFINE_boolean("decode", True, "If true, will activate chat session with user.")
+flags.DEFINE_boolean("reset_model", True, "wipe output directory; new params")
+flags.DEFINE_boolean("decode", False, "If true, will activate chat session with user.")
 
 # Integer flags -- First three only need custom values if you're especially worried about RAM.
 flags.DEFINE_integer("max_train_samples", int(1e6), "Limit training data size (0: no limit).")

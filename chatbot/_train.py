@@ -47,7 +47,7 @@ def train(chatbot, dataset, train_config):
             # Store the model's graph in ckpt directory.
             chatbot.saver.export_meta_graph(train_config.ckpt_dir+dataset.name+'.meta')
             # Flush event file to disk.
-            chatbot.train_writer.close()
+            chatbot.file_writer.close()
             print("Done.")
 
 
@@ -57,7 +57,7 @@ def run_train_step(sess, model, train_set, bucket_id, forward_only=False):
     step_returns = model.step(sess, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only)
     summary, _, losses, _ = step_returns
     if not forward_only:
-        model.train_writer.add_summary(summary, model.global_step.eval())
+        model.file_writer.add_summary(summary, model.global_step.eval())
     return losses
 
 def _run_checkpoint(sess, model, config, step_time, loss, previous_losses, dev_set):

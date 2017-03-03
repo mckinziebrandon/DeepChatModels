@@ -22,62 +22,60 @@ from chatbot._decode import decode
 
 class Model(object):
     """Abstract base model class."""
-
-    def initialize(self, ckpt_dir, name):
-        """Either restore the model from file(s) or create from scratch.
-        TODO: Make code below actually useable. As is, it's just skeleton/proof-of-concept.
-        base_fname = os.path.join(ckpt_dir, name)
-        if Path(base_fname+'.meta').is_file():
-            self.saver = tf.train.import_meta_graph(base_fname+'.meta')
-            self.saver.restore(self.sess, base_fname)
-            # ... Load any desired variables ...
-            # When collection name corresponds to single var . . .
-            self.value_i_want = tf.get_collection("value_i_want")[0]
-            # When collection name corresponds to multiple vars . . .
-            self.hyperparams = tf.get_collection("hyperparams")
-        """
-        raise NotImplemented
-
-    def train(self, batch_size, nb_epoch=1):
-        """Run SGD on model in batches of batch_size for nb_epoch epochs."""
-        raise NotImplemented
-
-class Saver(object):
-
     def __init__(self, is_decoding):
-        BASE='/home/brandon/Documents/seq2seq_projects/tests'
-        self.is_decoding = is_decoding
-        self.ckpt_dir  = BASE + '/out'
         self.sess = tf.Session()
+        self.is_decoding = is_decoding
+        self.saver = tf.train.Saver(tf.global_variables())
 
-    def restore_model(self, meta_name, buckets):
+    def restore(self, meta_name):
         """The exact order as seen in tf tutorials:"""
-        with self.sess as sess:
-            self.saver = tf.train.import_meta_graph(meta_name)
-            checkpoint_state  = tf.train.get_checkpoint_state(self.ckpt_dir)
-            if not checkpoint_state:
-                raise RuntimeError("Can't find ckpt.")
-            self.saver.restore(sess, checkpoint_state.model_checkpoint_path)
-            self.learning_rate = tf.get_collection("learning_rate")[0]
-            self.losses = tf.get_collection("losses")
-            self.outputs = [tf.get_collection("outputs{}".format(b)) for b in range(len(buckets))]
+        raise NotImplemented
+        #with self.sess as sess:
+            #self.saver = tf.train.import_meta_graph(meta_name)
+            #checkpoint_state  = tf.train.get_checkpoint_state(self.config.ckpt_dir)
+            #if not checkpoint_state:
+            #    raise RuntimeError("Can't find ckpt.")
+            #self.saver.restore(sess, checkpoint_state.model_checkpoint_path)
+            #self.learning_rate = tf.get_collection("learning_rate")[0]
+            #self.losses = tf.get_collection("losses")
+            #self.outputs = [tf.get_collection("outputs{}".format(b)) for b in range(len(buckets))]
 
-    def save_model(self, chatbot):
-            self.saver = tf.train.Saver(tf.global_variables())
-            tf.add_to_collection("learning_rate", self.learning_rate)
-            if self.is_decoding and chatbot.output_proj is not None:
-                dec_outputs = Chatbot._get_projections(len(chatbot.buckets), self.outputs, chatbot.output_proj)
-            else:
-                dec_outputs = self.outputs
-            for b in range(len(chatbot.buckets)):
-                for o in dec_outputs[b]:
-                    tf.add_to_collection("outputs{}".format(b), o)
-            for b in range(len(chatbot.buckets)):
-                tf.add_to_collection("losses", self.losses[b])
+    def save(self, chatbot):
+        raise NotImplemented
+        #self.saver = tf.train.Saver(tf.global_variables())
+        #tf.add_to_collection("learning_rate", self.learning_rate)
+        #if self.is_decoding and chatbot.output_proj is not None:
+        #    dec_outputs = Chatbot._get_projections(len(chatbot.buckets), self.outputs, chatbot.output_proj)
+        #else:
+        #    dec_outputs = self.outputs
+        #for b in range(len(chatbot.buckets)):
+        #    for o in dec_outputs[b]:
+        #        tf.add_to_collection("outputs{}".format(b), o)
+        #for b in range(len(chatbot.buckets)):
+        #    tf.add_to_collection("losses", self.losses[b])
+
+    def _setup_parameters(self, config):
+        """Either restore model parameters or create fresh ones.
+            - Checks if we can both (1) find a checkpoint state, and (2) a valid V1/V2 checkpoint path.
+            - If we can't, then just re-initialize model with fresh params.
+        """
+        print("Checking for checkpoints . . .")
+        checkpoint_state  = tf.train.get_checkpoint_state(config.ckpt_dir)
+        # Note: If you want to prevent from loading models trained on different dataset,
+        # you should store them in their own out/dataname folder, and pass that as the ckpt_dir to config.
+        if checkpoint_state and not config.reset_model \
+                and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
+            print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
+            self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
+        else:
+            print("Created model with fresh parameters.")
+            # Clear output dir contents.
+            os.popen('rm -rf out/* && mkdir -p out/logs')
+            self.sess.run(tf.global_variables_initializer())
+        self.file_writer = tf.summary.FileWriter(config.log_dir, self.sess.graph)
 
 
-
-class Chatbot(object):
+class Chatbot(Model):
     """Sequence-to-sequence model with attention and for multiple buckets.
 
     The input-to-output path can be thought of (on a high level) as follows:
@@ -122,18 +120,6 @@ class Chatbot(object):
             is_decoding: if True, don't build backward pass.
         """
 
-        # The seq2seq function: we use embedding for the input and attention.
-        def seq2seq_f(encoder_inputs, decoder_inputs):
-            # Note: the returned function uses separate embeddings for encoded/decoded sets.
-            #           Maybe try implementing with same embedding for both; makes more sense for our purposes.
-            # Question: the outputs are projected to vocab_size NO MATTER WHAT.
-            #           i.e. if output_proj is None, it uses its own OutputProjectionWrapper instead
-            #           --> How does this affect our model?? A bit misleading imo.
-            return embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
-                                               num_encoder_symbols=vocab_size, num_decoder_symbols=vocab_size,
-                                               embedding_size=layer_size, output_projection=output_proj,
-                                               feed_previous=is_decoding, dtype=tf.float32)
-
         print("Beginning model construction . . . ")
 
         # ==============================================================================================
@@ -168,6 +154,18 @@ class Chatbot(object):
         # ==============================================================================================
         # Combine the components to construct desired model architecture.
         # ==============================================================================================
+
+        # The seq2seq function: we use embedding for the input and attention.
+        def seq2seq_f(encoder_inputs, decoder_inputs):
+            # Note: the returned function uses separate embeddings for encoded/decoded sets.
+            #           Maybe try implementing with same embedding for both; makes more sense for our purposes.
+            # Question: the outputs are projected to vocab_size NO MATTER WHAT.
+            #           i.e. if output_proj is None, it uses its own OutputProjectionWrapper instead
+            #           --> How does this affect our model?? A bit misleading imo.
+            return embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
+                                               num_encoder_symbols=vocab_size, num_decoder_symbols=vocab_size,
+                                               embedding_size=layer_size, output_projection=output_proj,
+                                               feed_previous=is_decoding, dtype=tf.float32)
 
         # Note that self.outputs and self.losses are lists of length len(buckets).
         # This allows us to identify which outputs/losses to compute given a particular bucket.
@@ -212,7 +210,7 @@ class Chatbot(object):
                                                               global_step=self.global_step))
 
         print("Creating saver and exiting . . . ")
-        self.saver = tf.train.Saver(tf.global_variables())
+        super(Chatbot, self).__init__(is_decoding)
 
     def get_batch(self, data, bucket_id):
         """Get a random batch of data from the specified bucket, prepare for step.
@@ -324,36 +322,13 @@ class Chatbot(object):
 
     def train(self, dataset, train_config):
         """ Train chatbot. """
-        self.sess = tf.Session()
-        self._setup_parameters(train_config.ckpt_dir, train_config.reset_model)
-        self.train_writer = tf.summary.FileWriter(train_config.log_dir, self.sess.graph)
+        super(Chatbot, self)._setup_parameters(train_config)
         train(self, dataset, train_config)
 
     def decode(self, test_config):
         """ Create chat session between user & chatbot. """
-        self.sess = tf.Session()
-        self._setup_parameters(test_config.ckpt_dir, test_config.reset_model)
-        self.train_writer = tf.summary.FileWriter(test_config.log_dir, self.sess.graph)
+        super(Chatbot, self)._setup_parameters(test_config)
         decode(self, test_config)
-
-    def _setup_parameters(self, ckpt_dir, reset_model):
-        """Either restore model parameters or create fresh ones.
-            - Checks if we can both (1) find a checkpoint state, and (2) a valid V1/V2 checkpoint path.
-            - If we can't, then just re-initialize model with fresh params.
-        """
-        print("Checking for checkpoints . . .")
-        checkpoint_state  = tf.train.get_checkpoint_state(ckpt_dir)
-        # Note: If you want to prevent from loading models trained on different dataset,
-        # you should store them in their own out/dataname folder, and pass that as the ckpt_dir to config.
-        if checkpoint_state and not reset_model \
-                and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
-            print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
-            self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
-        else:
-            print("Created model with fresh parameters.")
-            # Clear output dir contents.
-            os.popen('rm -rf out/* && mkdir -p out/logs')
-            self.sess.run(tf.global_variables_initializer())
 
     @staticmethod
     def _sampled_softmax_loss(num_samples: int, hidden_size: int, vocab_size: int):
