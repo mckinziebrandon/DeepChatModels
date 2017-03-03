@@ -75,6 +75,7 @@ class Model(object):
             print("Created model with fresh parameters.")
             # Clear output dir contents.
             os.popen('rm -rf out/* && mkdir -p out/logs')
+            # Run initializer operation after we've fully constructed model & launched it in a sess.
             self.sess.run(tf.global_variables_initializer())
         self.file_writer = tf.summary.FileWriter(config.log_dir, self.sess.graph)
 
@@ -443,6 +444,42 @@ class SimpleBot(Model):
         self.decoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="decoder"+str(i)) for i in range(max_seq_len+1)]
         self.target_weights = [tf.placeholder(tf.float32, shape=[None], name="weight"+str(i)) for i in range(max_seq_len+1)]
         target_outputs      = [self.decoder_inputs[i + 1] for i in range(len(self.decoder_inputs) - 1)]
+
+        # ====================================================================================
+        # 1. Define the underlying model(x, y) -> outputs, state(s).
+        # ====================================================================================
+
+        # Example:
+        def basic_rnn_seq2seq(encoder_inputs, decoder_inputs, cell):
+            """Basic RNN sequence-to-sequence model.
+
+            1. Run an RNN to encode encoder_inputs into a state vector,
+            2. Runs decoder, initialized with the last encoder state, on decoder_inputs.
+
+            Args:
+                encoder_inputs: A list of 2D Tensors [batch_size x input_size].
+                decoder_inputs: A list of 2D Tensors [batch_size x input_size].
+                cell: core_rnn_cell.RNNCell defining the cell function and size.
+
+            Returns:
+                (outputs, state), where:
+                    outputs: A list of the same length as decoder_inputs of 2D Tensors with
+                        shape [batch_size x output_size] containing the generated outputs.
+                    state: The state of each decoder cell in the final time-step.
+                        It is a 2D Tensor of shape [batch_size x cell.state_size].
+            """
+            with tf.variable_scope("basic_rnn_seq2seq"):
+                _, enc_state = core_rnn.static_rnn(cell, encoder_inputs, dtype=tf.float32)
+                with tf.variable_scope("rnn_decoder") as decoder_scope:
+                    outputs = []
+                    for i, inp in enumerate(decoder_inputs):
+                        if i > 0:
+                            decoder_scope.reuse_variables()
+                        output, enc_state = cell(inp, enc_state)
+                        outputs.append(output)
+                return outputs, enc_state
+
+
 
         def simple_seq2seq(encoder_inputs, decoder_inputs, cell):
             from tensorflow.contrib.rnn import GRUCell, EmbeddingWrapper, OutputProjectionWrapper

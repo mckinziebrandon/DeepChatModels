@@ -1,0 +1,7 @@
+{
+  "tests/test_chatbot.py": true,
+  "tests/test_datasets.py": true,
+  "tests/test_minimal_rnn.py": true,
+  "tests/test_stripped_seq2seq.py": true,
+  "tests/test_tensorboard.py": true
+}

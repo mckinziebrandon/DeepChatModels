@@ -53,31 +53,69 @@ class TestTFGeneral(unittest.TestCase):
         logging.basicConfig(level=logging.INFO)
         log = logging.getLogger('TestTFGeneral.test_scope')
         with tf.variable_scope("scope_level_1") as scope_one:
+            var_scope_one = tf.get_variable("var_scope_one")
             # Check retrieved scope name against scope_one.name.
             actual_name = tf.get_variable_scope().name
             log.info("\nscope_one.name: {}".format(scope_one.name))
             log.info("Retrieved name: {}".format(actual_name))
             self.assertEqual(scope_one.name, actual_name)
+            self.assertTrue(scope_one.reuse == False)
 
+            # Explore:
+            # - How do variable names change with scope?
+            # - How does reusing variables work?
             with tf.variable_scope("scope_level_2") as scope_two:
                 # Check retrieved scope name against scope_two.name.
                 actual_name = tf.get_variable_scope().name
                 log.info("\nscope_two.name: {}".format(scope_two.name))
                 log.info("Retrieved name: {}".format(actual_name))
                 self.assertEqual(scope_two.name, actual_name)
+                self.assertTrue(scope_two.name == scope_one.name + "/scope_level_2")
+                # Example of reuse variables.
+                self.assertTrue(scope_two.reuse == False)
+                scope_two.reuse_variables()
+                self.assertTrue(scope_two.reuse == True)
+                # Reuse variables behavior is inherited:
+                with tf.variable_scope("scope_level_3") as scope_three:
+                    self.assertTrue(scope_three.reuse == True)
+                    self.assertIs(tf.get_variable_scope(), scope_three)
+
+        # Example: opening a variable scope with a previous scope, instead of explicit string.
+        with tf.variable_scope(scope_one, reuse=True):
+            x = tf.get_variable("var_scope_one")
+        self.assertIs(var_scope_one, x)
+
+        # Q: What if we open scope_one within some other scope?
+        # A: Identical behavior (in terms of names) as doing it outside.
+        with tf.variable_scope("some_other_scope") as scope:
+            self.assertEqual("some_other_scope", scope.name)
+            with tf.variable_scope(scope_one):
+                self.assertEqual("scope_level_1", tf.get_variable_scope().name)
+
+
+
+
 
     def test_get_variable(self):
         """Unclear what get_variable returns in certain situations. Want to explore."""
         logging.basicConfig(level=logging.INFO)
         log = logging.getLogger('TestTFGeneral.test_scope')
 
-        get_nonexistent = tf.get_variable("unicorns", [5, 7])
-        log.info("\n\nUnicorns: {}".format(get_nonexistent))
-        log.info("Name: {}".format(get_nonexistent.name))
+        # Returned object is a Tensor.
+        unicorns = tf.get_variable("unicorns", [5, 7])
+        log.info("\n\nUnicorns:\n\t{}".format(unicorns))
+        log.info("\tName: {}".format(unicorns.name))
+        self.assertEqual("unicorns:0", unicorns.name)
 
         with tf.variable_scope("uniscope") as scope:
             var = tf.get_variable("scoped_unicorn", [5, 7])
             log.info("Scoped unicorn name: {}".format(var.name))
+            self.assertEqual("uniscope/scoped_unicorn:0", var.name)
+
+            # What happens when we try to get_variable on previously created name?
+            scope.reuse_variables() # MANDATORY
+            varSame = tf.get_variable("scoped_unicorn")
+            self.assertTrue(var is varSame)
 
 
 
