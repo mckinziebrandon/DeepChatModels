@@ -449,7 +449,8 @@ class SimpleBot(Model):
         # Create placeholder lists for encoder/decoder sequences.
         # ==============================================================================================
 
-        cell = tf.contrib.rnn.GRUCell(layer_size)
+        # Base of cell: GRU.
+        base_cell = tf.contrib.rnn.GRUCell(layer_size)
         self.encoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="encoder"+str(i)) for i in range(max_seq_len)]
         self.decoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="decoder"+str(i)) for i in range(max_seq_len+1)]
         self.target_weights = [tf.placeholder(tf.float32, shape=[None], name="weight"+str(i)) for i in range(max_seq_len+1)]
@@ -457,14 +458,51 @@ class SimpleBot(Model):
         # ====================================================================================
         # Before bucketing, need to define the underlying model(x, y) -> outputs, state(s).
         # ====================================================================================
+        def _extract_argmax_and_embed(embedding,
+                                      output_projection=None,
+                                      update_embedding=True):
+            """Get a loop_function that extracts the previous symbol and embeds it.
 
-        def seq2seq(encoder_inputs, decoder_inputs):
+            Args:
+            embedding: embedding tensor for symbols.
+            output_projection: None or a pair (W, B). If provided, each fed previous
+            output will first be multiplied by W and added B.
+            update_embedding: Boolean; if False, the gradients will not propagate
+            through the embeddings.
+
+            Returns:
+            A loop function.
+            """
+            def loop_function(prev, _):
+                if output_projection is not None:
+                    prev = tf.nn.xw_plus_b(prev, output_projection[0], output_projection[1])
+                prev_symbol = tf.argmax(prev, 1)
+                # Note that gradients will not propagate through the second parameter of
+                # embedding_lookup.
+                from tensorflow.python.ops import embedding_ops
+                emb_prev = embedding_ops.embedding_lookup(embedding, prev_symbol)
+                if not update_embedding:
+                    emb_prev = tf.stop_gradient(emb_prev)
+                return emb_prev
+            return loop_function
+
+        def seq2seq(encoder_inputs, decoder_inputs, cell):
             """Builds basic encoder-decoder model and returns list of (2D) output tensors."""
             with tf.variable_scope("basic_rnn_seq2seq"):
+                # Upgrade 1: slap on an embedding before the inputs. Nice.
+                cell = tf.contrib.rnn.EmbeddingWrapper(cell, vocab_size, layer_size)
+                # Encoder(raw_inputs) -> Embed(raw_inputs) -> [be an RNN] -> encoder state.
                 _, encoder_state = core_rnn.static_rnn(cell, encoder_inputs, dtype=tf.float32)
+                # Upgrade 2: flex your outputs and project to FULL. VOCAB. SIZE (for a limited time only).
+                cell = tf.contrib.rnn.OutputProjectionWrapper(cell, vocab_size)
                 with tf.variable_scope("rnn_decoder") as decoder_scope:
                     decoder_outputs = []
+                    prev = None
+                    embedding = tf.get_variable("embedding",[vocab_size, layer_size])
+                    loop_function = _extract_argmax_and_embed(embedding, None, True) # True or False???
                     for i, dec_inp in enumerate(decoder_inputs):
+                        #if is_decoding and prev is not None:
+                        #    dec_inp = loop_function(prev, i)
                         if i > 0:
                             decoder_scope.reuse_variables()
                         output, encoder_state = cell(dec_inp, encoder_state)
@@ -484,7 +522,8 @@ class SimpleBot(Model):
                 with tf.variable_scope(tf.get_variable_scope(), reuse=True if idx_b > 0 else None):
                     # The outputs for this bucket are defined entirely by the seq2seq function.
                     outputs.append(seq2seq(self.encoder_inputs[:bucket[0]],
-                                           self.decoder_inputs[:bucket[1]]))
+                                           self.decoder_inputs[:bucket[1]],
+                                           base_cell))
                     # Target outputs are just the inputs time-shifted by 1.
                     target_outputs = [self.decoder_inputs[i + 1]
                                       for i in range(len(self.decoder_inputs) - 1)]
