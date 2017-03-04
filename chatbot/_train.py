@@ -3,18 +3,20 @@ import time
 import numpy as np
 from utils import *
 
-def train(chatbot, dataset, train_config):
+def train(bot, dataset, train_config):
     """ Train chatbot using dataset given by train_config.dataset.
-        chatbot: instance of Chatbot.
+        chatbot: instance of Chatbot or SimpleBot.
     """
 
-    with chatbot.sess as sess:
-        print("Reading development and training data (limit: %d)." % train_config.max_train_samples)
+    with bot.sess as sess:
+        print("Reading data (limit: %d)." % train_config.max_train_samples)
         # Get data as token-ids.
-        train_set, dev_set = data_utils.read_data(dataset, chatbot.buckets)
+        train_set, dev_set = data_utils.read_data(dataset,
+                                                  bot.buckets,
+                                                  train_config.max_train_samples)
 
         # Interpret as: train_buckets_scale[i] == [cumulative] fraction of samples in bucket i or below.
-        train_buckets_scale = _get_data_distribution(train_set, chatbot.buckets)
+        train_buckets_scale = _get_data_distribution(train_set, bot.buckets)
 
         # This is the training loop.
         i_step = 0
@@ -29,13 +31,13 @@ def train(chatbot, dataset, train_config):
 
                 # Get a batch and make a step.
                 start_time = time.time()
-                step_loss = run_train_step(sess, chatbot, train_set, bucket_id, False)
+                step_loss = run_train_step(sess, bot, train_set, bucket_id, False)
                 step_time += (time.time() - start_time) / train_config.steps_per_ckpt
                 loss      += step_loss / train_config.steps_per_ckpt
 
                 # Once in a while, we save checkpoint, print statistics, and run evals.
                 if i_step % train_config.steps_per_ckpt == 0:
-                    _run_checkpoint(sess, chatbot, train_config, step_time, loss, previous_losses, dev_set)
+                    _run_checkpoint(sess, bot, train_config, step_time, loss, previous_losses, dev_set)
                     step_time, loss = 0.0, 0.0
                 i_step += 1
         except (KeyboardInterrupt, SystemExit):
@@ -43,20 +45,20 @@ def train(chatbot, dataset, train_config):
             # Save checkpoint and zero timer and loss.
             checkpoint_path = os.path.join(train_config.ckpt_dir, "{}.ckpt".format(train_config.data_name))
             # Saves the state of all global variables.
-            chatbot.saver.save(sess, checkpoint_path, global_step=chatbot.global_step.eval())
+            bot.saver.save(sess, checkpoint_path, global_step=bot.global_step.eval())
             # Store the model's graph in ckpt directory.
-            chatbot.saver.export_meta_graph(train_config.ckpt_dir+dataset.name+'.meta')
+            bot.saver.export_meta_graph(train_config.ckpt_dir + dataset.name + '.meta')
             # Flush event file to disk.
-            chatbot.file_writer.close()
+            bot.file_writer.close()
             print("Done.")
 
 
 def run_train_step(sess, model, train_set, bucket_id, forward_only=False):
     # Recall that target_weights are NOT parameter weights; they are weights in the sense of "weighted average."
     encoder_inputs, decoder_inputs, target_weights = model.get_batch(train_set, bucket_id)
-    step_returns = model.step(sess, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only)
+    step_returns = model.step(encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only)
     summary, _, losses, _ = step_returns
-    if not forward_only:
+    if not forward_only and summary is not None:
         model.file_writer.add_summary(summary, model.global_step.eval())
     return losses
 

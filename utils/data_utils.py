@@ -34,7 +34,7 @@ DATASETS = {
     'wmt': WMT
 }
 
-def get_dataset(name, vocab_size):
+def get_dataset(name, vocab_size=40000):
     return DATASETS[name](vocab_size)
 
 def basic_tokenizer(sentence):
