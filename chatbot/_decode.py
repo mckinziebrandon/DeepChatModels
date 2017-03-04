@@ -7,49 +7,41 @@ import utils.data_utils as data_utils
 from utils.data_utils import sentence_to_token_ids, initialize_vocabulary
 import numpy as np
 
-def decode(chatbot, test_config):
+def decode(bot, test_config):
     """Runs a chat session between the given chatbot and user."""
 
     # We decode one sentence at a time.
-    chatbot.batch_size = 1
+    bot.batch_size = 1
     # Load vocabularies.
-    from_vocab_path = os.path.join(test_config.data_dir, "vocab%d.from" % chatbot.vocab_size)
-    to_vocab_path   = os.path.join(test_config.data_dir, "vocab%d.to" % chatbot.vocab_size)
+    from_vocab_path = os.path.join(test_config.data_dir, "vocab%d.from" % bot.vocab_size)
+    to_vocab_path   = os.path.join(test_config.data_dir, "vocab%d.to" % bot.vocab_size)
     # initialize_vocabulary returns word_to_idx, idx_to_word.
     inputs_to_idx, _    = initialize_vocabulary(from_vocab_path)
     _, idx_to_outputs   = initialize_vocabulary(to_vocab_path)
     # Decode from standard input.
-    print("Type \"exit\" to exit, obviously.")
+    print("Type \"exit\" to exit.")
     print("Write stuff after the \">\" below and I, your robot friend, will respond.")
-    sys.stdout.write("> ")
-    sys.stdout.flush()
-    # Store sentence without the newline symbol.
-    sentence = sys.stdin.readline()[:-1]
+    sentence = _get_sentence()
     while sentence:
         # Convert input sentence to token-ids.
         token_ids = sentence_to_token_ids(tf.compat.as_bytes(sentence), inputs_to_idx)
         # Get output sentence from the chatbot.
-        outputs = decode_inputs(token_ids, idx_to_outputs, chatbot, test_config.temperature)
+        outputs = decode_inputs(token_ids, idx_to_outputs, bot, test_config.temperature)
         # Print the chatbot's response.
         print(outputs)
         if test_config.teacher_mode:
             print("What should I have said?")
-            sys.stdout.write("> ")
-            sys.stdout.flush()
-            feedback = sys.stdin.readline()[:-1]
+            feedback = _get_sentence()
             feedback_ids = sentence_to_token_ids(tf.compat.as_bytes(feedback), inputs_to_idx)
-            outputs = train_on_feedback(token_ids, feedback_ids, idx_to_outputs, test_config.temperature)
-            print("Okay. Here is my response after learning:")
-            print(outputs)
-
+            outputs = train_on_feedback(bot, token_ids, feedback_ids, idx_to_outputs, test_config.temperature)
+            print("Okay. Let me try again:\n", outputs)
         # Wait for next input.
-        print("> ", end="")
-        sys.stdout.flush()
-        sentence = sys.stdin.readline()[:-1]
+        sentence = _get_sentence()
         # Stop program if sentence == 'exit\n'.
         if sentence == 'exit':
             print("Fine, bye :(")
             break
+
 
 def decode_inputs(inputs, idx_to_word, chatbot, temperature):
     # Which bucket does it belong to?
@@ -58,19 +50,22 @@ def decode_inputs(inputs, idx_to_word, chatbot, temperature):
     data = {bucket_id: [(inputs, [])]}
     encoder_inputs, decoder_inputs, target_weights = chatbot.get_batch(data, bucket_id)
     # Get output logits for the sentence.
-    _, _, _, output_logits = chatbot.step(chatbot.sess, encoder_inputs, decoder_inputs, target_weights, bucket_id, True)
+    _, _, _, output_logits = chatbot.step(encoder_inputs, decoder_inputs, target_weights, bucket_id, True)
     # Convert raw output to chat response & print.
     return _logits_to_outputs(output_logits, temperature, idx_to_word)
+
 
 def train_on_feedback(chatbot, input_ids, feedback_ids, idx_to_outputs, temperature):
     bucket_id = _assign_to_bucket(feedback_ids, chatbot.buckets)
     data = {bucket_id: [(input_ids, feedback_ids)]}
     enc_in, dec_in, weights = chatbot.get_batch(data, bucket_id)
-    # Jack up learning rate.
+    # Jack up learning rate & make sure robot learned its lesson.
     chatbot.sess.run(chatbot.learning_rate.assign(0.7))
-    # Learn.
-    chatbot.step(chatbot.sess, enc_in, dec_in, weights, bucket_id, True)
+    for _ in range(10):
+        # LEARN YOU FOOL, LEARN. :)
+        chatbot.step(enc_in, dec_in, weights, bucket_id, False)
     return decode_inputs(input_ids, idx_to_outputs, chatbot, temperature)
+
 
 def _logits_to_outputs(output_logits, temperature, idx_word):
     """
@@ -88,8 +83,9 @@ def _logits_to_outputs(output_logits, temperature, idx_word):
     outputs = outputs[0].upper() + outputs[1:]
     return outputs
 
+
 def _sample(logits, temperature):
-    if temperature == 0.0:
+    if temperature < 0.5:
         return int(np.argmax(logits, axis=1))
     logits = logits.flatten()
     logits = logits / temperature
@@ -99,6 +95,7 @@ def _sample(logits, temperature):
     while sampleID == data_utils.UNK_ID:
         sampleID = np.argmax(np.random.multinomial(1, logits, 1))
     return int(sampleID)
+
 
 def _assign_to_bucket(token_ids, buckets):
     """Find bucket large enough for token_ids, else warning."""
@@ -112,3 +109,7 @@ def _assign_to_bucket(token_ids, buckets):
     return bucket_id
 
 
+def _get_sentence():
+    sys.stdout.write("> ")
+    sys.stdout.flush()
+    return sys.stdin.readline()[:-1]

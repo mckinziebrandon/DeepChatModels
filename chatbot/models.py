@@ -7,11 +7,12 @@ from __future__ import print_function
 import os
 import random
 from pathlib import Path
+import logging
 
 # ML/DL-specific imports.
 import numpy as np
 import tensorflow as tf
-# Chatbot class.
+# ChatBot class.
 from tensorflow.contrib.legacy_seq2seq import embedding_attention_seq2seq
 from tensorflow.contrib.legacy_seq2seq import model_with_buckets
 # Just in case (temporary)
@@ -27,7 +28,6 @@ from chatbot._decode import decode
 
 class Model(object):
     """Superclass of all subsequent model classes.
-        - Implements rudimentary bookkeeping/setup operations and configures training ops.
     """
 
     def __init__(self,
@@ -38,6 +38,7 @@ class Model(object):
                  learning_rate=0.5,
                  lr_decay=0.98,
                  is_decoding=False):
+
         self.sess           = tf.Session()
         self.is_decoding    = is_decoding
         self.batch_size     = batch_size
@@ -54,28 +55,26 @@ class Model(object):
         print("Configuring training operations. This may take some time . . . ")
         # Note: variables are trainable=True by default.
         params = tf.trainable_variables()
-        if not self.is_decoding:
-            self.gradient_norms = []
-            # updates will store the parameter (S)GD updates.
-            self.updates = []
-            optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
-            # TODO: Think about how this could optimized. There has to be a way.
-            for b in range(len(self.buckets)):
-                # Note: tf.gradients returns in form: gradients[i] == sum([dy/dx_i for y in self.losses[b]]).
-                gradients = tf.gradients(losses[b], params)
-                # Gradient clipping is actually extremely simple, it basically just
-                # checks if L2Norm(gradients) > max_gradient, and if it is, it returns
-                # (gradients / L2Norm(gradients)) * max_grad.
-                # norm: literally just L2-norm of gradients.
-                clipped_gradients, norm = tf.clip_by_global_norm(gradients, max_gradient)
-                self.gradient_norms.append(norm)
-                self.updates.append(optimizer.apply_gradients(zip(clipped_gradients, params),
-                                                              global_step=self.global_step))
+        #if not self.is_decoding: # teacher mode means we always need backward pass option.
+        self.gradient_norms = []
+        # updates will store the parameter (S)GD updates.
+        self.updates = []
+        optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
+        # TODO: Think about how this could optimized. There has to be a way.
+        for b in range(len(self.buckets)):
+            # Note: tf.gradients returns in form: gradients[i] == sum([dy/dx_i for y in self.losses[b]]).
+            gradients = tf.gradients(losses[b], params)
+            # Gradient clipping is actually extremely simple, it basically just
+            # checks if L2Norm(gradients) > max_gradient, and if it is, it returns
+            # (gradients / L2Norm(gradients)) * max_grad.
+            # norm: literally just L2-norm of gradients.
+            clipped_gradients, norm = tf.clip_by_global_norm(gradients, max_gradient)
+            self.gradient_norms.append(norm)
+            self.updates.append(optimizer.apply_gradients(zip(clipped_gradients, params),
+                                                          global_step=self.global_step))
 
     def get_batch(self, data, bucket_id):
         """Get a random batch of data from the specified bucket, prepare for step.
-            encoder_inputs[i]       == [words in sentences[i]], where 0 <  i < batch_size.
-            batch_encoder_inputs[i] == list(i'th wordID over all batch sentences)
 
         Args:
           data: tuple of len(self.buckets). data[bucket_id] == [source_ids, target_ids]
@@ -124,6 +123,17 @@ class Model(object):
 
         return batch_encoder_inputs, batch_decoder_inputs, batch_weights
 
+    def check_input_lengths(self, inputs, expected_lengths):
+        """
+        Raises:
+            ValueError: if length of encoder_inputs, decoder_inputs, or
+            target_weights disagrees with bucket size for the specified bucket_id.
+        """
+        for input, length in zip(inputs, expected_lengths):
+            if len(input) != length:
+                raise ValueError("Input length doesn't match bucket size:"
+                                 " %d != %d." % (len(input), length))
+
     def restore(self, meta_name):
         """The exact order as seen in tf tutorials:"""
         raise NotImplemented
@@ -142,7 +152,7 @@ class Model(object):
         #self.saver = tf.train.Saver(tf.global_variables())
         #tf.add_to_collection("learning_rate", self.learning_rate)
         #if self.is_decoding and chatbot.output_proj is not None:
-        #    dec_outputs = Chatbot._get_projections(len(chatbot.buckets), self.outputs, chatbot.output_proj)
+        #    dec_outputs = ChatBot._get_projections(len(chatbot.buckets), self.outputs, chatbot.output_proj)
         #else:
         #    dec_outputs = self.outputs
         #for b in range(len(chatbot.buckets)):
@@ -188,12 +198,8 @@ class Model(object):
         self.setup_parameters(test_config)
         decode(self, test_config)
 
-    def step(self, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only):
-        """Run a step of the model feeding the given inputs."""
-        raise NotImplemented
 
-
-class Chatbot(Model):
+class ChatBot(Model):
     """Sequence-to-sequence model with attention and for multiple buckets.
 
     The input-to-output path can be thought of (on a high level) as follows:
@@ -242,15 +248,15 @@ class Chatbot(Model):
         # Define basic components: cell(s) state, encoder, decoder.
         # ==============================================================================================
 
-        cell = Chatbot._get_cell(num_layers, layer_size)
-        self.encoder_inputs = Chatbot._get_placeholder_list("encoder", buckets[-1][0])
-        self.decoder_inputs = Chatbot._get_placeholder_list("decoder", buckets[-1][1] + 1)
-        self.target_weights = Chatbot._get_placeholder_list("weight", buckets[-1][1] + 1, tf.float32)
+        cell = ChatBot._get_cell(num_layers, layer_size)
+        self.encoder_inputs = ChatBot._get_placeholder_list("encoder", buckets[-1][0])
+        self.decoder_inputs = ChatBot._get_placeholder_list("decoder", buckets[-1][1] + 1)
+        self.target_weights = ChatBot._get_placeholder_list("weight", buckets[-1][1] + 1, tf.float32)
         target_outputs = [self.decoder_inputs[i + 1] for i in range(len(self.decoder_inputs) - 1)]
 
         # Determine whether to draw sample subset from output softmax or just use default tensorflow softmax.
         if 0 < num_softmax_samp < vocab_size:
-            softmax_loss, output_proj = Chatbot._sampled_softmax_loss(num_softmax_samp, layer_size, vocab_size)
+            softmax_loss, output_proj = ChatBot._sampled_softmax_loss(num_softmax_samp, layer_size, vocab_size)
         else:
             softmax_loss, output_proj = None, None
 
@@ -282,7 +288,7 @@ class Chatbot(Model):
 
         # If decoding, append projection to true output to the model.
         if is_decoding and output_proj is not None:
-            self.outputs = Chatbot._get_projections(len(buckets), self.outputs, output_proj)
+            self.outputs = ChatBot._get_projections(len(buckets), self.outputs, output_proj)
 
         with tf.variable_scope("summaries"):
             self.summaries = {}
@@ -290,7 +296,7 @@ class Chatbot(Model):
                 name = "loss{}".format(i)
                 self.summaries[name] = tf.summary.scalar("loss{}".format(i), loss)
 
-        super(Chatbot, self).__init__(buckets,
+        super(ChatBot, self).__init__(buckets,
                                       log_dir=log_dir,
                                       vocab_size=vocab_size,
                                       batch_size=batch_size,
@@ -298,10 +304,10 @@ class Chatbot(Model):
                                       lr_decay=lr_decay,
                                       is_decoding=is_decoding)
 
-        super(Chatbot, self).compile(self.losses, max_gradient)
+        super(ChatBot, self).compile(self.losses, max_gradient)
 
     def step(self, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only):
-        """Run a step of the model feeding the given inputs.
+        """Run a step of the model.
 
         Args:
           encoder_inputs: list of numpy int vectors to feed as encoder inputs.
@@ -310,33 +316,20 @@ class Chatbot(Model):
           bucket_id: which bucket of the model to use.
 
         Returns:
-          A triple consisting of gradient norm (or None if we did not do backward),
-          average perplexity, and the outputs.
-
-        Raises:
-          ValueError: if length of encoder_inputs, decoder_inputs, or
-            target_weights disagrees with bucket size for the specified bucket_id.
+            [summary, gradient_norms, loss, outputs]
         """
 
-        def check_input_length(actual, expected):
-            if actual == expected: return
-            raise ValueError("Length must be equal to the one in bucket,"
-                             " %d != %d." % (actual, expected))
-
-        # Check if the sizes match.
         encoder_size, decoder_size = self.buckets[bucket_id]
-        check_input_length(len(encoder_inputs), encoder_size)
-        check_input_length(len(decoder_inputs), decoder_size)
-        check_input_length(len(target_weights), decoder_size)
+        super(ChatBot, self).check_input_lengths(
+            [encoder_inputs, decoder_inputs, target_weights],
+            [encoder_size, decoder_size, decoder_size])
 
-        # Input feed: Associate the parameters given with the model variables.
         input_feed = {}
         for l in range(encoder_size):
             input_feed[self.encoder_inputs[l].name] = encoder_inputs[l]
         for l in range(decoder_size):
             input_feed[self.decoder_inputs[l].name] = decoder_inputs[l]
             input_feed[self.target_weights[l].name] = target_weights[l]
-        # The decoder is actually 1 step longer than bucket size, so don't forget to add final step.
         input_feed[self.decoder_inputs[decoder_size].name] = np.zeros([self.batch_size], dtype=np.int32)
 
         # Fetches: the Operations/Tensors we want executed/evaluated during session.run(...).
@@ -428,8 +421,8 @@ class Chatbot(Model):
 
 class SimpleBot(Model):
     """Primitive implementation from scratch, for learning purposes.
-            1. Inputs: same as Chatbot.
-            2. Embedding: same as Chatbot.
+            1. Inputs: same as ChatBot.
+            2. Embedding: same as ChatBot.
             3. Encoder: Single GRUCell.
             4. Decoder: Single GRUCell.
     """
@@ -545,9 +538,8 @@ class SimpleBot(Model):
         log_perplexities /= tf.add_n(weights) + 1e-12
         return tf.reduce_sum(log_perplexities) / tf.cast(batch_size, tf.float32)
 
-    # TODO: This is is just copy-pasted from ChatBot above. Find a way to work this into the superclass.
-    def step(self, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only):
-        """Run a step of the model feeding the given inputs.
+    def step(self, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only=False):
+        """Run a step of the model.
 
         Args:
           encoder_inputs: list of numpy int vectors to feed as encoder inputs.
@@ -556,43 +548,30 @@ class SimpleBot(Model):
           bucket_id: which bucket of the model to use.
 
         Returns:
-          A triple consisting of gradient norm (or None if we did not do backward),
-          average perplexity, and the outputs.
-
-        Raises:
-          ValueError: if length of encoder_inputs, decoder_inputs, or
-            target_weights disagrees with bucket size for the specified bucket_id.
+            [summary, gradient_norms, loss, outputs]:
         """
 
-        def check_input_length(actual, expected):
-            if actual == expected: return
-            raise ValueError("Length must be equal to the one in bucket,"
-                             " %d != %d." % (actual, expected))
-
-        # Check if the sizes match.
         encoder_size, decoder_size = self.buckets[bucket_id]
-        check_input_length(len(encoder_inputs), encoder_size)
-        check_input_length(len(decoder_inputs), decoder_size)
-        check_input_length(len(target_weights), decoder_size)
+        super(SimpleBot, self).check_input_lengths(
+            [encoder_inputs, decoder_inputs, target_weights],
+            [encoder_size, decoder_size, decoder_size])
 
-        # Input feed: Associate the parameters given with the model variables.
         input_feed = {}
         for l in range(encoder_size):
             input_feed[self.encoder_inputs[l].name] = encoder_inputs[l]
         for l in range(decoder_size):
             input_feed[self.decoder_inputs[l].name] = decoder_inputs[l]
             input_feed[self.target_weights[l].name] = target_weights[l]
-        # The decoder is actually 1 step longer than bucket size, so don't forget to add final step.
         input_feed[self.decoder_inputs[decoder_size].name] = np.zeros([self.batch_size], dtype=np.int32)
 
         # Fetches: the Operations/Tensors we want executed/evaluated during session.run(...).
         if not forward_only: # Not just for decoding; also for validating in training.
-            fetches = [# self.summaries["loss{}".format(bucket_id)],
+            fetches = [self.summaries["loss{}".format(bucket_id)],
                        self.updates[bucket_id],         # Update Op that does SGD.
                        self.gradient_norms[bucket_id],  # Gradient norm.
                        self.losses[bucket_id]]          # Loss for this batch.
             outputs = self.sess.run(fetches=fetches, feed_dict=input_feed)
-            return None, outputs[1], outputs[2], None  # summaries,  Gradient norm, loss, no outputs.
+            return outputs[0], outputs[2], outputs[3], None  # summaries,  Gradient norm, loss, no outputs.
         else:
             fetches = [self.losses[bucket_id]]  # Loss for this batch.
             for l in range(decoder_size):       # Output logits.

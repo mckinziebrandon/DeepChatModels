@@ -1,4 +1,4 @@
-from chatbot.models import Chatbot, SimpleBot
+from chatbot.models import ChatBot, SimpleBot
 #from chatbot._decode import _decode
 #from chatbot._train import _train
 

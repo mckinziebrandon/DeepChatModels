@@ -39,16 +39,16 @@ class TestTensorboard(unittest.TestCase):
     def setUp(self):
         self.config = Config(FLAGS)
         buckets = [(5, 10)]
-        self.bot = chatbot.Chatbot(buckets,
-                              layer_size=FLAGS.layer_size,
-                              num_layers=FLAGS.num_layers,
-                              debug_mode=True)
+        self.bot = chatbot.ChatBot(buckets,
+                                   layer_size=FLAGS.layer_size,
+                                   num_layers=FLAGS.num_layers,
+                                   debug_mode=True)
 
     def test_merged(self):
         """Ensure chatbot.merged gets properly initialized."""
         config = Config(FLAGS)
         buckets = [(5, 10)]
-        bot = chatbot.Chatbot(buckets,
+        bot = chatbot.ChatBot(buckets,
                               layer_size=FLAGS.layer_size,
                               num_layers=FLAGS.num_layers,
                               debug_mode=True)

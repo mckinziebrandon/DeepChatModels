@@ -49,10 +49,10 @@ if __name__ == "__main__":
 
     buckets = [(10, 15)]
     # Note: I'm only specifying the flags that I tend to change; more options are available!
-    bot = chatbot.Chatbot(buckets,layer_size=FLAGS.layer_size,
-                              num_layers=FLAGS.num_layers,
-                              lr_decay=FLAGS.lr_decay,
-                              is_decoding=FLAGS.decode)
+    bot = chatbot.ChatBot(buckets, layer_size=FLAGS.layer_size,
+                          num_layers=FLAGS.num_layers,
+                          lr_decay=FLAGS.lr_decay,
+                          is_decoding=FLAGS.decode)
 
     if FLAGS.decode:
         print("Preparing for chat session.")
