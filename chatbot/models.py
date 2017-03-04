@@ -429,7 +429,7 @@ class SimpleBot(Model):
 
     def __init__(self,
                  log_dir = "out/logs",
-                 max_seq_len = 20,
+                 max_seq_len = 30,
                  vocab_size=40000,
                  layer_size=512,
                  max_gradient=5.0,
