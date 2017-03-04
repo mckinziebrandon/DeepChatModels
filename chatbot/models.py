@@ -25,10 +25,13 @@ from chatbot._decode import decode
 
 
 class Model(object):
-    """Abstract model class with rudimentary implementations."""
+    """Superclass of all subsequent model classes.
+        - Implements rudimentary bookkeeping/setup operations and configures training ops.
+    """
 
     def __init__(self,
                  buckets,
+                 log_dir="out/logs",
                  vocab_size=40000,
                  batch_size=64,
                  learning_rate=0.5,
@@ -43,8 +46,30 @@ class Model(object):
         self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
         self.lr_decay_op    = self.learning_rate.assign(learning_rate * lr_decay)
         self.global_step    = tf.Variable(initial_value=0, trainable=False)
-        # Question: WHERE DO I PUT YOU :(
-        self.saver          = tf.train.Saver(tf.global_variables())
+        self.file_writer    = tf.summary.FileWriter(log_dir)
+
+    def compile(self, losses, max_gradient=5.0):
+        """ Configure training process. Name was inspired by Keras. <3 """
+        # Note: variables are trainable=True by default.
+        params = tf.trainable_variables()
+        if not self.is_decoding:
+            self.gradient_norms = []
+            # updates will store the parameter (S)GD updates.
+            self.updates = []
+            optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
+            print("Looping over", len(self.buckets), "buckets.")
+            # TODO: Think about how this could optimized. There has to be a way.
+            for b in range(len(self.buckets)):
+                # Note: tf.gradients returns in form: gradients[i] == sum([dy/dx_i for y in self.losses[b]]).
+                gradients = tf.gradients(losses[b], params)
+                # Gradient clipping is actually extremely simple, it basically just
+                # checks if L2Norm(gradients) > max_gradient, and if it is, it returns
+                # (gradients / L2Norm(gradients)) * max_grad.
+                # norm: literally just L2-norm of gradients.
+                clipped_gradients, norm = tf.clip_by_global_norm(gradients, max_gradient)
+                self.gradient_norms.append(norm)
+                self.updates.append(optimizer.apply_gradients(zip(clipped_gradients, params),
+                                                              global_step=self.global_step))
 
     def get_batch(self, data, bucket_id):
         """Get a random batch of data from the specified bucket, prepare for step.
@@ -96,8 +121,8 @@ class Model(object):
                                    if decoder_inputs[b][unit_id+1] == data_utils.PAD_ID]
             batch_weights[unit_id][ids_with_pad_target] = 0.0
 
-
         return batch_encoder_inputs, batch_decoder_inputs, batch_weights
+
     def restore(self, meta_name):
         """The exact order as seen in tf tutorials:"""
         raise NotImplemented
@@ -142,9 +167,28 @@ class Model(object):
             print("Created model with fresh parameters.")
             # Clear output dir contents.
             os.popen('rm -rf out/* && mkdir -p out/logs')
-            # Run initializer operation after we've fully constructed model & launched it in a sess.
-            self.sess.run(tf.global_variables_initializer())
-        self.file_writer = tf.summary.FileWriter(config.log_dir, self.sess.graph)
+            # Add operation for calling all variable initializers.
+            init_op = tf.global_variables_initializer()
+            # Construct saver (adds save/restore ops to all).
+            self.saver = tf.train.Saver(tf.global_variables())
+            # Add the fully-constructed graph to the event file.
+            self.file_writer.add_graph(self.sess.graph)
+            # Initialize all model variables.
+            self.sess.run(init_op)
+
+    def train(self, dataset, train_config):
+        """ Train chatbot. """
+        self.setup_parameters(train_config)
+        train(self, dataset, train_config)
+
+    def decode(self, test_config):
+        """ Create chat session between user & chatbot. """
+        self.setup_parameters(test_config)
+        decode(self, test_config)
+
+    def step(self, encoder_inputs, decoder_inputs, target_weights, bucket_id):
+        """Run a step of the model feeding the given inputs."""
+        raise NotImplemented
 
 
 class Chatbot(Model):
@@ -165,7 +209,8 @@ class Chatbot(Model):
     """
 
     def __init__(self,
-                 buckets: list,
+                 buckets,
+                 log_dir = "out/logs",
                  vocab_size=40000,
                  layer_size=512,
                  num_layers=3,
@@ -190,14 +235,6 @@ class Chatbot(Model):
             num_softmax_samp: number of samples for sampled softmax.
             is_decoding: if True, don't build backward pass.
         """
-
-        print("Beginning model construction . . . ")
-        super(Chatbot, self).__init__(buckets,
-                                      vocab_size=vocab_size,
-                                      batch_size=batch_size,
-                                      learning_rate=learning_rate,
-                                      lr_decay=lr_decay,
-                                      is_decoding=is_decoding)
 
         # ==============================================================================================
         # Define basic components: cell(s) state, encoder, decoder.
@@ -241,50 +278,34 @@ class Chatbot(Model):
                                                        buckets, lambda x, y: seq2seq_f(x, y),
                                                        softmax_loss_function=softmax_loss)
 
-        self.summaries = {}
-        for i, loss in enumerate(self.losses):
-            name = "loss{}".format(i)
-            self.summaries[name] = tf.summary.scalar("loss{}".format(i), loss)
-
         # If decoding, append projection to true output to the model.
         if is_decoding and output_proj is not None:
             self.outputs = Chatbot._get_projections(len(buckets), self.outputs, output_proj)
 
-        # ==============================================================================================
-        # Configure training process (backward pass).
-        # ==============================================================================================
+        with tf.variable_scope("summaries"):
+            self.summaries = {}
+            for i, loss in enumerate(self.losses):
+                name = "loss{}".format(i)
+                self.summaries[name] = tf.summary.scalar("loss{}".format(i), loss)
 
-        # Note: variables are trainable=True by default.
-        params = tf.trainable_variables()
-        if not is_decoding:
-            self.gradient_norms = []
-            # updates will store the parameter (S)GD updates.
-            self.updates = []
-            optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
-            print("Looping over", len(buckets), "buckets.")
-            # TODO: Think about how this could optimized. There has to be a way.
-            for b in range(len(buckets)):
-                # Note: tf.gradients returns in form: gradients[i] == sum([dy/dx_i for y in self.losses[b]]).
-                gradients = tf.gradients(self.losses[b], params)
-                # Gradient clipping is actually extremely simple, it basically just
-                # checks if L2Norm(gradients) > max_gradient, and if it is, it returns
-                # (gradients / L2Norm(gradients)) * max_grad.
-                # norm: literally just L2-norm of gradients.
-                clipped_gradients, norm = tf.clip_by_global_norm(gradients, max_gradient)
-                self.gradient_norms.append(norm)
-                self.updates.append(optimizer.apply_gradients(zip(clipped_gradients, params),
-                                                              global_step=self.global_step))
+        super(Chatbot, self).__init__(buckets,
+                                      log_dir=log_dir,
+                                      vocab_size=vocab_size,
+                                      batch_size=batch_size,
+                                      learning_rate=learning_rate,
+                                      lr_decay=lr_decay,
+                                      is_decoding=is_decoding)
 
-    def step(self, session, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only):
+        super(Chatbot, self).compile(self.losses, max_gradient)
+
+    def step(self, encoder_inputs, decoder_inputs, target_weights, bucket_id):
         """Run a step of the model feeding the given inputs.
 
         Args:
-          session: tensorflow session to use.
           encoder_inputs: list of numpy int vectors to feed as encoder inputs.
           decoder_inputs: list of numpy int vectors to feed as decoder inputs.
           target_weights: list of numpy float vectors to feed as target weights.
           bucket_id: which bucket of the model to use.
-          forward_only: whether to do the backward step or only forward.
 
         Returns:
           A triple consisting of gradient norm (or None if we did not do backward),
@@ -317,29 +338,19 @@ class Chatbot(Model):
         input_feed[self.decoder_inputs[decoder_size].name] = np.zeros([self.batch_size], dtype=np.int32)
 
         # Fetches: the Operations/Tensors we want executed/evaluated during session.run(...).
-        if not forward_only:
+        if not self.is_decoding:
             fetches = [self.summaries["loss{}".format(bucket_id)],
                        self.updates[bucket_id],         # Update Op that does SGD.
                        self.gradient_norms[bucket_id],  # Gradient norm.
                        self.losses[bucket_id]]          # Loss for this batch.
-            outputs = session.run(fetches=fetches, feed_dict=input_feed)
+            outputs = self.sess.run(fetches=fetches, feed_dict=input_feed)
             return outputs[0], outputs[2], outputs[3], None  # summaries,  Gradient norm, loss, no outputs.
         else:
             fetches = [self.losses[bucket_id]]  # Loss for this batch.
             for l in range(decoder_size):       # Output logits.
                 fetches.append(self.outputs[bucket_id][l])
-            outputs = session.run(fetches=fetches, feed_dict=input_feed)
+            outputs = self.sess.run(fetches=fetches, feed_dict=input_feed)
             return None, None, outputs[0], outputs[1:]  #No summary,  No gradient norm, loss, outputs.
-
-    def train(self, dataset, train_config):
-        """ Train chatbot. """
-        super(Chatbot, self).setup_parameters(train_config)
-        train(self, dataset, train_config)
-
-    def decode(self, test_config):
-        """ Create chat session between user & chatbot. """
-        super(Chatbot, self).setup_parameters(test_config)
-        decode(self, test_config)
 
     @staticmethod
     def _sampled_softmax_loss(num_samples: int, hidden_size: int, vocab_size: int):
@@ -422,6 +433,7 @@ class SimpleBot(Model):
     """
 
     def __init__(self,
+                 log_dir = "out/logs",
                  max_seq_len = 20,
                  vocab_size=40000,
                  layer_size=512,
@@ -431,19 +443,9 @@ class SimpleBot(Model):
                  lr_decay=0.98,
                  is_decoding=False):
 
-        print("Beginning model construction . . . ")
         # SimpleBot allows user to not worry about making their own buckets.
-        # SimpleBot does that for you.
-        # SimpleBot cares.
-        buckets = [(max_seq_len // 2,  max_seq_len // 2),
-                        (max_seq_len, max_seq_len)]
-
-        super(SimpleBot, self).__init__(buckets,
-                                        vocab_size=vocab_size,
-                                        batch_size=batch_size,
-                                        learning_rate=learning_rate,
-                                        lr_decay=lr_decay,
-                                        is_decoding=is_decoding)
+        # SimpleBot does that for you. SimpleBot cares.
+        buckets = [(max_seq_len // 2,  max_seq_len // 2), (max_seq_len, max_seq_len)]
 
         # ==============================================================================================
         # Create placeholder lists for encoder/decoder sequences.
@@ -451,9 +453,12 @@ class SimpleBot(Model):
 
         # Base of cell: GRU.
         base_cell = tf.contrib.rnn.GRUCell(layer_size)
-        self.encoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="encoder"+str(i)) for i in range(max_seq_len)]
-        self.decoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="decoder"+str(i)) for i in range(max_seq_len+1)]
-        self.target_weights = [tf.placeholder(tf.float32, shape=[None], name="weight"+str(i)) for i in range(max_seq_len+1)]
+        self.encoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="encoder"+str(i))
+                               for i in range(max_seq_len)]
+        self.decoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="decoder"+str(i))
+                               for i in range(max_seq_len+1)]
+        self.target_weights = [tf.placeholder(tf.float32, shape=[None], name="weight"+str(i))
+                               for i in range(max_seq_len+1)]
 
         # ====================================================================================
         # Before bucketing, need to define the underlying model(x, y) -> outputs, state(s).
@@ -493,7 +498,7 @@ class SimpleBot(Model):
                 cell = tf.contrib.rnn.EmbeddingWrapper(cell, vocab_size, layer_size)
                 # Encoder(raw_inputs) -> Embed(raw_inputs) -> [be an RNN] -> encoder state.
                 _, encoder_state = core_rnn.static_rnn(cell, encoder_inputs, dtype=tf.float32)
-                # Upgrade 2: flex your outputs and project to FULL. VOCAB. SIZE (for a limited time only).
+                # Upgrade 2: flex your outputs and project to FULL. VOCAB. SIZE.
                 cell = tf.contrib.rnn.OutputProjectionWrapper(cell, vocab_size)
                 with tf.variable_scope("rnn_decoder") as decoder_scope:
                     decoder_outputs = []
@@ -513,27 +518,44 @@ class SimpleBot(Model):
         # Now we can build a simple bucketed seq2seq model.
         # ====================================================================================
 
-        losses  = []
-        outputs = []
+        self.losses  = []
+        self.outputs = []
         values  = self.encoder_inputs + self.decoder_inputs + self.decoder_inputs
         with tf.name_scope("simple_bucket_model", values):
-            for idx_b, bucket in enumerate(self.buckets):
+            for idx_b, bucket in enumerate(buckets):
                 # Reminder: you should never explicitly set reuse=False. It's a no-no.
                 with tf.variable_scope(tf.get_variable_scope(), reuse=True if idx_b > 0 else None):
                     # The outputs for this bucket are defined entirely by the seq2seq function.
-                    outputs.append(seq2seq(self.encoder_inputs[:bucket[0]],
+                    self.outputs.append(seq2seq(self.encoder_inputs[:bucket[0]],
                                            self.decoder_inputs[:bucket[1]],
                                            base_cell))
                     # Target outputs are just the inputs time-shifted by 1.
                     target_outputs = [self.decoder_inputs[i + 1]
                                       for i in range(len(self.decoder_inputs) - 1)]
                     # Compute loss by comparing outputs and target outputs.
-                    losses.append(self._simple_loss(outputs[-1],
+                    self.losses.append(SimpleBot._simple_loss(batch_size, self.outputs[-1],
                                                     target_outputs[:bucket[1]],
                                                     self.target_weights))
 
+        with tf.variable_scope("summaries"):
+            self.summaries = {}
+            for i, loss in enumerate(self.losses):
+                name = "loss{}".format(i)
+                self.summaries[name] = tf.summary.scalar("loss{}".format(i), loss)
 
-    def _simple_loss(self, logits, targets, weights):
+        # Let superclass handle the boring stuff :)
+        super(SimpleBot, self).__init__(buckets,
+                                        log_dir="out/logs",
+                                        vocab_size=vocab_size,
+                                        batch_size=batch_size,
+                                        learning_rate=learning_rate,
+                                        lr_decay=lr_decay,
+                                        is_decoding=is_decoding)
+
+        super(SimpleBot, self).compile(self.losses, max_gradient)
+
+    @staticmethod
+    def _simple_loss(batch_size, logits, targets, weights):
         """Compute weighted cross-entropy loss on softmax(logits)."""
         # Note: name_scope only affects names of ops, while variable_scope affects both ops AND variables.
         with tf.name_scope("simple_loss", values=logits+targets):
@@ -545,26 +567,59 @@ class SimpleBot(Model):
         log_perplexities = tf.add_n(log_perplexities)
         # Get weighted-averge by dividing by sum of the weights.
         log_perplexities /= tf.add_n(weights) + 1e-12
-        return tf.reduce_sum(log_perplexities) / tf.cast(self.batch_size, tf.float32)
+        return tf.reduce_sum(log_perplexities) / tf.cast(batch_size, tf.float32)
 
+    # TODO: This is is just copy-pasted from ChatBot above. Find a way to work this into the superclass.
+    def step(self, encoder_inputs, decoder_inputs, target_weights, bucket_id):
+        """Run a step of the model feeding the given inputs.
 
+        Args:
+          encoder_inputs: list of numpy int vectors to feed as encoder inputs.
+          decoder_inputs: list of numpy int vectors to feed as decoder inputs.
+          target_weights: list of numpy float vectors to feed as target weights.
+          bucket_id: which bucket of the model to use.
 
+        Returns:
+          A triple consisting of gradient norm (or None if we did not do backward),
+          average perplexity, and the outputs.
 
+        Raises:
+          ValueError: if length of encoder_inputs, decoder_inputs, or
+            target_weights disagrees with bucket size for the specified bucket_id.
+        """
 
+        def check_input_length(actual, expected):
+            if actual == expected: return
+            raise ValueError("Length must be equal to the one in bucket,"
+                             " %d != %d." % (actual, expected))
 
+        # Check if the sizes match.
+        encoder_size, decoder_size = self.buckets[bucket_id]
+        check_input_length(len(encoder_inputs), encoder_size)
+        check_input_length(len(decoder_inputs), decoder_size)
+        check_input_length(len(target_weights), decoder_size)
 
+        # Input feed: Associate the parameters given with the model variables.
+        input_feed = {}
+        for l in range(encoder_size):
+            input_feed[self.encoder_inputs[l].name] = encoder_inputs[l]
+        for l in range(decoder_size):
+            input_feed[self.decoder_inputs[l].name] = decoder_inputs[l]
+            input_feed[self.target_weights[l].name] = target_weights[l]
+        # The decoder is actually 1 step longer than bucket size, so don't forget to add final step.
+        input_feed[self.decoder_inputs[decoder_size].name] = np.zeros([self.batch_size], dtype=np.int32)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        # Fetches: the Operations/Tensors we want executed/evaluated during session.run(...).
+        if not self.is_decoding:
+            fetches = [self.summaries["loss{}".format(bucket_id)],
+                       self.updates[bucket_id],         # Update Op that does SGD.
+                       self.gradient_norms[bucket_id],  # Gradient norm.
+                       self.losses[bucket_id]]          # Loss for this batch.
+            outputs = self.sess.run(fetches=fetches, feed_dict=input_feed)
+            return outputs[0], outputs[2], outputs[3], None  # summaries,  Gradient norm, loss, no outputs.
+        else:
+            fetches = [self.losses[bucket_id]]  # Loss for this batch.
+            for l in range(decoder_size):       # Output logits.
+                fetches.append(self.outputs[bucket_id][l])
+            outputs = self.sess.run(fetches=fetches, feed_dict=input_feed)
+            return None, None, outputs[0], outputs[1:]  #No summary,  No gradient norm, loss, outputs.

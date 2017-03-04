@@ -18,7 +18,7 @@ class TrainConfig(object):
         # TODO: change this later when applicable.
         self.nb_epoch   = 1
         # FIXME: hi
-        self.data_name = 'ubuntu'
+        self.data_name = FLAGS.data_name
 
 
 class TestConfig(object):
@@ -30,10 +30,10 @@ class TestConfig(object):
         # For loading model graph. Question: Right?
         self.log_dir = FLAGS.log_dir
         # It makes no sense to test a newly created model.
-        self.reset_model = False
         self.data_dir = FLAGS.data_dir
 
         # TODO:
         self.teacher_mode = True
+        self.reset_model = False
 
 
