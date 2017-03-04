@@ -434,6 +434,8 @@ class SimpleBot(Model):
         # Store instance variables.
         # ==============================================================================================
 
+        self.batch_size = batch_size
+
         # Note: duplicate code -- move to superclass?
         self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
         self.lr_decay_op    = self.learning_rate.assign(learning_rate * lr_decay)
@@ -449,71 +451,65 @@ class SimpleBot(Model):
         # 1. Define the underlying model(x, y) -> outputs, state(s).
         # ====================================================================================
 
-        # Example:
-        def basic_rnn_seq2seq(encoder_inputs, decoder_inputs, cell):
-            """Basic RNN sequence-to-sequence model.
+        # TODO: move this.
+        from tensorflow.contrib.rnn import GRUCell, EmbeddingWrapper, OutputProjectionWrapper
 
-            1. Run an RNN to encode encoder_inputs into a state vector,
-            2. Runs decoder, initialized with the last encoder state, on decoder_inputs.
+        def seq2seq(encoder_inputs, decoder_inputs):
+            """Basic RNN sequence-to-sequence model.
 
             Args:
                 encoder_inputs: A list of 2D Tensors [batch_size x input_size].
                 decoder_inputs: A list of 2D Tensors [batch_size x input_size].
-                cell: core_rnn_cell.RNNCell defining the cell function and size.
+            N.B. 'input_size' refers to input dimension, NOT number of steps.
 
             Returns:
-                (outputs, state), where:
-                    outputs: A list of the same length as decoder_inputs of 2D Tensors with
-                        shape [batch_size x output_size] containing the generated outputs.
-                    state: The state of each decoder cell in the final time-step.
-                        It is a 2D Tensor of shape [batch_size x cell.state_size].
+                outputs: A list of the same length as decoder_inputs of 2D Tensors with
+                    shape [batch_size x output_size] containing the generated outputs.
             """
             with tf.variable_scope("basic_rnn_seq2seq"):
-                _, enc_state = core_rnn.static_rnn(cell, encoder_inputs, dtype=tf.float32)
+                _, encoder_state = core_rnn.static_rnn(cell, encoder_inputs, dtype=tf.float32)
                 with tf.variable_scope("rnn_decoder") as decoder_scope:
-                    outputs = []
-                    for i, inp in enumerate(decoder_inputs):
+                    decoder_outputs = []
+                    for i, dec_inp in enumerate(decoder_inputs):
                         if i > 0:
                             decoder_scope.reuse_variables()
-                        output, enc_state = cell(inp, enc_state)
-                        outputs.append(output)
-                return outputs, enc_state
+                        output, encoder_state = cell(dec_inp, encoder_state)
+                        decoder_outputs.append(output)
+                return decoder_outputs
 
+        def simple_loss(logits, targets):
+            # TODO: We need weights.
+            with tf.name_scope("simple_loss", values=logits+targets):
+                log_perplexities = []
+                for l, t in zip(logits, targets):
+                    cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=t, logits=l)
+                    # NOTE: This is where weights would come in if we implement them:
+                    log_perplexities.append(cross_entropy) # or cross_entropy * weight
+            # Note: reduce_sum (with the args below) adds all elements
+            # in the tensor together & outputs a scalar.
+            return tf.reduce_sum(log_perplexities) / tf.cast(self.batch_size, tf.float32)
 
-
-        def simple_seq2seq(encoder_inputs, decoder_inputs, cell):
-            from tensorflow.contrib.rnn import GRUCell, EmbeddingWrapper, OutputProjectionWrapper
-            from tensorflow.contrib.rnn import static_rnn
-            """Simpler (and non-deprecated) version of 'seq2seq_f' in Chatbot. """
-            cell        = GRUCell(layer_size)
-            # EmbeddingWrapper: Create a cell with add input embedding.
-            # embedded_encoder has (super-)type RNNCell.
-            embedded_encoder    = EmbeddingWrapper(cell=cell,
-                                           embedding_classes=vocab_size,
-                                           embedding_size=layer_size)
-            # Create an RNN specified by RNNCell 'embedded_encoder'.
-            _, encoder_state = static_rnn(cell=embedded_encoder,
-                                          inputs=self.encoder_inputs,
-                                          sequence_length=max_seq_len,
-                                          dtype=tf.float32)
-
-            # ------------------------------- DECODER --------------------------------------
-            decoder_cell = EmbeddingWrapper(cell=cell,
-                                                embedding_classes=vocab_size,
-                                                embedding_size=layer_size)
-
-            decoder_cell = OutputProjectionWrapper(decoder_cell,
-                                                   output_size=vocab_size)
-
-            assert(decoder_cell.state_size == layer_size)
-            assert(decoder_cell.output_size == vocab_size)
-
-            decoder_outputs, decoder_state = static_rnn(cell=decoder_cell,
-                                                        inputs=self.decoder_inputs,
-                                                        initial_state=encoder_state,
-                                                        sequence_length=max_seq_len,
-                                                        dtype=tf.float32)
-
+        def simple_bucket_model(encoder_inputs, decoder_inputs, buckets):
+            """
+            Args:
+                encoder_inputs: A list of Tensors to feed the encoder; first seq2seq input.
+                decoder_inputs: A list of Tensors to feed the decoder; second seq2seq input.
+                buckets: A list of pairs of (input size, output size) for each bucket.
+            """
+            losses = []
+            outputs = []
+            values = encoder_inputs + decoder_inputs
+            # Note: name_scope only affects names of ops, while variable_scope affects both ops AND variables.
+            with tf.name_scope("simple_bucket_model", values):
+                for idx_b, bucket in enumerate(buckets):
+                    # Reminder: you should never explicitly set reuse=False. It's a no-no.
+                    with tf.variable_scope(tf.get_variable_scope(), reuse=True if idx_b > 0 else None):
+                        outputs.append(seq2seq(encoder_inputs[:bucket[0]], decoder_inputs[:bucket[1]]))
+                        target_outputs = [decoder_inputs[i + 1] for i in range(len(decoder_inputs) - 1)]
+                        losses.append(simple_loss(
+                            outputs[-1], target_outputs[:bucket[1]])
+                        )
+            return outputs, losses
 
 
         super(SimpleBot, self).__init__(is_decoding)

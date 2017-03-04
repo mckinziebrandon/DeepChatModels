@@ -92,14 +92,31 @@ class TestTFGeneral(unittest.TestCase):
             with tf.variable_scope(scope_one):
                 self.assertEqual("scope_level_1", tf.get_variable_scope().name)
 
+        with tf.variable_scope("scopey_mc_scopeyface") as scope:
+            for _ in range(2):
+                self.assertTrue(scope.reuse == False)
+                scope.reuse_variables()
+            self.assertTrue(scope.reuse == True)
 
+    def test_name_scope(self):
+        """Name scope is for ops only. Explore relationship to variable_scope."""
+        logging.basicConfig(level=logging.INFO)
+        log = logging.getLogger('TestTFGeneral.test_name_scope')
+        with tf.variable_scope("var_scope"):
+            with tf.name_scope("name_scope"):
+                var = tf.get_variable("var", [1])
+                x   = 1.0 + var
+        self.assertEqual("var_scope/var:0", var.name)
+        self.assertEqual("var_scope/name_scope/add", x.op.name) # Ignore pycharm.
+        log.info("\n\nx.op is %r" % x.op)
+        log.info("\n\nvar.op is %r" % var.op)
 
 
 
     def test_get_variable(self):
         """Unclear what get_variable returns in certain situations. Want to explore."""
         logging.basicConfig(level=logging.INFO)
-        log = logging.getLogger('TestTFGeneral.test_scope')
+        log = logging.getLogger('TestTFGeneral.test_get_variable')
 
         # Returned object is a Tensor.
         unicorns = tf.get_variable("unicorns", [5, 7])
@@ -116,6 +133,25 @@ class TestTFGeneral(unittest.TestCase):
             scope.reuse_variables() # MANDATORY
             varSame = tf.get_variable("scoped_unicorn")
             self.assertTrue(var is varSame)
+
+    def test_tensors(self):
+        """Tensor iteration is weird. Just kidding it's impossible. """
+        logging.basicConfig(level=logging.INFO)
+        log = logging.getLogger('TestTFGeneral.test_tensors')
+
+        batch_size = 64
+        num_inputs = 5
+        tensor = tf.get_variable("2DTensor", shape=[batch_size, num_inputs])
+        log.info("\n\n2D tensor:\n\t%r" % tensor)
+        log.info("\tShape: %r" % tensor.get_shape())
+
+        with self.assertRaises(TypeError):
+            log.info("\n\n")
+            for t in tensor:
+                log.info("t: %r" % t)
+                log.info("\tt shape: %r" % t.get_shape())
+
+
 
 
 
