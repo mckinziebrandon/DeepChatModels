@@ -25,12 +25,79 @@ from chatbot._decode import decode
 
 
 class Model(object):
-    """Abstract base model class."""
-    def __init__(self, is_decoding):
-        self.sess = tf.Session()
-        self.is_decoding = is_decoding
-        self.saver = tf.train.Saver(tf.global_variables())
+    """Abstract model class with rudimentary implementations."""
 
+    def __init__(self,
+                 buckets,
+                 vocab_size=40000,
+                 batch_size=64,
+                 learning_rate=0.5,
+                 lr_decay=0.98,
+                 is_decoding=False):
+        self.sess           = tf.Session()
+        self.is_decoding    = is_decoding
+        self.batch_size     = batch_size
+        self.buckets        = buckets
+        self.vocab_size = vocab_size
+
+        self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
+        self.lr_decay_op    = self.learning_rate.assign(learning_rate * lr_decay)
+        self.global_step    = tf.Variable(initial_value=0, trainable=False)
+        # Question: WHERE DO I PUT YOU :(
+        self.saver          = tf.train.Saver(tf.global_variables())
+
+    def get_batch(self, data, bucket_id):
+        """Get a random batch of data from the specified bucket, prepare for step.
+            encoder_inputs[i]       == [words in sentences[i]], where 0 <  i < batch_size.
+            batch_encoder_inputs[i] == list(i'th wordID over all batch sentences)
+
+        Args:
+          data: tuple of len(self.buckets). data[bucket_id] == [source_ids, target_ids]
+          bucket_id: integer, which bucket to get the batch for.
+
+        Returns:
+          The triple (encoder_inputs, decoder_inputs, target_weights) for
+          the constructed batch that has the proper format to call step(...) later.
+        """
+        encoder_size, decoder_size = self.buckets[bucket_id]
+        encoder_inputs, decoder_inputs = [], []
+
+        # Get a random batch of encoder and decoder inputs from data,
+        # pad them if needed, reverse encoder inputs and add GO to decoder.
+        for _ in range(self.batch_size):
+            encoder_input, decoder_input = random.choice(data[bucket_id])
+            # Encoder inputs are padded and then reversed.
+            encoder_pad = [data_utils.PAD_ID] * (encoder_size - len(encoder_input))
+            encoder_inputs.append(list(reversed(encoder_input + encoder_pad)))
+            # Decoder inputs get an extra "GO" symbol, and are padded then.
+            decoder_pad= [data_utils.PAD_ID] * (decoder_size - len(decoder_input) - 1)
+            decoder_inputs.append([data_utils.GO_ID] + decoder_input + decoder_pad)
+
+        # Define some small helper functions before we re-index & weight.
+        def inputs_to_unit(uid, inputs):
+            """ Return re-indexed version of inputs array. Description in params below.
+            :param uid: index identifier for input timestep/unit/node of interest.
+            :param inputs:  single batch of data; inputs[i] is i'th sentence.
+            :return:        re-indexed version of inputs as numpy array.
+            """
+            return np.array([inputs[i][uid] for i in range(self.batch_size)], dtype=np.int32)
+
+        batch_encoder_inputs = [inputs_to_unit(i, encoder_inputs) for i in range(encoder_size)]
+        batch_decoder_inputs = [inputs_to_unit(i, decoder_inputs) for i in range(decoder_size)]
+        batch_weights        = list(np.ones(shape=(decoder_size, self.batch_size), dtype=np.float32))
+
+        # Set weight for the final decoder unit to 0.0 for all batches.
+        for i in range(self.batch_size):
+            batch_weights[-1][i] = 0.0
+
+        # Also set any decoder-input-weights to 0 that have PAD as target decoder output.
+        for unit_id in range(decoder_size - 1):
+            ids_with_pad_target = [b for b in range(self.batch_size)
+                                   if decoder_inputs[b][unit_id+1] == data_utils.PAD_ID]
+            batch_weights[unit_id][ids_with_pad_target] = 0.0
+
+
+        return batch_encoder_inputs, batch_decoder_inputs, batch_weights
     def restore(self, meta_name):
         """The exact order as seen in tf tutorials:"""
         raise NotImplemented
@@ -107,8 +174,7 @@ class Chatbot(Model):
                  learning_rate=0.5,
                  lr_decay=0.98,
                  num_softmax_samp=512,
-                 is_decoding=False,
-                 debug_mode=False):
+                 is_decoding=False):
         """Create the model.
 
         Args:
@@ -126,19 +192,12 @@ class Chatbot(Model):
         """
 
         print("Beginning model construction . . . ")
-
-        # ==============================================================================================
-        # Store instance variables.
-        # ==============================================================================================
-
-        self.vocab_size     = vocab_size
-        self.buckets        = buckets
-        self.batch_size     = batch_size
-        self.debug_mode = debug_mode
-
-        self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
-        self.lr_decay_op    = self.learning_rate.assign(learning_rate * lr_decay)
-        self.global_step    = tf.Variable(initial_value=0, trainable=False)
+        super(Chatbot, self).__init__(buckets,
+                                      vocab_size=vocab_size,
+                                      batch_size=batch_size,
+                                      learning_rate=learning_rate,
+                                      lr_decay=lr_decay,
+                                      is_decoding=is_decoding)
 
         # ==============================================================================================
         # Define basic components: cell(s) state, encoder, decoder.
@@ -215,61 +274,6 @@ class Chatbot(Model):
                 self.gradient_norms.append(norm)
                 self.updates.append(optimizer.apply_gradients(zip(clipped_gradients, params),
                                                               global_step=self.global_step))
-
-        print("Creating saver and exiting . . . ")
-        super(Chatbot, self).__init__(is_decoding)
-
-    def get_batch(self, data, bucket_id):
-        """Get a random batch of data from the specified bucket, prepare for step.
-            encoder_inputs[i]       == [words in sentences[i]], where 0 <  i < batch_size.
-            batch_encoder_inputs[i] == list(i'th wordID over all batch sentences)
-
-        Args:
-          data: tuple of len(self.buckets). data[bucket_id] == [source_ids, target_ids]
-          bucket_id: integer, which bucket to get the batch for.
-
-        Returns:
-          The triple (encoder_inputs, decoder_inputs, target_weights) for
-          the constructed batch that has the proper format to call step(...) later.
-        """
-        encoder_size, decoder_size = self.buckets[bucket_id]
-        encoder_inputs, decoder_inputs = [], []
-
-        # Get a random batch of encoder and decoder inputs from data,
-        # pad them if needed, reverse encoder inputs and add GO to decoder.
-        for _ in range(self.batch_size):
-            encoder_input, decoder_input = random.choice(data[bucket_id])
-            # Encoder inputs are padded and then reversed.
-            encoder_pad = [data_utils.PAD_ID] * (encoder_size - len(encoder_input))
-            encoder_inputs.append(list(reversed(encoder_input + encoder_pad)))
-            # Decoder inputs get an extra "GO" symbol, and are padded then.
-            decoder_pad= [data_utils.PAD_ID] * (decoder_size - len(decoder_input) - 1)
-            decoder_inputs.append([data_utils.GO_ID] + decoder_input + decoder_pad)
-
-        # Define some small helper functions before we re-index & weight.
-        def inputs_to_unit(uid, inputs):
-            """ Return re-indexed version of inputs array. Description in params below.
-            :param uid: index identifier for input timestep/unit/node of interest.
-            :param inputs:  single batch of data; inputs[i] is i'th sentence.
-            :return:        re-indexed version of inputs as numpy array.
-            """
-            return np.array([inputs[i][uid] for i in range(self.batch_size)], dtype=np.int32)
-
-        batch_encoder_inputs = [inputs_to_unit(i, encoder_inputs) for i in range(encoder_size)]
-        batch_decoder_inputs = [inputs_to_unit(i, decoder_inputs) for i in range(decoder_size)]
-        batch_weights        = list(np.ones(shape=(decoder_size, self.batch_size), dtype=np.float32))
-
-        # Set weight for the final decoder unit to 0.0 for all batches.
-        for i in range(self.batch_size):
-            batch_weights[-1][i] = 0.0
-
-        # Also set any decoder-input-weights to 0 that have PAD as target decoder output.
-        for unit_id in range(decoder_size - 1):
-            ids_with_pad_target = [b for b in range(self.batch_size)
-                                   if decoder_inputs[b][unit_id+1] == data_utils.PAD_ID]
-            batch_weights[unit_id][ids_with_pad_target] = 0.0
-
-        return batch_encoder_inputs, batch_decoder_inputs, batch_weights
 
     def step(self, session, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only):
         """Run a step of the model feeding the given inputs.
@@ -427,45 +431,35 @@ class SimpleBot(Model):
                  lr_decay=0.98,
                  is_decoding=False):
 
-
         print("Beginning model construction . . . ")
+        # SimpleBot allows user to not worry about making their own buckets.
+        # SimpleBot does that for you.
+        # SimpleBot cares.
+        buckets = [(max_seq_len // 2,  max_seq_len // 2),
+                        (max_seq_len, max_seq_len)]
+
+        super(SimpleBot, self).__init__(buckets,
+                                        vocab_size=vocab_size,
+                                        batch_size=batch_size,
+                                        learning_rate=learning_rate,
+                                        lr_decay=lr_decay,
+                                        is_decoding=is_decoding)
 
         # ==============================================================================================
-        # Store instance variables.
+        # Create placeholder lists for encoder/decoder sequences.
         # ==============================================================================================
-
-        self.batch_size = batch_size
-
-        # Note: duplicate code -- move to superclass?
-        self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
-        self.lr_decay_op    = self.learning_rate.assign(learning_rate * lr_decay)
-        self.global_step    = tf.Variable(initial_value=0, trainable=False)
 
         cell = tf.contrib.rnn.GRUCell(layer_size)
         self.encoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="encoder"+str(i)) for i in range(max_seq_len)]
         self.decoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="decoder"+str(i)) for i in range(max_seq_len+1)]
         self.target_weights = [tf.placeholder(tf.float32, shape=[None], name="weight"+str(i)) for i in range(max_seq_len+1)]
-        target_outputs      = [self.decoder_inputs[i + 1] for i in range(len(self.decoder_inputs) - 1)]
 
         # ====================================================================================
-        # 1. Define the underlying model(x, y) -> outputs, state(s).
+        # Before bucketing, need to define the underlying model(x, y) -> outputs, state(s).
         # ====================================================================================
-
-        # TODO: move this.
-        from tensorflow.contrib.rnn import GRUCell, EmbeddingWrapper, OutputProjectionWrapper
 
         def seq2seq(encoder_inputs, decoder_inputs):
-            """Basic RNN sequence-to-sequence model.
-
-            Args:
-                encoder_inputs: A list of 2D Tensors [batch_size x input_size].
-                decoder_inputs: A list of 2D Tensors [batch_size x input_size].
-            N.B. 'input_size' refers to input dimension, NOT number of steps.
-
-            Returns:
-                outputs: A list of the same length as decoder_inputs of 2D Tensors with
-                    shape [batch_size x output_size] containing the generated outputs.
-            """
+            """Builds basic encoder-decoder model and returns list of (2D) output tensors."""
             with tf.variable_scope("basic_rnn_seq2seq"):
                 _, encoder_state = core_rnn.static_rnn(cell, encoder_inputs, dtype=tf.float32)
                 with tf.variable_scope("rnn_decoder") as decoder_scope:
@@ -477,43 +471,42 @@ class SimpleBot(Model):
                         decoder_outputs.append(output)
                 return decoder_outputs
 
-        def simple_loss(logits, targets):
-            # TODO: We need weights.
-            with tf.name_scope("simple_loss", values=logits+targets):
-                log_perplexities = []
-                for l, t in zip(logits, targets):
-                    cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=t, logits=l)
-                    # NOTE: This is where weights would come in if we implement them:
-                    log_perplexities.append(cross_entropy) # or cross_entropy * weight
-            # Note: reduce_sum (with the args below) adds all elements
-            # in the tensor together & outputs a scalar.
-            return tf.reduce_sum(log_perplexities) / tf.cast(self.batch_size, tf.float32)
+        # ====================================================================================
+        # Now we can build a simple bucketed seq2seq model.
+        # ====================================================================================
 
-        def simple_bucket_model(encoder_inputs, decoder_inputs, buckets):
-            """
-            Args:
-                encoder_inputs: A list of Tensors to feed the encoder; first seq2seq input.
-                decoder_inputs: A list of Tensors to feed the decoder; second seq2seq input.
-                buckets: A list of pairs of (input size, output size) for each bucket.
-            """
-            losses = []
-            outputs = []
-            values = encoder_inputs + decoder_inputs
-            # Note: name_scope only affects names of ops, while variable_scope affects both ops AND variables.
-            with tf.name_scope("simple_bucket_model", values):
-                for idx_b, bucket in enumerate(buckets):
-                    # Reminder: you should never explicitly set reuse=False. It's a no-no.
-                    with tf.variable_scope(tf.get_variable_scope(), reuse=True if idx_b > 0 else None):
-                        outputs.append(seq2seq(encoder_inputs[:bucket[0]], decoder_inputs[:bucket[1]]))
-                        target_outputs = [decoder_inputs[i + 1] for i in range(len(decoder_inputs) - 1)]
-                        losses.append(simple_loss(
-                            outputs[-1], target_outputs[:bucket[1]])
-                        )
-            return outputs, losses
+        losses  = []
+        outputs = []
+        values  = self.encoder_inputs + self.decoder_inputs + self.decoder_inputs
+        with tf.name_scope("simple_bucket_model", values):
+            for idx_b, bucket in enumerate(self.buckets):
+                # Reminder: you should never explicitly set reuse=False. It's a no-no.
+                with tf.variable_scope(tf.get_variable_scope(), reuse=True if idx_b > 0 else None):
+                    # The outputs for this bucket are defined entirely by the seq2seq function.
+                    outputs.append(seq2seq(self.encoder_inputs[:bucket[0]],
+                                           self.decoder_inputs[:bucket[1]]))
+                    # Target outputs are just the inputs time-shifted by 1.
+                    target_outputs = [self.decoder_inputs[i + 1]
+                                      for i in range(len(self.decoder_inputs) - 1)]
+                    # Compute loss by comparing outputs and target outputs.
+                    losses.append(self._simple_loss(outputs[-1],
+                                                    target_outputs[:bucket[1]],
+                                                    self.target_weights))
 
 
-        super(SimpleBot, self).__init__(is_decoding)
-
+    def _simple_loss(self, logits, targets, weights):
+        """Compute weighted cross-entropy loss on softmax(logits)."""
+        # Note: name_scope only affects names of ops, while variable_scope affects both ops AND variables.
+        with tf.name_scope("simple_loss", values=logits+targets):
+            log_perplexities = []
+            for l, t, w in zip(logits, targets, weights):
+                cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=t, logits=l)
+                log_perplexities.append(cross_entropy * w)
+        # Reduce via elementwise-sum.
+        log_perplexities = tf.add_n(log_perplexities)
+        # Get weighted-averge by dividing by sum of the weights.
+        log_perplexities /= tf.add_n(weights) + 1e-12
+        return tf.reduce_sum(log_perplexities) / tf.cast(self.batch_size, tf.float32)
 
 
 
