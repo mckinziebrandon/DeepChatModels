@@ -3,12 +3,25 @@
 import numpy as np
 import logging
 import sys
-import pdb
 sys.path.append("..")
 import tensorflow as tf
-from utils import data_utils
 from utils.data_utils import batch_concatenate
 from utils import TestData
+
+
+def get_embedded_inputs(batch_concat_inputs):
+
+    with tf.variable_scope("embedded_inputs_scope"):
+        # 1. Embed the inputs.
+        embeddings = tf.get_variable("embeddings", [vocab_size, embed_size])
+        batch_embedded_inputs = tf.nn.embedding_lookup(embeddings, batch_concat_inputs)
+        # NO WAY. THIS IS AWESOME!!!
+        embedded_inputs = tf.unstack(batch_embedded_inputs)
+        for embed_sentence in embedded_inputs:
+            assert(isinstance(embed_sentence, tf.Tensor))
+            assert(embed_sentence.shape == (batch_size, max_seq_len, embed_size))
+        return embedded_inputs
+
 
 if __name__ == '__main__':
 
@@ -40,19 +53,6 @@ if __name__ == '__main__':
     # Embedding.
     # ==============================================================================
 
-    def get_embedded_inputs(batch_concat_inputs):
-        with tf.variable_scope("embedded_inputs_scope"):
-            # 1. Embed the inputs.
-            embeddings = tf.get_variable("embeddings", [vocab_size, embed_size])
-            batch_embedded_inputs = tf.nn.embedding_lookup(embeddings, batch_concat_inputs)
-            # NO WAY. THIS IS AWESOME!!!
-            embedded_inputs = tf.unstack(batch_embedded_inputs)
-            for embed_sentence in embedded_inputs:
-                assert(isinstance(embed_sentence, tf.Tensor))
-                assert(embed_sentence.shape == (batch_size, max_seq_len, embed_size))
-            return embedded_inputs
-
-    # 0. The raw integer sequences will be stored in a placeholder tensor.
     batch_concat_inputs = tf.placeholder(tf.int32, batch_sentences.shape)
     embedded_inputs = get_embedded_inputs(batch_concat_inputs)
 

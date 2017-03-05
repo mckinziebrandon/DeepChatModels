@@ -1,4 +1,11 @@
-"""Sequence-to-sequence model with an attention mechanism."""
+"""Sequence-to-sequence models."""
+
+# TODO: Figure out what to do with these models.
+# They worked in tensorflow r0.12, but not in r1.0, and for good reason.
+# Since there is no immediately obvious way of converting these to the better,
+# dynamic models available in tf r1.0, I'm going to make them from scratch in
+# the file dynamic_models.py for now.
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
