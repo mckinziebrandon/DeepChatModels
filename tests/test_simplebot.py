@@ -15,7 +15,7 @@ flags.DEFINE_string("data_dir", TEMP, "Directory containing the data files.")
 flags.DEFINE_string("ckpt_dir", "out", "Directory in which checkpoint files will be saved.")
 flags.DEFINE_string("log_dir", "out/logs", "Directory in which checkpoint files will be saved.")
 # Boolean flags.
-flags.DEFINE_boolean("reset_model", False, "wipe output directory; new params")
+flags.DEFINE_boolean("reset_model", True, "wipe output directory; new params")
 flags.DEFINE_boolean("decode", False, "If true, will activate chat session with user.")
 # Integer flags.
 flags.DEFINE_integer("steps_per_ckpt", 100, "How many training steps to do per checkpoint.")

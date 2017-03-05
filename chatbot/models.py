@@ -203,7 +203,8 @@ class ChatBot(Model):
     """Sequence-to-sequence model with attention and for multiple buckets.
 
     The input-to-output path can be thought of (on a high level) as follows:
-        1. Inputs:      Batches of integer lists, where each integer is a word ID to a pre-defined vocabulary.
+        1. Inputs:      Batches of integer lists, where each integer is a
+                        word ID to a pre-defined vocabulary.
         2. Embedding:   each input integer is mapped to an embedding vector.
                         Each embedding vector is of length 'layer_size', an argument to __init__.
                         The encoder and decoder have their own distinct embedding spaces.
@@ -211,9 +212,10 @@ class ChatBot(Model):
         4. Attention:   At each timestep, the output of the multi-layer cell is saved, so that
                         the decoder can access them in the manner specified in the paper on
                         jointly learning to align and translate. (should give a link to paper...)
-        5. Decoding:    The decoder, the same type of embedded-multi-layer cell as the encoder, is initialized
-                        with the last output of the encoder, the "context". Thereafter, we either feed it
-                        a target sequence (when training) or we feed its previous output as its next input (chatting).
+        5. Decoding:    The decoder, the same type of embedded-multi-layer cell
+                        as the encoder, is initialized with the last output of the encoder,
+                        the "context". Thereafter, we either feed it a target sequence
+                        (when training) or we feed its previous output as its next input (chatting).
     """
 
     def __init__(self,
@@ -267,16 +269,18 @@ class ChatBot(Model):
         # The seq2seq function: we use embedding for the input and attention.
         def seq2seq_f(encoder_inputs, decoder_inputs):
             # Note: the returned function uses separate embeddings for encoded/decoded sets.
-            #           Maybe try implementing with same embedding for both; makes more sense for our purposes.
+            #           Maybe try implementing same embedding for both.
             # Question: the outputs are projected to vocab_size NO MATTER WHAT.
             #           i.e. if output_proj is None, it uses its own OutputProjectionWrapper instead
             #           --> How does this affect our model?? A bit misleading imo.
-            return embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
-                                               num_encoder_symbols=vocab_size, num_decoder_symbols=vocab_size,
-                                               embedding_size=layer_size,
-                                               output_projection=output_proj,
-                                               feed_previous=is_decoding,
-                                               dtype=tf.float32)
+            with tf.variable_scope("seq2seq2_f"):
+                return embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
+                                                   num_encoder_symbols=vocab_size,
+                                                   num_decoder_symbols=vocab_size,
+                                                   embedding_size=layer_size,
+                                                   output_projection=output_proj,
+                                                   feed_previous=is_decoding,
+                                                   dtype=tf.float32)
 
         # Note that self.outputs and self.losses are lists of length len(buckets).
         # This allows us to identify which outputs/losses to compute given a particular bucket.
@@ -442,43 +446,56 @@ class SimpleBot(Model):
         # SimpleBot does that for you. SimpleBot cares.
         buckets = [(max_seq_len // 2,  max_seq_len // 2), (max_seq_len, max_seq_len)]
 
-        # ==============================================================================================
+        # ==========================================================================================
         # Create placeholder lists for encoder/decoder sequences.
-        # ==============================================================================================
+        # ==========================================================================================
 
         # Base of cell: GRU.
-        base_cell = tf.contrib.rnn.GRUCell(layer_size)
-        self.encoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="encoder"+str(i))
-                               for i in range(max_seq_len)]
-        self.decoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="decoder"+str(i))
-                               for i in range(max_seq_len+1)]
-        self.target_weights = [tf.placeholder(tf.float32, shape=[None], name="weight"+str(i))
-                               for i in range(max_seq_len+1)]
+        #base_cell = tf.contrib.rnn.GRUCell(layer_size)
+        with tf.variable_scope("placeholders"):
+            self.encoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="encoder"+str(i))
+                                   for i in range(max_seq_len)]
+            self.decoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="decoder"+str(i))
+                                   for i in range(max_seq_len+1)]
+            self.target_weights = [tf.placeholder(tf.float32, shape=[None], name="weight"+str(i))
+                                   for i in range(max_seq_len+1)]
 
         # ====================================================================================
         # Before bucketing, need to define the underlying model(x, y) -> outputs, state(s).
         # ====================================================================================
 
-        def seq2seq(encoder_inputs, decoder_inputs, cell):
+        def seq2seq(encoder_inputs, decoder_inputs):
             """Builds basic encoder-decoder model and returns list of (2D) output tensors."""
             with tf.variable_scope("seq2seq"):
-                # Upgrade 1: slap on an embedding before the inputs. Nice.
-                cell = tf.contrib.rnn.EmbeddingWrapper(cell, vocab_size, layer_size)
+                encoder_cell = tf.contrib.rnn.GRUCell(layer_size)
+                encoder_cell = tf.contrib.rnn.EmbeddingWrapper(encoder_cell, vocab_size, layer_size)
                 # Encoder(raw_inputs) -> Embed(raw_inputs) -> [be an RNN] -> encoder state.
-                _, encoder_state = core_rnn.static_rnn(cell, encoder_inputs, dtype=tf.float32)
-                # Upgrade 2: flex your outputs and project to FULL. VOCAB. SIZE.
-                cell = tf.contrib.rnn.OutputProjectionWrapper(cell, vocab_size)
+                _, encoder_state = core_rnn.static_rnn(encoder_cell, encoder_inputs, dtype=tf.float32)
                 with tf.variable_scope("decoder") as decoder_scope:
+
+                    embedding = tf.get_variable("embedding", [vocab_size, layer_size])
+                    decoder_cell = tf.contrib.rnn.GRUCell(layer_size)
+                    decoder_cell = tf.contrib.rnn.EmbeddingWrapper(decoder_cell, vocab_size, layer_size)
+                    decoder_cell = tf.contrib.rnn.OutputProjectionWrapper(decoder_cell, vocab_size)
+
                     decoder_outputs = []
                     prev = None
-                    embedding = tf.get_variable("embedding", [vocab_size, layer_size])
+                    decoder_state = None
+
                     loop_function = lambda x : embedding_ops.embedding_lookup(embedding, tf.argmax(x, 1))
+
                     for i, dec_inp in enumerate(decoder_inputs):
-                        if is_decoding and prev is not None:
-                            dec_inp = loop_function(prev)
-                        if i > 0:
+
+                        #if is_decoding and prev is not None:
+                        #    dec_inp = loop_function(prev)
+
+                        if i == 0:
+                            #decoder_scope.reuse_variables()
+                            output, decoder_state = decoder_cell(dec_inp, encoder_state)
+                        else:
                             decoder_scope.reuse_variables()
-                        output, encoder_state = cell(dec_inp, encoder_state)
+                            output, decoder_state = decoder_cell(dec_inp, decoder_state)
+
                         decoder_outputs.append(output)
                 return decoder_outputs
 
@@ -495,8 +512,7 @@ class SimpleBot(Model):
                 with tf.variable_scope(tf.get_variable_scope(), reuse=True if idx_b > 0 else None):
                     # The outputs for this bucket are defined entirely by the seq2seq function.
                     self.outputs.append(seq2seq(self.encoder_inputs[:bucket[0]],
-                                           self.decoder_inputs[:bucket[1]],
-                                           base_cell))
+                                           self.decoder_inputs[:bucket[1]]))
                     # Target outputs are just the inputs time-shifted by 1.
                     target_outputs = [self.decoder_inputs[i + 1]
                                       for i in range(len(self.decoder_inputs) - 1)]
@@ -526,7 +542,8 @@ class SimpleBot(Model):
     @staticmethod
     def _simple_loss(batch_size, logits, targets, weights):
         """Compute weighted cross-entropy loss on softmax(logits)."""
-        # Note: name_scope only affects names of ops, while variable_scope affects both ops AND variables.
+        # Note: name_scope only affects names of ops,
+        # while variable_scope affects both ops AND variables.
         with tf.name_scope("simple_loss", values=logits+targets+weights):
             log_perplexities = []
             for l, t, w in zip(logits, targets, weights):

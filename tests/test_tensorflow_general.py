@@ -9,33 +9,12 @@ import time
 from utils.data_utils import *
 from utils.config import TrainConfig
 
+import warnings
+warnings.filterwarnings("ignore", message="numpy.dtype size changed")
+
 TEMP="/home/brandon/terabyte/Datasets/ubuntu_dialogue_corpus"
-#TEMP="/home/brandon/terabyte/Datasets/wmt"
 BASE='/home/brandon/Documents/seq2seq_projects/tests'
 
-
-flags = tf.app.flags
-# String flags -- directories and dataset name(s).
-flags.DEFINE_string("data_name", "ubuntu", "For now, either 'ubuntu' or 'wmt'.")
-flags.DEFINE_string("data_dir", TEMP, "Directory containing the data files.")
-flags.DEFINE_string("ckpt_dir", BASE+'/out', "Directory in which checkpoint files will be saved.")
-flags.DEFINE_string("log_dir", BASE+'/out/logs' , "Directory in which checkpoint files will be saved.")
-# Boolean flags.
-flags.DEFINE_boolean("reset_model", True, "wipe output directory; new params")
-flags.DEFINE_boolean("decode", False, "If true, will activate chat session with user.")
-# Integer flags -- First three only need custom values if you're especially worried about RAM.
-flags.DEFINE_integer("max_train_samples", int(1e6), "Limit training data size (0: no limit).")
-flags.DEFINE_integer("steps_per_ckpt", 50, "How many training steps to do per checkpoint.")
-flags.DEFINE_integer("batch_size", 64, "Batch size to use during training.")
-flags.DEFINE_integer("vocab_size", 40000, "English vocabulary size.")
-flags.DEFINE_integer("layer_size", 128, "Size of each model layer.")
-flags.DEFINE_integer("num_layers", 2, "Number of layers in the model.")
-# Float flags -- hyperparameters.
-flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
-flags.DEFINE_float("lr_decay", 0.95, "Decay factor applied to learning rate.")
-flags.DEFINE_float("max_gradient", 5.0, "Clip gradients to this value.")
-flags.DEFINE_float("temperature", 0.0, "Sampling temperature.")
-FLAGS = flags.FLAGS
 
 class TestTFGeneral(unittest.TestCase):
     """ --------  Notes: unittest module. --------
@@ -152,7 +131,44 @@ class TestTFGeneral(unittest.TestCase):
                 log.info("\tt shape: %r" % t.get_shape())
 
 
+class TestRNN(unittest.TestCase):
+    """Test behavior of tf.contrib.rnn after migrating to r1.0."""
 
+    def setUp(self):
+        self.batch_size = 32
+        self.input_size = 1000
+        self.seq_len = 20
+        logging.basicConfig(level=logging.INFO)
+        self.log = logging.getLogger('TestRNNLogger')
+
+    def test_static_rnn(self):
+        self.log.info("\n")
+
+        with tf.variable_scope("inputs"):
+            inp_name = "static_rnn_input"
+            inp_shape = [self.batch_size, self.input_size]
+            inputs = [tf.placeholder(tf.float32, inp_shape, inp_name+str(i))
+                           for i in range(self.seq_len)]
+
+        with tf.variable_scope("encoder"):
+            basic_cell = tf.contrib.rnn.BasicRNNCell(num_units=128)
+            # static_rnn creates the network and returns the list of outputs at each step,
+            # and the final state in Tensor form.
+            encoder_outputs, encoder_state = tf.contrib.rnn.static_rnn(basic_cell,
+                                                                       inputs,
+                                                                       dtype=tf.float32)
+            self.log.info("\nType information:")
+            self.log.info("\ttype(encoder_outputs): {}".format(type(encoder_outputs)))
+            self.log.info("\ttype(encoder_state): {}".format(type(encoder_state)))
+
+    def test_dynamic_rnn(self):
+        basic_cell = tf.contrib.rnn.BasicRNNCell(num_units=128)
+
+        inputs = tf.placeholder(tf.float32, [self.batch_size, self.seq_len, self.input_size])
+        # "fully dynamic unrolling of inputs."
+        outputs, state = tf.nn.dynamic_rnn(basic_cell,
+                                           inputs,
+                                           dtype=tf.float32)
 
 
 
