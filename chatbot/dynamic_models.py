@@ -90,19 +90,19 @@ class DynamicBot(object):
         # Training stuff.
         # ============================================================================
 
-        #params = tf.trainable_variables()
-        #optimizer = tf.train.AdagradOptimizer(self.learning_rate)
-        #gradients = tf.gradients(self.loss, params)
-        #clipped_gradients, self.gradient_norm = tf.clip_by_global_norm(gradients, 5.0)
-        #self.updates = optimizer.apply_gradients(zip(clipped_gradients, params),
-                                                 #global_step=self.global_step)
+        params = tf.trainable_variables()
+        optimizer = tf.train.AdagradOptimizer(self.learning_rate)
+        gradients = tf.gradients(self.loss, params)
+        clipped_gradients, self.gradient_norm = tf.clip_by_global_norm(gradients, 10.0)
+        self.updates = optimizer.apply_gradients(
+            zip(clipped_gradients, params), global_step=self.global_step)
 
         # ============================================================================
         # Wrap it up. Nothing to see here.
         # ============================================================================
 
-        #self.sess = tf.Session()
-        #self.sess.run(tf.global_variables_initializer())
+        self.sess = tf.Session()
+        self.sess.run(tf.global_variables_initializer())
 
     def embed(self, batched_inputs):
         """Feed values in batched_inputs through model's embedder.

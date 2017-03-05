@@ -12,6 +12,8 @@ from chatbot.dynamic_models import DynamicBot
 
 if __name__ == '__main__':
 
+    # Get dataset and its properties.
     dataset = TestData()
+
     bot = DynamicBot(dataset)
 

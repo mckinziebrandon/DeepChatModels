@@ -44,10 +44,15 @@ class TestData(Dataset):
         self._train_size = len(self._train_data)
         self._valid_size = len(self._valid_data)
 
+        self._max_seq_len = max(max([len(s) for s in self._train_data]),
+                                max([len(s) for s in self._valid_data]))
+
+    @property
     def word_to_idx(self):
         """Return dictionary map from str -> int. """
         return self._word_to_idx
 
+    @property
     def idx_to_word(self):
         """Return dictionary map from int -> str. """
         return self._idx_to_word
@@ -89,3 +94,17 @@ class TestData(Dataset):
     def valid_size(self):
         return self._valid_size
 
+
+    @property
+    def train_data(self):
+        """List of training samples (token IDs)."""
+        return self._train_data
+
+    @property
+    def valid_data(self):
+        """List of validation samples (token IDs)."""
+        return self._valid_data
+
+    @property
+    def max_seq_len(self):
+        return self._max_seq_len

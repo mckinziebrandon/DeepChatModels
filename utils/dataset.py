@@ -1,14 +1,14 @@
 """ ABC for datasets. """
 from abc import ABCMeta, abstractmethod, abstractproperty
 
-# TODO: Require a method that returns a generator over data samples.
 class Dataset(metaclass=ABCMeta):
-    @abstractmethod
+
+    @abstractproperty
     def word_to_idx(self):
         """Return dictionary map from str -> int. """
         pass
 
-    @abstractmethod
+    @abstractproperty
     def idx_to_word(self):
         """Return dictionary map from int -> str. """
         pass
@@ -26,9 +26,26 @@ class Dataset(metaclass=ABCMeta):
     @abstractproperty
     def train_size(self):
         """Returns number of samples (sentences) in this dataset."""
+        pass
 
     @abstractproperty
     def valid_size(self):
         """Returns number of samples (sentences) in this dataset."""
+        pass
+
+    @abstractproperty
+    def train_data(self):
+        """List of training samples (token IDs)."""
+        pass
+
+    @abstractproperty
+    def valid_data(self):
+        """List of validation samples (token IDs)."""
+        pass
+
+    @abstractproperty
+    def max_seq_len(self):
+        """Return the number of tokens in the longest example"""
+        pass
 
 
