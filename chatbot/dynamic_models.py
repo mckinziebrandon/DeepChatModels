@@ -11,6 +11,7 @@ import logging
 import numpy as np
 import tensorflow as tf
 from utils.data_utils import batch_concatenate
+from utils.data_utils import GO_ID
 from chatbot._train import train
 from chatbot._decode import decode
 from chatbot.model_components import *
@@ -23,9 +24,15 @@ class DynamicBot(object):
                  batch_size=64,
                  state_size=256,
                  embed_size=64,
-                 learning_rate=0.4,
-                 max_seq_len=50):        # TODO: Move me.
+                 max_seq_len=None,
+                 learning_rate=0.4):
 
+        logging.basicConfig(level=logging.INFO)
+        self.log = logging.getLogger('DynamicBotLogger')
+
+        # TODO: make dataset compute this correctly.
+        if max_seq_len is None:
+            max_seq_len = dataset.max_seq_len
 
         self.dataset     = dataset
         self.batch_size  = batch_size
@@ -57,17 +64,18 @@ class DynamicBot(object):
         # Connect components from inputs to outputs to losses.
         # ==========================================================================================
 
+
         # Inputs (needed by feed_dict).
         self.raw_encoder_inputs = tf.placeholder(tf.int32, (batch_size, max_seq_len))
         self.raw_decoder_inputs = tf.placeholder(tf.int32, (batch_size, max_seq_len+1))
 
         # Embedded input tensors.
-        self.encoder_inputs = encoder_embedder(self.raw_encoder_inputs, scope="encoder")
-        self.decoder_inputs = decoder_embedder(self.raw_decoder_inputs, scope="decoder")
+        encoder_inputs = encoder_embedder(self.raw_encoder_inputs, scope="encoder")
+        decoder_inputs = decoder_embedder(self.raw_decoder_inputs, scope="decoder")
 
         # Encoder-Decoder model.
-        encoder_state = encoder(self.encoder_inputs, scope="encoder")
-        decoder_outputs, decoder_state = decoder(self.decoder_inputs,
+        encoder_state = encoder(encoder_inputs, scope="encoder")
+        decoder_outputs, decoder_state = decoder(decoder_inputs,
                                                  scope="decoder",
                                                  initial_state=encoder_state,
                                                  return_sequence=True)
@@ -76,14 +84,23 @@ class DynamicBot(object):
             raise TypeError("Decoder state should be Tensor with shape"
                             "[batch_size, max_time, state_size].")
 
-        # Project to vocab space (TODO: be conditional on is_decoding & do importance sampling).
-        projected_outputs = output_projection(decoder_outputs)
+        def check_shape(tensor, expected_shape):
+            if tensor.shape.as_list() != expected_shape:
+                msg = "Bad shape of tensor {0}. Expected {1} but found {2}.".format(
+                    tensor.name, expected_shape, tensor.shape.as_list())
+                self.log.error(msg)
+                raise ValueError(msg)
 
-        # Question: should we feed explicit target weights?
-        # Returns a scalar Tensor representing mean loss value.
-        target_labels = self.raw_decoder_inputs[:, :-1]
+        # Project to vocab space (TODO: be conditional on is_decoding & do importance sampling).
+        self.outputs = output_projection(decoder_outputs)
+        check_shape(self.outputs, [batch_size, max_seq_len+1, self.vocab_size])
+
+        # Target labels are just that of the next input.
+        target_labels = self.raw_decoder_inputs[:, 1:]
+        check_shape(target_labels, [batch_size, max_seq_len])
+
         self.loss = tf.losses.sparse_softmax_cross_entropy(
-            labels=target_labels, logits=projected_outputs
+            labels=target_labels, logits=self.outputs[:, :-1, :]
         )
 
         # ============================================================================
@@ -104,96 +121,35 @@ class DynamicBot(object):
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
 
-    def embed(self, batched_inputs):
-        """Feed values in batched_inputs through model's embedder.
-
-        Returns:
-            evaluated batch-embedded input array.
+    def __call__(self, encoder_inputs, decoder_inputs):
         """
-        input_feed = {self.raw_encoder_inputs.name: batched_inputs}
-        return self.sess.run(fetches=self.embedded_inputs, feed_dict=input_feed)
-
-    def batch_embedded_inputs(self, dataset, batch_size, bettername="train"):
-        """Embeds raw list of sentence strings and returns result.
-
         Args:
-            bettername: "train", "valid", or "test". Still trying to figure out good name.
-            dataset: instance of DataSet subclass containing data ifo.
-            batch_size:    size of 3rd dimension of returned array.
-                        If None, defaults to length of longest sentence.
-
+            encoder_inputs: numpy array of shape [batch_size, max_time]
+            decoder_inputs: numpy array of shape [batch_size, max_time]
         Returns:
-            numpy array of shape [num_batches, batch_size, max_seq_len],
-            where num_batches == len(sentences) // batch_size.
+            loss, for now
         """
+        return self.step(encoder_inputs, decoder_inputs)
 
-        # 1. Get list of [source_ids, target_ids] sentence id pairs.
-        data_ids = dataset.read_data(bettername)
-
-        # 2. Split into source and target.
-        source_sentences, target_sentences = np.split(data_ids, 2, axis=0)
-
-        # 3. Convert both to batch format.
-        batched_sources, source_lengths = batch_concatenate(
-            source_sentences, batch_size, return_lengths=True)
-        batched_targets, target_lengths = batch_concatenate(
-            target_sentences, batch_size, return_lengths=True)
-
-        # 4. Get embedded representation.
-        embedded_sources = self.embed(batched_sources)
-        embedded_targets = self.embed(batched_targets)
-        return (embedded_sources, embedded_targets)
-
-
-    def step(self, encoder_inputs, decoder_inputs, target_weights):
+    def step(self, encoder_inputs, decoder_inputs):
         """Run model on single data batch.
 
         Args:
             encoder_inputs: shape [batch_size, max_time]
             decoder_inputs: shape [batch_size, max_time]
-            target_weights: TODO
 
         Returns:
             T.B.D.
         """
 
+        decoder_inputs = [np.hstack(([GO_ID], sent)) for sent in decoder_inputs]
+
         input_feed = {}
-        input_feed[self.encoder_inputs.name] = encoder_inputs
-        input_feed[self.decoder_inputs.name] = decoder_inputs
+        input_feed[self.raw_encoder_inputs.name] = encoder_inputs
+        input_feed[self.raw_decoder_inputs.name] = decoder_inputs
 
-        # Where my gradient updates at??? [TODO]
-
-
-    def __call__(self, sentence):
-        """Returns output response (text string) to sentence.
-
-        Args:
-            sentence: human-readable string.
-
-        Returns:
-            response: human-redable string response to input.
-
-        """
-
-        # 0. Determine shape of sentences & do some formatting, considering cases:
-        #       - entire dataset: split into batches.
-        #       - single sentence: reset self.batch_size to 1.
-        #       - handle edge cases (e.g. len(sentences) not multiple of batch_size.
-
-        # 1. Convert sentences to list of integer sequences (data_utils.prepare_data).
-
-        # 2. Reformat in batch-concat & padded numpy array.
-
-        # 3. Run the session to get list of embedded inputs (not Tensors, actual float arrays).
-        #       input_feed = {self.batch_concat_inputs.name: batch_sentences}
-        #       self.sess.run(fetches=self.embedded_inputs, feed_dict=input_feed)
-
-        # 4. Loop over batched embedded input arrays. Something like:
-        #       for i in range(num_batches):
-        #           responses.append(self.step(inputs=embeded_inputs[i],
-        #                                       seq_lengths=batched_seq_len[i]))
-
-
+        fetches=self.loss
+        return self.sess.run(fetches, input_feed)
 
 
 
