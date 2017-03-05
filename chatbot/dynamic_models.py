@@ -4,19 +4,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-# Standard python imports.
 import os
 import random
 from pathlib import Path
 import logging
-
-# ML/DL-specific imports.
 import numpy as np
 import tensorflow as tf
-
 from utils.data_utils import batch_concatenate
-# User-defined imports.
-from utils import data_utils
 from chatbot._train import train
 from chatbot._decode import decode
 

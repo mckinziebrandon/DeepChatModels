@@ -12,10 +12,8 @@ from utils import TestData
 def get_embedded_inputs(batch_concat_inputs):
 
     with tf.variable_scope("embedded_inputs_scope"):
-        # 1. Embed the inputs.
         embeddings = tf.get_variable("embeddings", [vocab_size, embed_size])
         batch_embedded_inputs = tf.nn.embedding_lookup(embeddings, batch_concat_inputs)
-        # NO WAY. THIS IS AWESOME!!!
         embedded_inputs = tf.unstack(batch_embedded_inputs)
         for embed_sentence in embedded_inputs:
             assert(isinstance(embed_sentence, tf.Tensor))
