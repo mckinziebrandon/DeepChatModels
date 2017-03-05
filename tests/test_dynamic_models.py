@@ -98,6 +98,10 @@ if __name__ == '__main__':
     idx_to_word = dataset.idx_to_word()
     train_set = dataset.read_data("train")
 
+    # ==============================================================================
+    # Manual data preprocessing.
+    # ==============================================================================
+
     # Just get a list of sentence ids for this simple test.
     sentences = []
     for source_ids, _ in train_set:
@@ -120,8 +124,12 @@ if __name__ == '__main__':
 
     sentences = padded(sentences, sequence_lengths)
     batch_sentences = sentences.reshape(num_batches, batch_size, max_seq_len)
+    sequence_lengths = np.array(sequence_lengths).reshape(num_batches, batch_size)
     print(batch_sentences.shape)
 
+    # ==============================================================================
+    # Embedding.
+    # ==============================================================================
 
     def get_embedded_inputs(batch_concat_inputs):
         with tf.variable_scope("embedded_inputs_scope"):
@@ -139,12 +147,24 @@ if __name__ == '__main__':
     batch_concat_inputs = tf.placeholder(tf.int32, [num_batches, batch_size, max_seq_len])
     embedded_inputs = get_embedded_inputs(batch_concat_inputs)
 
+    # ==============================================================================
+    # DynamicRNN model.
+    # ==============================================================================
+
     with tf.variable_scope("model"):
         model_inputs = tf.placeholder(tf.float32, [batch_size, max_seq_len, embed_size])
+        seq_len_ph = tf.placeholder(tf.int32, [batch_size])
         cell = tf.contrib.rnn.GRUCell(num_units=state_size)
-        outputs, state = tf.nn.dynamic_rnn(cell, model_inputs, dtype=tf.float32)
+        outputs, state = tf.nn.dynamic_rnn(cell,
+                                           model_inputs,
+                                           sequence_length=seq_len_ph,
+                                           dtype=tf.float32)
 
     init_op = tf.global_variables_initializer()
+
+    # ==============================================================================
+    # Execution.
+    # ==============================================================================
 
     with tf.Session() as sess:
         sess.run(init_op)
@@ -154,7 +174,8 @@ if __name__ == '__main__':
         print(len(embed_outputs))
 
         for batch in range(num_batches):
-            input_feed = {model_inputs.name: embed_outputs[batch]}
+            input_feed = {model_inputs.name: embed_outputs[batch],
+                          seq_len_ph.name: sequence_lengths[batch]}
             sess.run(fetches=outputs,
                      feed_dict=input_feed)
 
