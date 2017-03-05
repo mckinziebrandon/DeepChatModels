@@ -28,6 +28,7 @@ class DynamicBot(object):
                  batch_size=64,
                  state_size=256,
                  embed_size=64,
+                 learning_rate=0.4,
                  max_seq_len=50,        # TODO: Move me.
                  num_batches=100):      # TODO: Move me.
 
@@ -39,6 +40,9 @@ class DynamicBot(object):
         # TODO: don't need these stored, fix.
         self.num_batches = dataset.train_size // batch_size
         self.vocab_size  = dataset.vocab_size
+
+        self.learning_rate = tf.Variable(learning_rate, trainable=False, dtype=tf.float32)
+        self.global_step    = tf.Variable(initial_value=0, trainable=False)
 
         # ==============================================================================
         # Placeholders: tensors that must be fed values via feed_dict.
@@ -54,7 +58,7 @@ class DynamicBot(object):
             # Feed encoder sequence lengths for "correctness".
             self.seq_len_ph     = tf.placeholder(tf.int32, [batch_size])
             # Accepts embedded input batch array meant for decoder.
-            self.decoder_inputs = tf.placeholder(tf.float32, [batch_size, max_seq_len, embed_size])
+            self.decoder_inputs = tf.placeholder(tf.float32, [batch_size, max_seq_len+1, embed_size])
 
         # ==============================================================================
         # Embedding operations.
@@ -66,9 +70,9 @@ class DynamicBot(object):
             # Look up all inputs at once on embedding_params. Faster than embedding wrapper.
             batch_embedded_inputs = tf.nn.embedding_lookup(embedding_params, self.batched_inputs)
             # Unpack to list of batch_sized embedded tensors.
-            embedded_inputs = tf.unstack(batch_embedded_inputs)
+            self.embedded_inputs = tf.unstack(batch_embedded_inputs)
             # Check type & shape results after embedding.
-            for embed_sentence in embedded_inputs:
+            for embed_sentence in self.embedded_inputs:
                 if not isinstance(embed_sentence, tf.Tensor):
                     raise TypeError("Each embedded sentence should be of type Tensor.")
                 if embed_sentence.shape != (batch_size, max_seq_len, embed_size):
@@ -95,13 +99,38 @@ class DynamicBot(object):
             raise TypeError("Decoder outputs should be Tensor with shape"
                             "[batch_size, max_time, output_size].")
 
+        # Plz work that would be so cool.
+        target_outputs = tf.unstack(self.decoder_inputs, axis=1)[:-1]
+        # Returns a scalar Tensor representing mean loss value.
+        self.loss = tf.losses.sparse_softmax_cross_entropy(
+            labels=target_outputs, logits=self.outputs
+        )
+
+        # ============================================================================
+        # Training stuff.
+        # ============================================================================
+
+        params = tf.trainable_variables()
+        optimizer = tf.train.AdagradOptimizer(self.learning_rate)
+        gradients = tf.gradients(self.loss, params)
+        clipped_gradients, self.gradient_norm = tf.clip_by_global_norm(gradients, 5.0)
+        self.updates = optimizer.apply_gradients(zip(clipped_gradients, params),
+                                                 global_step=self.global_step)
+
+        # ============================================================================
+        # Wrap it up. Nothing to see here.
+        # ============================================================================
 
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
 
-
     def embed(self, batched_inputs):
-        input_feed = {self.batch_concat_inputs.name: batched_inputs}
+        """Feed values in batched_inputs through model's embedder.
+
+        Returns:
+            evaluated batch-embedded input array.
+        """
+        input_feed = {self.batched_inputs.name: batched_inputs}
         return self.sess.run(fetches=self.embedded_inputs, feed_dict=input_feed)
 
     def batch_embedded_inputs(self, dataset, batch_size):
@@ -144,7 +173,11 @@ class DynamicBot(object):
             T.B.D.
         """
 
-        input_feed = {self.encoder_inputs.name: encoder_inputs}
+        input_feed = {}
+        input_feed[self.encoder_inputs.name] = encoder_inputs
+        input_feed[self.decoder_inputs.name] = decoder_inputs
+
+        # Where my gradient updates at??? [TODO]
 
 
     def __call__(self, sentence):
