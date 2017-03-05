@@ -8,6 +8,7 @@ import sys
 import numpy as np
 from utils.wmt import WMT
 from utils.ubuntu import Ubuntu
+from utils.test_data import TestData
 
 from tensorflow.python.platform import gfile
 import tensorflow as tf
@@ -31,11 +32,14 @@ _DIGIT_RE   = re.compile(br"\d")
 
 DATASETS = {
     'ubuntu': Ubuntu,
-    'wmt': WMT
+    'wmt': WMT,
+    'test_data': TestData
 }
+
 
 def get_dataset(name, vocab_size=40000):
     return DATASETS[name](vocab_size)
+
 
 def basic_tokenizer(sentence):
     """Very basic tokenizer: split the sentence into a list of tokens."""
@@ -85,6 +89,7 @@ def batch_concatenate(sentences, batch_size,
         return sentences.reshape(num_batches, batch_size, max_seq_len), sequence_lengths
     else:
         return sentences.reshape(num_batches, batch_size, max_seq_len)
+
 
 def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size, normalize_digits=True):
     """Create vocabulary file (if it does not exist yet) from data file.
@@ -208,6 +213,7 @@ def data_to_token_ids(data_path, target_path, vocabulary_path, normalize_digits=
                     token_ids = sentence_to_token_ids(tf.compat.as_bytes(line), vocab, normalize_digits)
                     tokens_file.write(" ".join([str(tok) for tok in token_ids]) + "\n")
 
+
 def prepare_data(data_dir, from_train_path, to_train_path,
                  from_dev_path, to_dev_path, from_vocabulary_size, to_vocabulary_size):
     """Prepare all necessary files that are required for the training.
@@ -253,6 +259,7 @@ def prepare_data(data_dir, from_train_path, to_train_path,
     vocab_path = [from_vocab_path, to_vocab_path]
     return (train_ids_path, dev_ids_path, vocab_path)
 
+
 def read_data(dataset, _buckets, max_train_data_size=None):
     """This is the main, and perhaps only, method that other files should use to access data.
     :param dataset:
@@ -270,6 +277,7 @@ def read_data(dataset, _buckets, max_train_data_size=None):
     dev_set     = _read_data(dataset.paths['from_valid'],
                              dataset.paths['to_valid'], _buckets)
     return train_set, dev_set
+
 
 def _read_data(source_path, target_path, _buckets, max_size=None):
     """Read data from source and target files and put into buckets.
