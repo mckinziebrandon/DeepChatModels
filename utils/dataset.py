@@ -23,3 +23,12 @@ class Dataset(metaclass=ABCMeta):
         """Returns name of the dataset as a string."""
         pass
 
+    @abstractproperty
+    def train_size(self):
+        """Returns number of samples (sentences) in this dataset."""
+
+    @abstractproperty
+    def valid_size(self):
+        """Returns number of samples (sentences) in this dataset."""
+
+

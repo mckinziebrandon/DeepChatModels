@@ -39,6 +39,11 @@ class TestData(Dataset):
         self._word_to_idx = vocab
         self._idx_to_word = rev_vocab
 
+        self._train_data = self.read_data("train")
+        self._valid_data = self.read_data("valid")
+        self._train_size = len(self._train_data)
+        self._valid_size = len(self._valid_data)
+
     def word_to_idx(self):
         """Return dictionary map from str -> int. """
         return self._word_to_idx
@@ -50,10 +55,12 @@ class TestData(Dataset):
     def translate(self, sentence):
         return " ".join([tf.compat.as_str(self._idx_to_word[i]) for i in sentence]) + "."
 
+    @property
     def data_dir(self):
         """Return path to directory that contains the data."""
         return self._data_dir
 
+    @property
     def name(self):
         """Returns name of the dataset as a string."""
         return self._name
@@ -73,4 +80,12 @@ class TestData(Dataset):
                     data_set.append([source_ids, target_ids])
                     source, target = source_file.readline(), target_file.readline()
         return data_set
+
+    @property
+    def train_size(self):
+        return self._train_size
+
+    @property
+    def valid_size(self):
+        return self._valid_size
 
