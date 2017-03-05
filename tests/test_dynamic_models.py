@@ -1,4 +1,4 @@
-"""Complete mock model creation, training, and decoding from start to finish."""
+"""Run trial run on DynamicBot with the TestData Dataset."""
 
 import numpy as np
 import logging

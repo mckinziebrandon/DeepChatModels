@@ -1,4 +1,4 @@
-from utils.dataset import Dataset
+from utils._dataset import Dataset
 from utils.data_utils import *
 from tensorflow import gfile
 

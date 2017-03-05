@@ -1,4 +1,4 @@
-from utils.dataset import Dataset
+from utils._dataset import Dataset
 from utils import data_utils
 import tensorflow as tf
 
