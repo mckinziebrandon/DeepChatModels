@@ -7,6 +7,7 @@ import pdb
 sys.path.append("..")
 import tensorflow as tf
 from utils import data_utils
+from utils.data_utils import batch_concatenate
 from utils import Dataset
 
 class TestData(Dataset):
@@ -88,7 +89,6 @@ if __name__ == '__main__':
     log = logging.getLogger('MainLogger')
 
     batch_size  = 2
-    max_seq_len = 40
     vocab_size  = 100
     state_size  = 128
     embed_size  = 64
@@ -107,25 +107,10 @@ if __name__ == '__main__':
     for source_ids, _ in train_set:
         sentences.append(source_ids)
 
-    # Keep the largest multiple of batch_size sentences as we can.
-    num_sent = len(sentences)
-    num_batches = num_sent // batch_size
-    if num_batches < 1:
-        raise RuntimeError("Not enough data for 1 batch of size %d" % batch_size)
-    sentences = sentences[:batch_size * num_batches]
-    sequence_lengths = [len(s) for s in sentences]
-
-    def padded(sentences, sequence_lengths):
-        padded_sentences = []
-        for sent, length in zip(sentences, sequence_lengths):
-            pad = [data_utils.PAD_ID] * (max_seq_len - length)
-            padded_sentences.append(sent + pad)
-        return np.array(padded_sentences)
-
-    sentences = padded(sentences, sequence_lengths)
-    batch_sentences = sentences.reshape(num_batches, batch_size, max_seq_len)
-    sequence_lengths = np.array(sequence_lengths).reshape(num_batches, batch_size)
-    print(batch_sentences.shape)
+    batch_sentences, sequence_lengths = batch_concatenate(sentences,
+                                                          batch_size,
+                                                          return_lengths=True)
+    max_seq_len = sequence_lengths.max()
 
     # ==============================================================================
     # Embedding.
@@ -144,7 +129,7 @@ if __name__ == '__main__':
             return embedded_inputs
 
     # 0. The raw integer sequences will be stored in a placeholder tensor.
-    batch_concat_inputs = tf.placeholder(tf.int32, [num_batches, batch_size, max_seq_len])
+    batch_concat_inputs = tf.placeholder(tf.int32, batch_sentences.shape)
     embedded_inputs = get_embedded_inputs(batch_concat_inputs)
 
     # ==============================================================================
@@ -167,27 +152,23 @@ if __name__ == '__main__':
     # ==============================================================================
 
     with tf.Session() as sess:
+
         sess.run(init_op)
 
         input_feed = {batch_concat_inputs.name: batch_sentences}
         embed_outputs = sess.run(fetches=embedded_inputs, feed_dict=input_feed)
-        print(len(embed_outputs))
 
+        num_batches = batch_sentences.shape[0]
         for batch in range(num_batches):
             input_feed = {model_inputs.name: embed_outputs[batch],
                           seq_len_ph.name: sequence_lengths[batch]}
-            sess.run(fetches=outputs,
-                     feed_dict=input_feed)
-
-
-
-
-
-
-
-
-
-
-
-
-
+            pure_happiness = sess.run(fetches=outputs, feed_dict=input_feed)
+            #         .-'"""""'-.
+            #      .'           `.
+            #     /   .      .    \
+            #    :                 :
+            #    |    _________    |
+            #    :   \        /    :
+            #     \   `.____.'    /
+            #      `.           .'
+            #        `-._____.-'

@@ -4,7 +4,7 @@ import os
 import sys
 
 import utils.data_utils as data_utils
-from utils.data_utils import sentence_to_token_ids, initialize_vocabulary
+from utils.data_utils import sentence_to_token_ids, get_vocab_dicts
 import numpy as np
 
 def decode(bot, test_config):
@@ -15,9 +15,9 @@ def decode(bot, test_config):
     # Load vocabularies.
     from_vocab_path = os.path.join(test_config.data_dir, "vocab%d.from" % bot.vocab_size)
     to_vocab_path   = os.path.join(test_config.data_dir, "vocab%d.to" % bot.vocab_size)
-    # initialize_vocabulary returns word_to_idx, idx_to_word.
-    inputs_to_idx, _    = initialize_vocabulary(from_vocab_path)
-    _, idx_to_outputs   = initialize_vocabulary(to_vocab_path)
+    # get_vocab_dicts returns word_to_idx, idx_to_word.
+    inputs_to_idx, _    = get_vocab_dicts(from_vocab_path)
+    _, idx_to_outputs   = get_vocab_dicts(to_vocab_path)
     # Decode from standard input.
     print("Type \"exit\" to exit.")
     print("Write stuff after the \">\" below and I, your robot friend, will respond.")

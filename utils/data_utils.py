@@ -5,7 +5,7 @@ from __future__ import print_function
 import os
 import re
 import sys
-import pandas as pd
+import numpy as np
 from utils.wmt import WMT
 from utils.ubuntu import Ubuntu
 
@@ -43,6 +43,48 @@ def basic_tokenizer(sentence):
     for space_separated_fragment in sentence.strip().split():
         words.extend(_WORD_SPLIT.split(space_separated_fragment))
     return [w for w in words if w]
+
+
+def _padded(sentences, sequence_lengths, max_length):
+    padded_sentences = []
+    for sent, length in zip(sentences, sequence_lengths):
+        pad = [PAD_ID] * (max_length - length)
+        padded_sentences.append(sent + pad)
+    return np.array(padded_sentences)
+
+
+def batch_concatenate(sentences, batch_size,
+                      max_seq_len=None, return_lengths=False):
+    """Returns reshaped & padded numpy array of sentences.
+
+    Args:
+        sentences:      list of integer sentence IDs.
+        batch_size:     size of 2nd dimension of returned array.
+        max_seq_len:    size of 3rd dimension of returned array.
+                        If None, defaults to length of longest sentence.
+        return_lengths: (default False) If True, also return batch-indexed seq lengths.
+    Returns:
+        numpy array of shape [num_batches, batch_size, max_seq_len], where
+        num_batches = len(sentences) // batch_size
+        """
+
+    num_sent = len(sentences)
+    num_batches = num_sent // batch_size
+    if num_batches < 1:
+        raise ValueError("Received %d sentences, but need at least %d to batch concatenate."
+                         % (num_sent, batch_size))
+    sentences = sentences[:batch_size * num_batches]
+    sequence_lengths = [len(s) for s in sentences]
+
+    if not max_seq_len:
+        max_seq_len = max(sequence_lengths)
+
+    sentences = _padded(sentences, sequence_lengths, max_seq_len)
+    if return_lengths:
+        sequence_lengths = np.array(sequence_lengths).reshape(num_batches, batch_size)
+        return sentences.reshape(num_batches, batch_size, max_seq_len), sequence_lengths
+    else:
+        return sentences.reshape(num_batches, batch_size, max_seq_len)
 
 def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size, normalize_digits=True):
     """Create vocabulary file (if it does not exist yet) from data file.
@@ -92,14 +134,8 @@ def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size, normalize
                 vocab_file.write(w + b"\n")
 
 
-def initialize_vocabulary(vocabulary_path):
-    """Initialize vocabulary from file.
-
-    We assume the vocabulary is stored one-item-per-line, so a file:
-      dog
-      cat
-    will result in a vocabulary {"dog": 0, "cat": 1}, and this function will
-    also return the reversed-vocabulary ["dog", "cat"].
+def get_vocab_dicts(vocabulary_path):
+    """Returns word_to_idx, idx_to_word dictionaries given vocabulary.
 
     Args:
       vocabulary_path: path to the file containing the vocabulary.
@@ -161,7 +197,7 @@ def data_to_token_ids(data_path, target_path, vocabulary_path, normalize_digits=
     """
     if not gfile.Exists(target_path):
         print("Tokenizing data in %s" % data_path)
-        vocab, _ = initialize_vocabulary(vocabulary_path)
+        vocab, _ = get_vocab_dicts(vocabulary_path)
         with gfile.GFile(data_path, mode="rb") as data_file:
             with gfile.GFile(target_path, mode="w") as tokens_file:
                 counter = 0
