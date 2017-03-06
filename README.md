@@ -14,7 +14,7 @@ At present, the following have been (more or less) completed:
     * (Unsupported since transitioning to TF r1.0) Implement a simpler embedding sequence-to-sequence from "scratch" (minimal use of contrib).
 * Datasets:
     * **WMT'15** : English-to-French translation.
-    * **Ubuntu Dialogue Corpus**. Reformatted as single-turn to single-response pairs.
-
+    * **Ubuntu Dialogue Corpus**: Reformatted as single-turn to single-response pairs.
+    * **Cornell Movie-Dialogs**: Recently (March 5) incorporated [this preprocessed](https://github.com/suriyadeepan/datasets/tree/master/seq2seq/cornell_movie_corpus) version of the Cornell corpus. I'll be processing and reformatting it further.
 
 
