@@ -1,4 +1,4 @@
-"""Abstract parent class for all in models.py"""
+"""Abstract parent class for all in (now unsupported) legacy_models.py"""
 
 from __future__ import absolute_import
 from __future__ import division
