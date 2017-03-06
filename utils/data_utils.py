@@ -28,6 +28,7 @@ UNK_ID  = 3
 _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
 _DIGIT_RE   = re.compile(br"\d")
 
+
 def basic_tokenizer(sentence):
     """Very basic tokenizer: split the sentence into a list of tokens."""
     words = []
@@ -38,7 +39,6 @@ def basic_tokenizer(sentence):
 
 def _padded(sentences, max_length):
     padded_sentences = []
-    #for sent, length in zip(sentences, sequence_lengths):
     for sent in sentences:
         pad = [PAD_ID] * (max_length - len(sent))
         padded_sentences.append(sent + pad)
@@ -72,11 +72,14 @@ def batch_concatenate(sentences, batch_size,
         max_seq_len = max(sequence_lengths)
 
     sentences = _padded(sentences, max_seq_len)
+
+    sentences =  sentences.reshape(num_batches, batch_size, max_seq_len)
+    assert(len(sentences.shape) == 3)
     if return_lengths:
         sequence_lengths = np.array(sequence_lengths).reshape(num_batches, batch_size)
-        return sentences.reshape(num_batches, batch_size, max_seq_len), sequence_lengths
+        return sentences, sequence_lengths
     else:
-        return sentences.reshape(num_batches, batch_size, max_seq_len)
+        return sentences
 
 
 def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size, normalize_digits=True):

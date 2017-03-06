@@ -1,6 +1,7 @@
 import logging
 
 import tensorflow as tf
+import pandas as pd
 
 from data._dataset import Dataset
 from utils import data_utils
@@ -11,8 +12,8 @@ class Cornell(Dataset):
     def __init__(self, vocab_size=20000):
 
         logging.basicConfig(level=logging.INFO)
-        self.log = logging.getLogger('TestDataLogger')
-        self._name = "test_data"
+        self.log = logging.getLogger('CornellLogger')
+        self._name = "cornell"
 
         self.vocab_size = vocab_size
         self._data_dir = '/home/brandon/terabyte/Datasets/cornell_movie_corpus'
@@ -54,6 +55,8 @@ class Cornell(Dataset):
         enc, dec = self._train_data
         max_enc = max([len(s) for s in enc])
         max_dec = max([len(s) for s in dec])
+        self._df_lengths = pd.DataFrame({'EncoderLengths': [len(s) for s in enc],
+                                         'DecoderLengths': [len(s) for s in dec]})
         self._max_seq_len = max(max_enc, max_dec)
 
 
@@ -120,3 +123,10 @@ class Cornell(Dataset):
     @property
     def max_seq_len(self):
         return self._max_seq_len
+
+    def describe(self):
+        print("------------------ Description: Cornell Movie Dialogues -------------------")
+        print("Training data has %d samples." % self._train_size)
+        print("Validation data has %d samples." % self._valid_size)
+        print("Longest sequence is %d words long." % self._max_seq_len)
+        print("%r" % self._df_lengths.describe())

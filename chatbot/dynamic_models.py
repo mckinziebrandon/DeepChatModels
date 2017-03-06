@@ -4,6 +4,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
 import logging
 import numpy as np
 import tensorflow as tf
@@ -98,6 +99,7 @@ class DynamicBot(object):
 
         # Launch the session & initialize variables.
         self.sess = tf.Session()
+        self.saver = tf.train.Saver(tf.global_variables())
         self.sess.run(tf.global_variables_initializer())
 
     def __call__(self, encoder_inputs, decoder_inputs, forward_only=False):
@@ -124,9 +126,20 @@ class DynamicBot(object):
         input_feed[self.raw_encoder_inputs.name] = encoder_inputs
         input_feed[self.raw_decoder_inputs.name] = decoder_inputs
 
-        fetches = [self.loss, self.apply_gradients]
-        loss, _ = self.sess.run(fetches, input_feed)
-        return loss
+        if not forward_only:
+            fetches = [self.loss, self.apply_gradients]
+            outputs = self.sess.run(fetches, input_feed)
+            return outputs[0]  # loss
+        else:
+            fetches = [self.loss, self.outputs]
+            outputs = self.sess.run(fetches, input_feed)
+            return outputs[0], outputs[1]  # loss, outputs
+
+    def save(self):
+        # Save checkpoint and zero timer and loss.
+        checkpoint_path = os.path.join('out', "{}.ckpt".format(self.dataset.name))
+        # Saves the state of all global variables.
+        self.saver.save(self.sess, checkpoint_path, global_step=self.global_step)
 
 
 

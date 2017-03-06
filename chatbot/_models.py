@@ -131,29 +131,9 @@ class Model(object):
     def restore(self, meta_name):
         """The exact order as seen in tf tutorials:"""
         raise NotImplemented
-        #with self.sess as sess:
-            #self.saver = tf.train.import_meta_graph(meta_name)
-            #checkpoint_state  = tf.train.get_checkpoint_state(self.config.ckpt_dir)
-            #if not checkpoint_state:
-            #    raise RuntimeError("Can't find ckpt.")
-            #self.saver.restore(sess, checkpoint_state.model_checkpoint_path)
-            #self.learning_rate = tf.get_collection("learning_rate")[0]
-            #self.losses = tf.get_collection("losses")
-            #self.outputs = [tf.get_collection("outputs{}".format(b)) for b in range(len(buckets))]
 
     def save(self, chatbot):
         raise NotImplemented
-        #self.saver = tf.train.Saver(tf.global_variables())
-        #tf.add_to_collection("learning_rate", self.learning_rate)
-        #if self.is_decoding and chatbot.output_proj is not None:
-        #    dec_outputs = ChatBot._get_projections(len(chatbot.buckets), self.outputs, chatbot.output_proj)
-        #else:
-        #    dec_outputs = self.outputs
-        #for b in range(len(chatbot.buckets)):
-        #    for o in dec_outputs[b]:
-        #        tf.add_to_collection("outputs{}".format(b), o)
-        #for b in range(len(chatbot.buckets)):
-        #    tf.add_to_collection("losses", self.losses[b])
 
     def setup_parameters(self, config):
         """Either restore model parameters or create fresh ones.
