@@ -7,7 +7,6 @@ from __future__ import print_function
 # Standard python imports.
 import os
 import random
-from pathlib import Path
 import logging
 
 # ML/DL-specific imports.
@@ -26,7 +25,7 @@ class Model(object):
 
     def __init__(self,
                  buckets,
-                 log_dir="out/logs",
+                 ckpt_dir="out",
                  vocab_size=40000,
                  batch_size=64,
                  learning_rate=0.5,
@@ -38,34 +37,105 @@ class Model(object):
         self.batch_size     = batch_size
         self.buckets        = buckets
         self.vocab_size = vocab_size
-
         self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
         self.lr_decay_op    = self.learning_rate.assign(learning_rate * lr_decay)
         self.global_step    = tf.Variable(initial_value=0, trainable=False)
-        self.file_writer    = tf.summary.FileWriter(log_dir)
+        # Directory IO management.
+        self.ckpt_dir = ckpt_dir
+        self.log_dir = os.path.join(ckpt_dir, "logs")
+        self.file_writer    = tf.summary.FileWriter(self.log_dir)
+        # Responsibility of user to determine training operations.
+        self.apply_gradients = None
+        self.losses = None
 
-    def compile(self, losses, max_gradient=5.0):
+    def compile(self, optimizer, max_gradient=5.0):
         """ Configure training process. Name was inspired by Keras. <3 """
+        raise NotImplemented
+
+    def initialize(self, reset=False):
+        """Either restore model parameters or create fresh ones."""
+        raise NotImplemented
+
+    def save(self):
+        """TODO"""
+        raise NotImplemented
+
+    def train(self, dataset, train_config):
+        """ Train chatbot. """
+        raise NotImplemented
+
+    def decode(self, test_config):
+        """ Create chat session between user & chatbot. """
+        raise NotImplemented
+
+
+class BucketModel(Model):
+    """Abstract class. Extended by models that emply bucketing techniques.
+    The real motivation for making this was to be able to use the true Model abstract
+    class for all classes in this directory, bucketed or not, r1.0 or r0.12.
+    """
+
+    def initialize(self, reset=False):
+        """Either restore model parameters or create fresh ones.
+            - Checks if we can both (1) find a checkpoint state, and (2) a valid V1/V2 checkpoint path.
+            - If we can't, then just re-initialize model with fresh params.
+        """
+        print("Checking for checkpoints . . .")
+        checkpoint_state  = tf.train.get_checkpoint_state(self.ckpt_dir)
+        # Note: If you want to prevent from loading models trained on different dataset,
+        # you should store them in their own out/dataname folder, and pass that as the ckpt_dir to config.
+        if not reset  and checkpoint_state \
+                and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
+            print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
+            self.saver = tf.train.Saver(tf.global_variables())
+            self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
+        else:
+            print("Created model with fresh parameters.")
+            # Clear output dir contents.
+            os.popen('rm -rf out/* && mkdir -p out/logs')
+            # Add operation for calling all variable initializers.
+            init_op = tf.global_variables_initializer()
+            # Construct saver (adds save/restore ops to all).
+            self.saver = tf.train.Saver(tf.global_variables())
+            # Add the fully-constructed graph to the event file.
+            self.file_writer.add_graph(self.sess.graph)
+            # Initialize all model variables.
+            self.sess.run(init_op)
+
+    def compile(self, optimizer, max_gradient=5.0):
+        """ Configure training process. Name was inspired by Keras. <3 """
+
+        if self.losses is None:
+            raise ValueError("Tried compiling model before defining losses.")
         print("Configuring training operations. This may take some time . . . ")
         # Note: variables are trainable=True by default.
         params = tf.trainable_variables()
         #if not self.is_decoding: # teacher mode means we always need backward pass option.
-        self.gradient_norms = []
         # apply_gradients will store the parameter (S)GD apply_gradients.
-        self.updates = []
+        self.apply_gradients = []
         optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
         # TODO: Think about how this could optimized. There has to be a way.
         for b in range(len(self.buckets)):
             # Note: tf.gradients returns in form: gradients[i] == sum([dy/dx_i for y in self.losses[b]]).
-            gradients = tf.gradients(losses[b], params)
+            gradients = tf.gradients(self.losses[b], params)
             # Gradient clipping is actually extremely simple, it basically just
             # checks if L2Norm(gradients) > max_gradient, and if it is, it returns
             # (gradients / L2Norm(gradients)) * max_grad.
             # norm: literally just L2-norm of gradients.
             clipped_gradients, norm = tf.clip_by_global_norm(gradients, max_gradient)
-            self.gradient_norms.append(norm)
-            self.updates.append(optimizer.apply_gradients(zip(clipped_gradients, params),
+            self.apply_gradients.append(optimizer.apply_gradients(zip(clipped_gradients, params),
                                                           global_step=self.global_step))
+
+    def check_input_lengths(self, inputs, expected_lengths):
+        """
+        Raises:
+            ValueError: if length of encoder_inputs, decoder_inputs, or
+            target_weights disagrees with bucket size for the specified bucket_id.
+        """
+        for input, length in zip(inputs, expected_lengths):
+            if len(input) != length:
+                raise ValueError("Input length doesn't match bucket size:"
+                                 " %d != %d." % (len(input), length))
 
     def get_batch(self, data, bucket_id):
         """Get a random batch of data from the specified bucket, prepare for step.
@@ -117,58 +187,49 @@ class Model(object):
 
         return batch_encoder_inputs, batch_decoder_inputs, batch_weights
 
-    def check_input_lengths(self, inputs, expected_lengths):
-        """
-        Raises:
-            ValueError: if length of encoder_inputs, decoder_inputs, or
-            target_weights disagrees with bucket size for the specified bucket_id.
-        """
-        for input, length in zip(inputs, expected_lengths):
-            if len(input) != length:
-                raise ValueError("Input length doesn't match bucket size:"
-                                 " %d != %d." % (len(input), length))
-
-    def restore(self, meta_name):
-        """The exact order as seen in tf tutorials:"""
-        raise NotImplemented
-
-    def save(self, chatbot):
-        raise NotImplemented
-
-    def setup_parameters(self, config):
-        """Either restore model parameters or create fresh ones.
-            - Checks if we can both (1) find a checkpoint state, and (2) a valid V1/V2 checkpoint path.
-            - If we can't, then just re-initialize model with fresh params.
-        """
-        print("Checking for checkpoints . . .")
-        checkpoint_state  = tf.train.get_checkpoint_state(config.ckpt_dir)
-        # Note: If you want to prevent from loading models trained on different dataset,
-        # you should store them in their own out/dataname folder, and pass that as the ckpt_dir to config.
-        if checkpoint_state and not config.reset_model \
-                and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
-            print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
-            self.saver = tf.train.Saver(tf.global_variables())
-            self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
-        else:
-            print("Created model with fresh parameters.")
-            # Clear output dir contents.
-            os.popen('rm -rf out/* && mkdir -p out/logs')
-            # Add operation for calling all variable initializers.
-            init_op = tf.global_variables_initializer()
-            # Construct saver (adds save/restore ops to all).
-            self.saver = tf.train.Saver(tf.global_variables())
-            # Add the fully-constructed graph to the event file.
-            self.file_writer.add_graph(self.sess.graph)
-            # Initialize all model variables.
-            self.sess.run(init_op)
 
     def train(self, dataset, train_config):
         """ Train chatbot. """
-        self.setup_parameters(train_config)
+        self.initialize()
         train(self, dataset, train_config)
 
     def decode(self, test_config):
         """ Create chat session between user & chatbot. """
-        self.setup_parameters(test_config)
+        self.initialize()
         decode(self, test_config)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

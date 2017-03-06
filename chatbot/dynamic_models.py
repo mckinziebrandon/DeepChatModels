@@ -89,7 +89,7 @@ class DynamicBot(object):
             labels=target_labels, logits=self.outputs[:, :-1, :]
         )
 
-        # Define gradient-descent weight-updates procedure.
+        # Define gradient-descent weight-apply_gradients procedure.
         params = tf.trainable_variables()
         optimizer = tf.train.AdagradOptimizer(self.learning_rate)
         gradients = tf.gradients(self.loss, params)

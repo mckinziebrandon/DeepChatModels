@@ -21,10 +21,10 @@ from tensorflow.contrib.rnn.python.ops import core_rnn
 from tensorflow.contrib.rnn.python.ops import core_rnn_cell
 from tensorflow.python.ops import embedding_ops
 
-from chatbot._models import Model
+from chatbot._models import BucketModel
 
 
-class ChatBot(Model):
+class ChatBot(BucketModel):
     """Sequence-to-sequence model with attention and for multiple buckets.
 
     The input-to-output path can be thought of (on a high level) as follows:
@@ -164,7 +164,7 @@ class ChatBot(Model):
         # Fetches: the Operations/Tensors we want executed/evaluated during session.run(...).
         if not forward_only: # Not just for decoding; also for validating in training.
             fetches = [self.summaries["loss{}".format(bucket_id)],
-                       self.updates[bucket_id],         # Update Op that does SGD.
+                       self.apply_gradients[bucket_id],  # Update Op that does SGD.
                        self.gradient_norms[bucket_id],  # Gradient norm.
                        self.losses[bucket_id]]          # Loss for this batch.
             outputs = self.sess.run(fetches=fetches, feed_dict=input_feed)
@@ -248,7 +248,7 @@ class ChatBot(Model):
         return [tf.placeholder(dtype, shape=[None], name=name+str(i)) for i in range(length)]
 
 
-class SimpleBot(Model):
+class SimpleBot(BucketModel):
     """Primitive implementation from scratch, for learning purposes.
             1. Inputs: same as ChatBot.
             2. Embedding: same as ChatBot.
@@ -409,7 +409,7 @@ class SimpleBot(Model):
         # Fetches: the Operations/Tensors we want executed/evaluated during session.run(...).
         if not forward_only: # Not just for decoding; also for validating in training.
             fetches = [self.summaries["loss{}".format(bucket_id)],
-                       self.updates[bucket_id],         # Update Op that does SGD.
+                       self.apply_gradients[bucket_id],  # Update Op that does SGD.
                        self.gradient_norms[bucket_id],  # Gradient norm.
                        self.losses[bucket_id]]          # Loss for this batch.
             outputs = self.sess.run(fetches=fetches, feed_dict=input_feed)
