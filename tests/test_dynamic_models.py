@@ -12,17 +12,27 @@ from utils import batch_concatenate
 if __name__ == '__main__':
 
     batch_size = 32
+    max_seq_len = 500
     logging.basicConfig(level=logging.INFO)
     log = logging.getLogger('TestDynamicLogger')
 
     # Get dataset and its properties.
+    log.info("Retrieving the Cornell dataset...")
     dataset = Cornell()
     encoder_sentences, decoder_sentences = dataset.train_data
-    encoder_sentences = batch_concatenate(encoder_sentences, batch_size, max_seq_len=dataset.max_seq_len)
-    decoder_sentences = batch_concatenate(decoder_sentences, batch_size, max_seq_len=dataset.max_seq_len)
+    encoder_sentences, decoder_sentences = batch_concatenate(
+        encoder_sentences, decoder_sentences,
+        batch_size, max_seq_len=max_seq_len
+    )
+    log.info("...Dataset retrieved.")
 
     # Create the bot.
-    bot = DynamicBot(dataset, batch_size=batch_size)
+    log.info("Creating DynamicBot...")
+    bot = DynamicBot(dataset, batch_size=batch_size, max_seq_len=max_seq_len)
+    log.info("...DynamicBot created")
+    log.info("Compiling DynamicBot...")
+    bot.compile()
+    log.info("...DynamicBot compiiled.")
 
     num_batches = dataset.train_size // batch_size
     log.info("Dataset has %d training samples." % dataset.train_size)

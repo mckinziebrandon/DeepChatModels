@@ -44,7 +44,6 @@ class Model(object):
         self.file_writer    = tf.summary.FileWriter(self.log_dir)
         # Responsibility of user to determine training operations.
         self.apply_gradients = None
-        self.losses = None
         self.saver = None
 
     def compile(self, optimizer=None, max_gradient=None, reset=False):
@@ -80,19 +79,9 @@ class Model(object):
         """TODO"""
         if self.saver is None:
             raise ValueError("Tried saving model before defining a saver.")
-
-        # Save checkpoint and zero timer and loss.
         checkpoint_path = os.path.join(self.ckpt_dir, "{}.ckpt".format(self.data_name))
         # Saves the state of all global variables.
         self.saver.save(self.sess, checkpoint_path, global_step=self.global_step)
-
-    #def train(self, dataset, train_config):
-    #    """ Train chatbot. """
-    #    raise NotImplemented
-
-    #def decode(self, test_config):
-    #    """ Create chat session between user & chatbot. """
-    #    raise NotImplemented
 
 
 class BucketModel(Model):
@@ -126,23 +115,21 @@ class BucketModel(Model):
 
         if self.losses is None:
             raise ValueError("Tried compiling model before defining losses.")
+
         print("Configuring training operations. This may take some time . . . ")
         # Note: variables are trainable=True by default.
         params = tf.trainable_variables()
-        #if not self.is_decoding: # teacher mode means we always need backward pass option.
         # apply_gradients will store the parameter (S)GD apply_gradients.
         self.apply_gradients = []
         if optimizer is None:
             optimizer = tf.train.AdagradOptimizer(self.learning_rate)
-        # TODO: Think about how this could optimized. There has to be a way.
+        # TODO: Think about how this could optimized, main bottleneck for BucketModels.
         for b in range(len(self.buckets)):
-            # Note: tf.gradients returns in form: gradients[i] == sum([dy/dx_i for y in self.losses[b]]).
             gradients = tf.gradients(self.losses[b], params)
             # Gradient clipping is actually extremely simple, it basically just
             # checks if L2Norm(gradients) > max_gradient, and if it is, it returns
             # (gradients / L2Norm(gradients)) * max_grad.
-            # norm: literally just L2-norm of gradients.
-            clipped_gradients, norm = tf.clip_by_global_norm(gradients, max_gradient)
+            clipped_gradients, _ = tf.clip_by_global_norm(gradients, max_gradient)
             self.apply_gradients.append(optimizer.apply_gradients(zip(clipped_gradients, params),
                                                           global_step=self.global_step))
 
@@ -208,7 +195,6 @@ class BucketModel(Model):
             batch_weights[unit_id][ids_with_pad_target] = 0.0
 
         return batch_encoder_inputs, batch_decoder_inputs, batch_weights
-
 
     def train(self, dataset, train_config):
         """ Train chatbot. """

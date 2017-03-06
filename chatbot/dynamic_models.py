@@ -31,7 +31,11 @@ class DynamicBot(Model):
                  embed_size=32,
                  learning_rate=0.4,
                  lr_decay=0.98,
+                 max_seq_len=None,
                  is_decoding=False):
+
+        if max_seq_len is None:
+            max_seq_len = dataset.max_seq_len
 
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('DynamicBotLogger')
@@ -57,8 +61,8 @@ class DynamicBot(Model):
         # ==========================================================================================
 
         # Inputs (needed by feed_dict).
-        self.raw_encoder_inputs = tf.placeholder(tf.int32, (batch_size, dataset.max_seq_len))
-        self.raw_decoder_inputs = tf.placeholder(tf.int32, (batch_size, dataset.max_seq_len+1))
+        self.raw_encoder_inputs = tf.placeholder(tf.int32, (batch_size, max_seq_len))
+        self.raw_decoder_inputs = tf.placeholder(tf.int32, (batch_size, max_seq_len+1))
         # Embedded input tensors.
         encoder_inputs = encoder_embedder(self.raw_encoder_inputs, scope="encoder")
         decoder_inputs = decoder_embedder(self.raw_decoder_inputs, scope="decoder")
@@ -70,7 +74,7 @@ class DynamicBot(Model):
                                                  return_sequence=True)
         # Projection to vocab space.
         self.outputs = output_projection(decoder_outputs)
-        check_shape(self.outputs, [batch_size, dataset.max_seq_len+1, dataset.vocab_size], self.log)
+        check_shape(self.outputs, [batch_size, max_seq_len+1, dataset.vocab_size], self.log)
 
         # ==========================================================================================
         # Training/evaluation operations.
@@ -78,13 +82,13 @@ class DynamicBot(Model):
 
         # Loss - target is to predict, as output, the next decoder input.
         target_labels = self.raw_decoder_inputs[:, 1:]
-        check_shape(target_labels, [batch_size, dataset.max_seq_len], self.log)
+        check_shape(target_labels, [batch_size, max_seq_len], self.log)
         self.loss = tf.losses.sparse_softmax_cross_entropy(
             labels=target_labels, logits=self.outputs[:, :-1, :]
         )
 
         # Let superclass handle the boring stuff (dirs/more instance variables).
-        super(DynamicBot, self).__init__(dataset.data_name,
+        super(DynamicBot, self).__init__(dataset.name,
                                          ckpt_dir,
                                          dataset.vocab_size,
                                          batch_size,
@@ -106,7 +110,7 @@ class DynamicBot(Model):
 
         # Next, let superclass load param values from file (if not reset), otherwise
         # initialize newly created model.
-        super(DynamicBot).compile(reset=reset)
+        super(DynamicBot, self).compile(reset=reset)
 
     def step(self, encoder_inputs, decoder_inputs, forward_only=False):
         """Run forward and backward pass on single data batch.

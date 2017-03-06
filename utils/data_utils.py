@@ -37,49 +37,60 @@ def basic_tokenizer(sentence):
     return [w for w in words if w]
 
 
-def _padded(sentences, max_length):
-    padded_sentences = []
-    for sent in sentences:
-        pad = [PAD_ID] * (max_length - len(sent))
-        padded_sentences.append(sent + pad)
-    return np.array(padded_sentences)
+def _padded(encoder_sentences, decoder_sentences, max_length):
+    def padded_sentence(sentence):
+        pad = [PAD_ID] * (max_length - len(sentence))
+        return sentence + pad
+    padded_encoder_sentences = []
+    padded_decoder_sentences = []
+    for i in range(len(encoder_sentences)):
+        # Skip sentence pairs if one of them is too long.
+        if len(encoder_sentences[i]) > max_length or len(decoder_sentences[i]) > max_length:
+            continue
+        padded_encoder_sentences.append(padded_sentence(encoder_sentences[i]))
+        padded_decoder_sentences.append(padded_sentence(decoder_sentences[i]))
+    return np.array(padded_encoder_sentences), np.array(padded_decoder_sentences)
 
 
-def batch_concatenate(sentences, batch_size,
-                      max_seq_len=None, return_lengths=False):
+def batch_concatenate(encoder_sentences, decoder_sentences,
+                      batch_size,
+                      max_seq_len=None):
     """Returns reshaped & padded numpy array of sentences.
+    Need encoder & decoder inputs together in case we remove sequences.
 
     Args:
         sentences:      list of integer sentence IDs.
         batch_size:     size of 2nd dimension of returned array.
         max_seq_len:    size of 3rd dimension of returned array.
                         If None, defaults to length of longest sentence.
-        return_lengths: (default False) If True, also return batch-indexed seq lengths.
     Returns:
         numpy array of shape [num_batches, batch_size, max_enc_seq], where
         num_batches = len(sentences) // batch_size
         """
 
-    num_sent = len(sentences)
+    assert(len(encoder_sentences) == len(decoder_sentences))
+    num_sent    = len(encoder_sentences)
     num_batches = num_sent // batch_size
     if num_batches < 1:
         raise ValueError("Received %d sentences, but need at least %d to batch concatenate."
                          % (num_sent, batch_size))
-    sentences = sentences[:batch_size * num_batches]
-    sequence_lengths = [len(s) for s in sentences]
+
+    # If needed, truncate sentences to be multiple of batch_size.
+    encoder_sentences = encoder_sentences[:batch_size * num_batches]
+    decoder_sentences = decoder_sentences[:batch_size * num_batches]
 
     if not max_seq_len:
-        max_seq_len = max(sequence_lengths)
+        max_enc = max([len(s) for s in encoder_sentences])
+        max_dec = max([len(s) for s in decoder_sentences])
+        max_seq_len = max(max_enc, max_dec)
 
-    sentences = _padded(sentences, max_seq_len)
-
-    sentences =  sentences.reshape(num_batches, batch_size, max_seq_len)
-    assert(len(sentences.shape) == 3)
-    if return_lengths:
-        sequence_lengths = np.array(sequence_lengths).reshape(num_batches, batch_size)
-        return sentences, sequence_lengths
-    else:
-        return sentences
+    encoder_sentences, decoder_sentences = _padded(encoder_sentences,
+                                                   decoder_sentences,
+                                                   max_seq_len)
+    encoder_sentences = encoder_sentences.reshape(num_batches, batch_size, max_seq_len)
+    decoder_sentences = decoder_sentences.reshape(num_batches, batch_size, max_seq_len)
+    assert(len(encoder_sentences.shape) == len(decoder_sentences.shape) == 3)
+    return encoder_sentences, decoder_sentences
 
 
 def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size, normalize_digits=True):
