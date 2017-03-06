@@ -25,6 +25,7 @@ class Model(object):
 
     def __init__(self,
                  buckets,
+                 data_name="default_model",
                  ckpt_dir="out",
                  vocab_size=40000,
                  batch_size=64,
@@ -32,6 +33,7 @@ class Model(object):
                  lr_decay=0.98,
                  is_decoding=False):
 
+        self.data_name = data_name
         self.sess           = tf.Session()
         self.is_decoding    = is_decoding
         self.batch_size     = batch_size
@@ -47,6 +49,7 @@ class Model(object):
         # Responsibility of user to determine training operations.
         self.apply_gradients = None
         self.losses = None
+        self.saver = None
 
     def compile(self, optimizer, max_gradient=5.0):
         """ Configure training process. Name was inspired by Keras. <3 """
@@ -58,7 +61,13 @@ class Model(object):
 
     def save(self):
         """TODO"""
-        raise NotImplemented
+        if self.saver is None:
+            raise ValueError("Tried saving model before defining a saver.")
+
+        # Save checkpoint and zero timer and loss.
+        checkpoint_path = os.path.join(self.ckpt_dir, "{}.ckpt".format(self.data_name))
+        # Saves the state of all global variables.
+        self.saver.save(self.sess, checkpoint_path, global_step=self.global_step)
 
     def train(self, dataset, train_config):
         """ Train chatbot. """
@@ -70,7 +79,7 @@ class Model(object):
 
 
 class BucketModel(Model):
-    """Abstract class. Extended by models that emply bucketing techniques.
+    """Abstract class. Extended by models that employ bucketing techniques.
     The real motivation for making this was to be able to use the true Model abstract
     class for all classes in this directory, bucketed or not, r1.0 or r0.12.
     """

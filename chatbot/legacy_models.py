@@ -44,7 +44,8 @@ class ChatBot(BucketModel):
 
     def __init__(self,
                  buckets,
-                 log_dir = "out/logs",
+                 data_name="default_chatbot",
+                 ckpt_dir="out",
                  vocab_size=40000,
                  layer_size=512,
                  num_layers=3,
@@ -125,7 +126,8 @@ class ChatBot(BucketModel):
                 self.summaries[name] = tf.summary.scalar("loss{}".format(i), loss)
 
         super(ChatBot, self).__init__(buckets,
-                                      ckpt_dir=log_dir,
+                                      data_name=data_name,
+                                      ckpt_dir=ckpt_dir,
                                       vocab_size=vocab_size,
                                       batch_size=batch_size,
                                       learning_rate=learning_rate,
@@ -255,7 +257,8 @@ class SimpleBot(BucketModel):
     """
 
     def __init__(self,
-                 log_dir = "out/logs",
+                 data_name="default_simple_bot",
+                 ckpt_dir="out",
                  max_seq_len = 30,
                  vocab_size=40000,
                  layer_size=512,
@@ -353,7 +356,8 @@ class SimpleBot(BucketModel):
 
         # Let superclass handle the boring stuff :)
         super(SimpleBot, self).__init__(buckets,
-                                        ckpt_dir="out",
+                                        data_name=data_name,
+                                        ckpt_dir=ckpt_dir,
                                         vocab_size=vocab_size,
                                         batch_size=batch_size,
                                         learning_rate=learning_rate,

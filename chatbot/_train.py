@@ -1,7 +1,7 @@
 """Train seq2seq attention chatbot."""
 import time
-import numpy as np
 from utils import *
+
 
 def train(bot, dataset, train_config):
     """ Train chatbot using dataset given by train_config.dataset.
@@ -15,7 +15,7 @@ def train(bot, dataset, train_config):
                                                   bot.buckets,
                                                   train_config.max_train_samples)
 
-        # Interpret as: train_buckets_scale[i] == [cumulative] fraction of samples in bucket i or below.
+        # Interpret train_buckets_scale[i] as [cumulative] frac of samples in bucket i or below.
         train_buckets_scale = _get_data_distribution(train_set, bot.buckets)
 
         # This is the training loop.
@@ -76,10 +76,8 @@ def run_checkpoint(model, config, step_time, loss, previous_losses, dev_set):
         model.sess.run(model.lr_decay_op)
     previous_losses.append(loss)
 
-    # Save checkpoint and zero timer and loss.
-    checkpoint_path = os.path.join(config.ckpt_dir, "{}.ckpt".format(config.data_name))
-    # Saves the state of all global variables.
-    model.saver.save(model.sess, checkpoint_path, global_step=model.global_step)
+    # Save a checkpoint file.
+    model.save()
 
     # Run evals on development set and print their perplexity.
     for bucket_id in range(len(model.buckets)):
