@@ -198,6 +198,19 @@ class BucketModel(Model):
         self.initialize()
         decode(self, test_config)
 
+    def step(self, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only=False):
+        """Run a step of the model.
+
+        Args:
+          encoder_inputs: list of numpy int vectors to feed as encoder inputs.
+          decoder_inputs: list of numpy int vectors to feed as decoder inputs.
+          target_weights: list of numpy float vectors to feed as target weights.
+          bucket_id: which bucket of the model to use.
+        """
+        raise NotImplemented
+
+
+
 
 
 

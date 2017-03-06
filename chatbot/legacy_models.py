@@ -18,7 +18,6 @@ from tensorflow.contrib.legacy_seq2seq import embedding_attention_seq2seq
 from tensorflow.contrib.legacy_seq2seq import model_with_buckets
 # Just in case (temporary)
 from tensorflow.contrib.rnn.python.ops import core_rnn
-from tensorflow.contrib.rnn.python.ops import core_rnn_cell
 from tensorflow.python.ops import embedding_ops
 
 from chatbot._models import BucketModel
@@ -126,7 +125,7 @@ class ChatBot(BucketModel):
                 self.summaries[name] = tf.summary.scalar("loss{}".format(i), loss)
 
         super(ChatBot, self).__init__(buckets,
-                                      log_dir=log_dir,
+                                      ckpt_dir=log_dir,
                                       vocab_size=vocab_size,
                                       batch_size=batch_size,
                                       learning_rate=learning_rate,
@@ -135,7 +134,7 @@ class ChatBot(BucketModel):
 
         super(ChatBot, self).compile(self.losses, max_gradient)
 
-    def step(self, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only):
+    def step(self, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only=False):
         """Run a step of the model.
 
         Args:
@@ -159,22 +158,21 @@ class ChatBot(BucketModel):
         for l in range(decoder_size):
             input_feed[self.decoder_inputs[l].name] = decoder_inputs[l]
             input_feed[self.target_weights[l].name] = target_weights[l]
-        input_feed[self.decoder_inputs[decoder_size].name] = np.zeros([self.batch_size], dtype=np.int32)
+        input_feed[self.decoder_inputs[decoder_size].name] = np.zeros([self.batch_size],
+                                                                      dtype=np.int32)
 
-        # Fetches: the Operations/Tensors we want executed/evaluated during session.run(...).
-        if not forward_only: # Not just for decoding; also for validating in training.
+        if not forward_only:  # Not just for decoding; also for validating in training.
             fetches = [self.summaries["loss{}".format(bucket_id)],
                        self.apply_gradients[bucket_id],  # Update Op that does SGD.
-                       self.gradient_norms[bucket_id],  # Gradient norm.
                        self.losses[bucket_id]]          # Loss for this batch.
             outputs = self.sess.run(fetches=fetches, feed_dict=input_feed)
-            return outputs[0], outputs[2], outputs[3], None  # summaries,  Gradient norm, loss, no outputs.
+            return outputs[0], None, outputs[2], None
         else:
             fetches = [self.losses[bucket_id]]  # Loss for this batch.
             for l in range(decoder_size):       # Output logits.
                 fetches.append(self.outputs[bucket_id][l])
             outputs = self.sess.run(fetches=fetches, feed_dict=input_feed)
-            return None, None, outputs[0], outputs[1:]  #No summary,  No gradient norm, loss, outputs.
+            return None, None, outputs[0], outputs[1:]
 
     @staticmethod
     def _sampled_softmax_loss(num_samples: int, hidden_size: int, vocab_size: int):
@@ -355,7 +353,7 @@ class SimpleBot(BucketModel):
 
         # Let superclass handle the boring stuff :)
         super(SimpleBot, self).__init__(buckets,
-                                        log_dir="out/logs",
+                                        ckpt_dir="out",
                                         vocab_size=vocab_size,
                                         batch_size=batch_size,
                                         learning_rate=learning_rate,
@@ -410,10 +408,9 @@ class SimpleBot(BucketModel):
         if not forward_only: # Not just for decoding; also for validating in training.
             fetches = [self.summaries["loss{}".format(bucket_id)],
                        self.apply_gradients[bucket_id],  # Update Op that does SGD.
-                       self.gradient_norms[bucket_id],  # Gradient norm.
                        self.losses[bucket_id]]          # Loss for this batch.
             outputs = self.sess.run(fetches=fetches, feed_dict=input_feed)
-            return outputs[0], outputs[2], outputs[3], None  # summaries,  Gradient norm, loss, no outputs.
+            return outputs[0], None, outputs[3], None  # summaries,  No gradient norm, loss, no outputs.
         else:
             fetches = [self.losses[bucket_id]]  # Loss for this batch.
             for l in range(decoder_size):       # Output logits.
