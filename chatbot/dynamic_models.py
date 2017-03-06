@@ -9,8 +9,7 @@ import logging
 import numpy as np
 import tensorflow as tf
 from utils.data_utils import GO_ID
-from chatbot._train import train
-from chatbot._decode import decode
+from chatbot._models import Model
 from chatbot.model_components import *
 
 
@@ -22,14 +21,16 @@ def check_shape(tensor, expected_shape, log):
         raise ValueError(msg)
 
 
-class DynamicBot(object):
+class DynamicBot(Model):
 
     def __init__(self,
                  dataset,
+                 ckpt_dir="out",
                  batch_size=64,
                  state_size=256,
                  embed_size=32,
                  learning_rate=0.4,
+                 lr_decay=0.98,
                  is_decoding=False):
 
         logging.basicConfig(level=logging.INFO)
@@ -89,18 +90,26 @@ class DynamicBot(object):
             labels=target_labels, logits=self.outputs[:, :-1, :]
         )
 
-        # Define gradient-descent weight-apply_gradients procedure.
+        # Let superclass handle the boring stuff (dirs/more instance variables).
+        super(DynamicBot, self).__init__(dataset.data_name,
+                                         ckpt_dir,
+                                         dataset.vocab_size,
+                                         batch_size,
+                                         learning_rate,
+                                         lr_decay,
+                                         is_decoding)
+
+    def compile(self, optimizer=None, max_gradient=5.0, reset=False):
+        """ Configure training process and initialize model. Inspired by Keras."""
         params = tf.trainable_variables()
-        optimizer = tf.train.AdagradOptimizer(self.learning_rate)
+        if optimizer is None:
+            optimizer = tf.train.AdagradOptimizer(self.learning_rate)
         gradients = tf.gradients(self.loss, params)
         clipped_gradients, self.gradient_norm = tf.clip_by_global_norm(gradients, 10.0)
         self.apply_gradients = optimizer.apply_gradients(
             zip(clipped_gradients, params), global_step=self.global_step)
 
-        # Launch the session & initialize variables.
-        self.sess = tf.Session()
-        self.saver = tf.train.Saver(tf.global_variables())
-        self.sess.run(tf.global_variables_initializer())
+        super(DynamicBot).compile(reset=reset)
 
     def __call__(self, encoder_inputs, decoder_inputs, forward_only=False):
         """Wrapper for self.step (below).

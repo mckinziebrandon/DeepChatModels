@@ -15,8 +15,7 @@ import tensorflow as tf
 
 # User-defined imports.
 from utils import data_utils
-from chatbot._train import train
-from chatbot._decode import decode
+import chatbot
 
 
 class Model(object):
@@ -24,7 +23,6 @@ class Model(object):
     """
 
     def __init__(self,
-                 buckets,
                  data_name="default_model",
                  ckpt_dir="out",
                  vocab_size=40000,
@@ -37,7 +35,6 @@ class Model(object):
         self.sess           = tf.Session()
         self.is_decoding    = is_decoding
         self.batch_size     = batch_size
-        self.buckets        = buckets
         self.vocab_size = vocab_size
         self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
         self.lr_decay_op    = self.learning_rate.assign(learning_rate * lr_decay)
@@ -51,41 +48,10 @@ class Model(object):
         self.losses = None
         self.saver = None
 
-    def compile(self, optimizer, max_gradient=5.0):
-        """ Configure training process. Name was inspired by Keras. <3 """
-        raise NotImplemented
+    def compile(self, optimizer=None, max_gradient=None, reset=False):
+        """ Configure training process and initialize model. Inspired by Keras.
 
-    def initialize(self, reset=False):
-        """Either restore model parameters or create fresh ones."""
-        raise NotImplemented
-
-    def save(self):
-        """TODO"""
-        if self.saver is None:
-            raise ValueError("Tried saving model before defining a saver.")
-
-        # Save checkpoint and zero timer and loss.
-        checkpoint_path = os.path.join(self.ckpt_dir, "{}.ckpt".format(self.data_name))
-        # Saves the state of all global variables.
-        self.saver.save(self.sess, checkpoint_path, global_step=self.global_step)
-
-    def train(self, dataset, train_config):
-        """ Train chatbot. """
-        raise NotImplemented
-
-    def decode(self, test_config):
-        """ Create chat session between user & chatbot. """
-        raise NotImplemented
-
-
-class BucketModel(Model):
-    """Abstract class. Extended by models that employ bucketing techniques.
-    The real motivation for making this was to be able to use the true Model abstract
-    class for all classes in this directory, bucketed or not, r1.0 or r0.12.
-    """
-
-    def initialize(self, reset=False):
-        """Either restore model parameters or create fresh ones.
+        Either restore model parameters or create fresh ones.
             - Checks if we can both (1) find a checkpoint state, and (2) a valid V1/V2 checkpoint path.
             - If we can't, then just re-initialize model with fresh params.
         """
@@ -111,7 +77,52 @@ class BucketModel(Model):
             # Initialize all model variables.
             self.sess.run(init_op)
 
-    def compile(self, optimizer, max_gradient=5.0):
+    def save(self):
+        """TODO"""
+        if self.saver is None:
+            raise ValueError("Tried saving model before defining a saver.")
+
+        # Save checkpoint and zero timer and loss.
+        checkpoint_path = os.path.join(self.ckpt_dir, "{}.ckpt".format(self.data_name))
+        # Saves the state of all global variables.
+        self.saver.save(self.sess, checkpoint_path, global_step=self.global_step)
+
+    #def train(self, dataset, train_config):
+    #    """ Train chatbot. """
+    #    raise NotImplemented
+
+    #def decode(self, test_config):
+    #    """ Create chat session between user & chatbot. """
+    #    raise NotImplemented
+
+
+class BucketModel(Model):
+    """Abstract class. Extended by models that employ bucketing techniques.
+    The real motivation for making this was to be able to use the true Model abstract
+    class for all classes in this directory, bucketed or not, r1.0 or r0.12.
+    """
+
+    def __init__(self,
+             buckets,
+             data_name="default_model",
+             ckpt_dir="out",
+             vocab_size=40000,
+             batch_size=64,
+             learning_rate=0.5,
+             lr_decay=0.98,
+             is_decoding=False):
+
+        self.buckets = buckets
+
+        super(BucketModel, self).__init__(data_name,
+                                          ckpt_dir,
+                                          vocab_size,
+                                          batch_size,
+                                          learning_rate,
+                                          lr_decay,
+                                          is_decoding)
+
+    def compile(self, optimizer=None, max_gradient=5.0, reset=False):
         """ Configure training process. Name was inspired by Keras. <3 """
 
         if self.losses is None:
@@ -122,7 +133,8 @@ class BucketModel(Model):
         #if not self.is_decoding: # teacher mode means we always need backward pass option.
         # apply_gradients will store the parameter (S)GD apply_gradients.
         self.apply_gradients = []
-        optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
+        if optimizer is None:
+            optimizer = tf.train.AdagradOptimizer(self.learning_rate)
         # TODO: Think about how this could optimized. There has to be a way.
         for b in range(len(self.buckets)):
             # Note: tf.gradients returns in form: gradients[i] == sum([dy/dx_i for y in self.losses[b]]).
@@ -134,6 +146,8 @@ class BucketModel(Model):
             clipped_gradients, norm = tf.clip_by_global_norm(gradients, max_gradient)
             self.apply_gradients.append(optimizer.apply_gradients(zip(clipped_gradients, params),
                                                           global_step=self.global_step))
+
+        super(BucketModel, self).compile(reset=reset)
 
     def check_input_lengths(self, inputs, expected_lengths):
         """
@@ -199,12 +213,12 @@ class BucketModel(Model):
 
     def train(self, dataset, train_config):
         """ Train chatbot. """
-        self.initialize()
+        from chatbot._train import train
         train(self, dataset, train_config)
 
     def decode(self, test_config):
         """ Create chat session between user & chatbot. """
-        self.initialize()
+        from chatbot._decode import decode
         decode(self, test_config)
 
     def step(self, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only=False):
