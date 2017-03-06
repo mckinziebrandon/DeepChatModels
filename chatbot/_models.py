@@ -57,7 +57,7 @@ class Model(object):
         checkpoint_state  = tf.train.get_checkpoint_state(self.ckpt_dir)
         # Note: If you want to prevent from loading models trained on different dataset,
         # you should store them in their own out/dataname folder, and pass that as the ckpt_dir to config.
-        if not reset  and checkpoint_state \
+        if not reset and checkpoint_state \
                 and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
             print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
             self.saver = tf.train.Saver(tf.global_variables())
@@ -102,6 +102,9 @@ class BucketModel(Model):
                  is_decoding=False):
 
         self.buckets = buckets
+        # TODO: Deal with issue of subclasses creating loss,
+        # while BucketModel needs it for other methods.
+        self.losses = None
         super(BucketModel, self).__init__(data_name,
                                           ckpt_dir,
                                           vocab_size,

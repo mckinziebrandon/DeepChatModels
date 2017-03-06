@@ -13,7 +13,7 @@ import chatbot
 # ==============================================================================================================================
 
 TEMP="/home/brandon/terabyte/Datasets/ubuntu_dialogue_corpus"
-#TEMP="/home/brandon/terabyte/Datasets/wmt"
+#DATA_DIR="/home/brandon/terabyte/Datasets/wmt"
 BASE='/home/brandon/Documents/seq2seq_projects/tests'
 
 
