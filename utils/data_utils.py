@@ -2,16 +2,18 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+
 import os
 import re
 import sys
-import numpy as np
-from utils.wmt import WMT
-from utils.ubuntu import Ubuntu
-from utils.test_data import TestData
 
-from tensorflow.python.platform import gfile
+import numpy as np
 import tensorflow as tf
+from tensorflow.python.platform import gfile
+
+from data.test_data import TestData
+from data.ubuntu import Ubuntu
+from data.wmt import WMT
 
 # Special vocabulary symbols.
 _PAD = b"_PAD"      # Append to unused space for both encoder/decoder.

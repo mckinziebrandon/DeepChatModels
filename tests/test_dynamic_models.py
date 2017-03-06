@@ -1,12 +1,12 @@
 """Run trial run on DynamicBot with the TestData Dataset."""
 
-import numpy as np
-import logging
 import sys
+
+import numpy as np
+
 sys.path.append("..")
 
-import tensorflow as tf
-from utils.test_data import TestData
+from data.test_data import TestData
 from chatbot.dynamic_models import DynamicBot
 from utils.data_utils import batch_concatenate
 

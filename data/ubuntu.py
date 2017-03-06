@@ -1,6 +1,7 @@
-from utils._dataset import Dataset
-from utils import data_utils
 import tensorflow as tf
+
+from data._dataset import Dataset
+from utils import data_utils
 
 
 class Ubuntu(Dataset):
@@ -68,6 +69,20 @@ class Ubuntu(Dataset):
     @property
     def valid_size(self):
         return self._valid_size
+
+    @property
+    def train_data(self):
+        """List of training samples (token IDs)."""
+        return self._train_data
+
+    @property
+    def valid_data(self):
+        """List of validation samples (token IDs)."""
+        return self._valid_data
+
+    @property
+    def max_seq_len(self):
+        return 100
 
     # ===================================================================
     # Additional methods:

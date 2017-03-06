@@ -1,8 +1,8 @@
-"""This shows how to run the new dynamic models (work in progress).
+"""This shows how to run the legacy models (tf r0.12).
 """
 import tensorflow as tf
-from chatbot import DynamicBot
-from data import Ubuntu
+import chatbot
+from utils import *
 
 # ==============================================================================================================================
 # Parser for command-line arguments.
@@ -44,6 +44,23 @@ FLAGS = flags.FLAGS
 
 if __name__ == "__main__":
 
-    dataset = Ubuntu(FLAGS.vocab_size)
-    bot = DynamicBot(dataset)
+    buckets = [(5, 10), (20, 45), (50, 80)]
+    # Note: I'm only specifying the flags that I tend to change; more options are available!
+    chatbot = chatbot.ChatBot(buckets,
+                              log_dir=FLAGS.log_dir,
+                              layer_size=FLAGS.layer_size,
+                              num_layers=FLAGS.num_layers,
+                              lr_decay=FLAGS.lr_decay,
+                              is_decoding=FLAGS.decode)
+
+    if FLAGS.decode:
+        print("Preparing for chat session.")
+        config = TestConfig(FLAGS)
+        print("Temperature set to", FLAGS.temperature)
+        chatbot.decode(config)
+    else:
+        print("Preparing for training session.")
+        config  = TrainConfig(FLAGS)
+        dataset = get_dataset(FLAGS.data_name, FLAGS.vocab_size)
+        chatbot.train(dataset, config)
 

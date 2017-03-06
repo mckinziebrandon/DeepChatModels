@@ -16,6 +16,15 @@ from chatbot._train import train
 from chatbot._decode import decode
 from chatbot.model_components import *
 
+
+def check_shape(tensor, expected_shape, log):
+    if tensor.shape.as_list() != expected_shape:
+        msg = "Bad shape of tensor {0}. Expected {1} but found {2}.".format(
+            tensor.name, expected_shape, tensor.shape.as_list())
+        log.error(msg)
+        raise ValueError(msg)
+
+
 # TODO: superclass? abc?
 class DynamicBot(object):
 
@@ -61,9 +70,8 @@ class DynamicBot(object):
         output_projection = OutputProjection(state_size, dataset.vocab_size)
 
         # ==========================================================================================
-        # Connect components from inputs to outputs to losses.
+        # Graph building.
         # ==========================================================================================
-
 
         # Inputs (needed by feed_dict).
         self.raw_encoder_inputs = tf.placeholder(tf.int32, (batch_size, max_seq_len))
@@ -73,31 +81,20 @@ class DynamicBot(object):
         encoder_inputs = encoder_embedder(self.raw_encoder_inputs, scope="encoder")
         decoder_inputs = decoder_embedder(self.raw_decoder_inputs, scope="decoder")
 
-        # Encoder-Decoder model.
+        # Encoder-Decoder.
         encoder_state = encoder(encoder_inputs, scope="encoder")
         decoder_outputs, decoder_state = decoder(decoder_inputs,
                                                  scope="decoder",
                                                  initial_state=encoder_state,
                                                  return_sequence=True)
 
-        if not isinstance(decoder_outputs, tf.Tensor):
-            raise TypeError("Decoder state should be Tensor with shape"
-                            "[batch_size, max_time, state_size].")
-
-        def check_shape(tensor, expected_shape):
-            if tensor.shape.as_list() != expected_shape:
-                msg = "Bad shape of tensor {0}. Expected {1} but found {2}.".format(
-                    tensor.name, expected_shape, tensor.shape.as_list())
-                self.log.error(msg)
-                raise ValueError(msg)
-
         # Project to vocab space (TODO: be conditional on is_decoding & do importance sampling).
         self.outputs = output_projection(decoder_outputs)
-        check_shape(self.outputs, [batch_size, max_seq_len+1, self.vocab_size])
+        check_shape(self.outputs, [batch_size, max_seq_len+1, self.vocab_size], self.log)
 
         # Target labels are just that of the next input.
         target_labels = self.raw_decoder_inputs[:, 1:]
-        check_shape(target_labels, [batch_size, max_seq_len])
+        check_shape(target_labels, [batch_size, max_seq_len], self.log)
 
         self.loss = tf.losses.sparse_softmax_cross_entropy(
             labels=target_labels, logits=self.outputs[:, :-1, :]
@@ -111,7 +108,7 @@ class DynamicBot(object):
         optimizer = tf.train.AdagradOptimizer(self.learning_rate)
         gradients = tf.gradients(self.loss, params)
         clipped_gradients, self.gradient_norm = tf.clip_by_global_norm(gradients, 10.0)
-        self.updates = optimizer.apply_gradients(
+        self.apply_gradients = optimizer.apply_gradients(
             zip(clipped_gradients, params), global_step=self.global_step)
 
         # ============================================================================
@@ -148,7 +145,7 @@ class DynamicBot(object):
         input_feed[self.raw_encoder_inputs.name] = encoder_inputs
         input_feed[self.raw_decoder_inputs.name] = decoder_inputs
 
-        fetches=self.loss
+        fetches = [self.loss, self.apply_gradients]
         return self.sess.run(fetches, input_feed)
 
 

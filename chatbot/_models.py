@@ -51,7 +51,7 @@ class Model(object):
         params = tf.trainable_variables()
         #if not self.is_decoding: # teacher mode means we always need backward pass option.
         self.gradient_norms = []
-        # updates will store the parameter (S)GD updates.
+        # apply_gradients will store the parameter (S)GD apply_gradients.
         self.updates = []
         optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
         # TODO: Think about how this could optimized. There has to be a way.

@@ -1,7 +1,10 @@
 import logging
+
 import tensorflow as tf
+
+from data._dataset import Dataset
 from utils import data_utils
-from utils._dataset import Dataset
+
 
 class TestData(Dataset):
     """Mock dataset with a handful of sentences."""
