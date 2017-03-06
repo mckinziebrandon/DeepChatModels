@@ -11,10 +11,6 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.platform import gfile
 
-from data.test_data import TestData
-from data.ubuntu import Ubuntu
-from data.wmt import WMT
-
 # Special vocabulary symbols.
 _PAD = b"_PAD"      # Append to unused space for both encoder/decoder.
 _GO  = b"_GO"       # Prepend to each decoder input.
@@ -31,17 +27,6 @@ UNK_ID  = 3
 # Regular expressions used to tokenize.
 _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
 _DIGIT_RE   = re.compile(br"\d")
-
-DATASETS = {
-    'ubuntu': Ubuntu,
-    'wmt': WMT,
-    'test_data': TestData
-}
-
-
-def get_dataset(name, vocab_size=40000):
-    return DATASETS[name](vocab_size)
-
 
 def basic_tokenizer(sentence):
     """Very basic tokenizer: split the sentence into a list of tokens."""

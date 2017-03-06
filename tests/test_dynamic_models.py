@@ -1,49 +1,37 @@
 """Run trial run on DynamicBot with the TestData Dataset."""
-
+import logging
 import sys
-
-import numpy as np
-
 sys.path.append("..")
-
-from data.test_data import TestData
-from chatbot.dynamic_models import DynamicBot
-from utils.data_utils import batch_concatenate
+from data import TestData
+from chatbot import DynamicBot
+from utils import batch_concatenate
 
 
 if __name__ == '__main__':
 
     batch_size = 2
+    logging.basicConfig(level=logging.INFO)
+    log = logging.getLogger('TestDynamicLogger')
 
     # Get dataset and its properties.
     dataset = TestData()
-    encoder_sentences, decoder_sentences = np.split(np.array(dataset.train_data), 2, axis=1)
+    encoder_sentences, decoder_sentences = dataset.train_data
+    encoder_sentences = batch_concatenate(encoder_sentences, batch_size, max_seq_len=dataset.max_seq_len)
+    decoder_sentences = batch_concatenate(decoder_sentences, batch_size, max_seq_len=dataset.max_seq_len)
 
-    # TODO: the following 2 lines should not be necessary.
-    encoder_sentences = list(encoder_sentences[:, 0])
-    encoder_sentences = batch_concatenate(encoder_sentences, batch_size, max_seq_len=10)
+    print(encoder_sentences)
+    print(decoder_sentences)
 
-    decoder_sentences = list(decoder_sentences[:, 0])
-    decoder_sentences = batch_concatenate(decoder_sentences, batch_size, max_seq_len=10)
+    # Create the bot.
+    bot = DynamicBot(dataset, batch_size=batch_size)
 
-    num_batches, _, max_enc_seq = encoder_sentences.shape
-    _, _, max_dec_seq = decoder_sentences.shape
-    max_seq_len = max(max_enc_seq, max_dec_seq)
-
-    print("num_batches:", num_batches)
-    print("encoder_sentences max_enc_seq:", max_seq_len)
-    print("dataset max_enc_seq:", dataset.max_seq_len)
-
-    bot = DynamicBot(dataset,
-                     max_seq_len=10,
-                     batch_size=batch_size)
-
+    num_batches = dataset.train_size // batch_size
+    log.info("Dataset has %d training samples." % dataset.train_size)
+    log.info("For batch size of %d, that means %d batches per epoch" % (batch_size, num_batches))
     for batch in range(num_batches):
-
         enc_inp = encoder_sentences[batch]
         dec_inp = decoder_sentences[batch]
         loss = bot(enc_inp, dec_inp)
-
-        print(loss)
+        log.info("Batch %d: \tLoss %f" % (batch, loss))
 
 

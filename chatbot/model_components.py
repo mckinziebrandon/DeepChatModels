@@ -3,6 +3,8 @@ __all__ = ['Embedder', 'DynamicRNN', 'OutputProjection']
 
 
 class Embedder:
+    """Acts on tensors with integer elements, embedding them in a higher-dimensional
+    vector space."""
 
     def __init__(self, vocab_size, embed_size):
         self.vocab_size = vocab_size
@@ -37,7 +39,7 @@ class DynamicRNN:
                  return_sequence=False, initial_state=None):
         """Mimicking the tensorflow Layers API.
             Arguments:
-              inputs: input tensor of shape [batch_size, max_time].
+              inputs: embedded input tensor of shape [batch_size, max_time, embed_size].
             Returns:
                 outputs, state
         """
@@ -48,6 +50,7 @@ class DynamicRNN:
             outputs, state = tf.nn.dynamic_rnn(self.cell, inputs,
                                                initial_state=self.initial_state,
                                                dtype=tf.float32)
+
         if return_sequence:
             return outputs, state
         else:
@@ -55,6 +58,7 @@ class DynamicRNN:
 
 
 class OutputProjection:
+    """An OutputProjection applies an affine transformation to network outputs."""
 
     def __init__(self, state_size, output_size):
         self.state_size = state_size

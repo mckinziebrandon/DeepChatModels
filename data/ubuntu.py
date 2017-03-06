@@ -72,12 +72,12 @@ class Ubuntu(Dataset):
 
     @property
     def train_data(self):
-        """List of training samples (token IDs)."""
+        """NEW FORMAT: returns a 2-tuple: (source_data, target_data) """
         return self._train_data
 
     @property
     def valid_data(self):
-        """List of validation samples (token IDs)."""
+        """NEW FORMAT: returns a 2-tuple: (source_data, target_data) """
         return self._valid_data
 
     @property
@@ -90,7 +90,8 @@ class Ubuntu(Dataset):
 
     def read_data(self, suffix="train"):
         # TODO: Move to data_utils. Duplicated in other datasets.
-        data_set = []
+        source_data = []
+        target_data = []
         # Counter for the number of source/target pairs that couldn't fit in _buckets.
         with tf.gfile.GFile(self.paths['from_%s' % suffix], mode="r") as source_file:
             with tf.gfile.GFile(self.paths['to_%s' % suffix], mode="r") as target_file:
@@ -101,6 +102,7 @@ class Ubuntu(Dataset):
                     target_ids = [int(x) for x in target.split()]
                     target_ids.append(data_utils.EOS_ID)
                     # Add to data_set and retrieve next id list.
-                    data_set.append([source_ids, target_ids])
+                    source_data.append(source_ids)
+                    target_data.append(target_ids)
                     source, target = source_file.readline(), target_file.readline()
-        return data_set
+        return (source_data, target_data)

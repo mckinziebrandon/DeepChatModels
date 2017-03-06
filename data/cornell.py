@@ -6,21 +6,23 @@ from data._dataset import Dataset
 from utils import data_utils
 
 
-class TestData(Dataset):
-    """Mock dataset with a handful of sentences."""
+class Cornell(Dataset):
 
-    def __init__(self, vocab_size=100):
+    def __init__(self, vocab_size=20000):
+
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('TestDataLogger')
         self._name = "test_data"
+
         self.vocab_size = vocab_size
-        self._data_dir = '/home/brandon/terabyte/Datasets/test_data'
+        self._data_dir = '/home/brandon/terabyte/Datasets/cornell_movie_corpus'
         paths_triplet = data_utils.prepare_data(self._data_dir,
                                      self._data_dir + "/train_from.txt",
                                      self._data_dir + "/train_to.txt",
                                      self._data_dir + "/valid_from.txt",
                                      self._data_dir + "/valid_to.txt",
                                      vocab_size, vocab_size)
+
         train_path, valid_path, vocab_path = paths_triplet
         self.paths = {}
         self.paths['from_train']    = train_path[0]
