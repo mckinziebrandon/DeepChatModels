@@ -1,10 +1,8 @@
 """Sequence-to-sequence models."""
 
-# TODO: Figure out what to do with these.
-# They worked in tensorflow 0.12, but not in 1.0, and for good reason.
-# Since there is no immediately obvious way of converting these to the better,
-# dynamic models available in tf r1.0, I'm going to make them from scratch in
-# the file dynamic_models.py for now.
+# TODO: Figure out what to do with these old models. Made when I was using TF r0.12.
+# EDIT: Modified inheritance strucutre (see _models.py) so these *should* work now.
+#       I have NOT tested them since the change.
 
 from __future__ import absolute_import
 from __future__ import division

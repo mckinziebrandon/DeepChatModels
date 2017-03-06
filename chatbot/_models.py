@@ -1,4 +1,4 @@
-"""Abstract parent class for all in (now unsupported) legacy_models.py"""
+"""Abstract classes."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -15,7 +15,6 @@ import tensorflow as tf
 
 # User-defined imports.
 from utils import data_utils
-import chatbot
 
 
 class Model(object):
@@ -37,7 +36,7 @@ class Model(object):
         self.batch_size     = batch_size
         self.vocab_size = vocab_size
         self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
-        self.lr_decay_op    = self.learning_rate.assign(learning_rate * lr_decay)
+        self.lr_decay    = self.learning_rate.assign(learning_rate * lr_decay)
         self.global_step    = tf.Variable(initial_value=0, trainable=False)
         # Directory IO management.
         self.ckpt_dir = ckpt_dir
@@ -97,23 +96,23 @@ class Model(object):
 
 
 class BucketModel(Model):
-    """Abstract class. Extended by models that employ bucketing techniques.
-    The real motivation for making this was to be able to use the true Model abstract
-    class for all classes in this directory, bucketed or not, r1.0 or r0.12.
+    """Abstract class. Any classes that extend BucketModel just need to customize their
+        graph structure in __init__ and implement the step(...) function. The real motivation for
+        making this was to be able to use the true Model abstract class for all classes in this
+        directory, bucketed or not, r1.0 or r0.12.
     """
 
     def __init__(self,
-             buckets,
-             data_name="default_model",
-             ckpt_dir="out",
-             vocab_size=40000,
-             batch_size=64,
-             learning_rate=0.5,
-             lr_decay=0.98,
-             is_decoding=False):
+                 buckets,
+                 data_name="default_model",
+                 ckpt_dir="out",
+                 vocab_size=40000,
+                 batch_size=64,
+                 learning_rate=0.5,
+                 lr_decay=0.98,
+                 is_decoding=False):
 
         self.buckets = buckets
-
         super(BucketModel, self).__init__(data_name,
                                           ckpt_dir,
                                           vocab_size,

@@ -35,15 +35,9 @@ class DynamicBot(Model):
 
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('DynamicBotLogger')
-
         self.dataset     = dataset
-        self.batch_size  = batch_size
         self.state_size  = state_size
         self.embed_size  = embed_size
-        self.is_decoding = is_decoding
-
-        self.learning_rate = tf.Variable(learning_rate, trainable=False, dtype=tf.float32)
-        self.global_step    = tf.Variable(initial_value=0, trainable=False)
 
         # ==========================================================================================
         # Model Component Objects.
@@ -70,7 +64,6 @@ class DynamicBot(Model):
         decoder_inputs = decoder_embedder(self.raw_decoder_inputs, scope="decoder")
         # Encoder-Decoder.
         encoder_state = encoder(encoder_inputs, scope="encoder")
-        print(encoder_state)
         decoder_outputs, decoder_state = decoder(decoder_inputs,
                                                  scope="decoder",
                                                  initial_state=encoder_state,
@@ -101,6 +94,8 @@ class DynamicBot(Model):
 
     def compile(self, optimizer=None, max_gradient=5.0, reset=False):
         """ Configure training process and initialize model. Inspired by Keras."""
+
+        # First, define the training portion of the graph.
         params = tf.trainable_variables()
         if optimizer is None:
             optimizer = tf.train.AdagradOptimizer(self.learning_rate)
@@ -109,12 +104,9 @@ class DynamicBot(Model):
         self.apply_gradients = optimizer.apply_gradients(
             zip(clipped_gradients, params), global_step=self.global_step)
 
+        # Next, let superclass load param values from file (if not reset), otherwise
+        # initialize newly created model.
         super(DynamicBot).compile(reset=reset)
-
-    def __call__(self, encoder_inputs, decoder_inputs, forward_only=False):
-        """Wrapper for self.step (below).
-        """
-        return self.step(encoder_inputs, decoder_inputs, forward_only)
 
     def step(self, encoder_inputs, decoder_inputs, forward_only=False):
         """Run forward and backward pass on single data batch.
@@ -144,11 +136,7 @@ class DynamicBot(Model):
             outputs = self.sess.run(fetches, input_feed)
             return outputs[0], outputs[1]  # loss, outputs
 
-    def save(self):
-        # Save checkpoint and zero timer and loss.
-        checkpoint_path = os.path.join('out', "{}.ckpt".format(self.dataset.name))
-        # Saves the state of all global variables.
-        self.saver.save(self.sess, checkpoint_path, global_step=self.global_step)
-
-
-
+    def __call__(self, encoder_inputs, decoder_inputs, forward_only=False):
+        """Wrapper for self.step.
+        """
+        return self.step(encoder_inputs, decoder_inputs, forward_only)
