@@ -69,15 +69,9 @@ def batch_concatenate(encoder_sentences, decoder_sentences,
         """
 
     assert(len(encoder_sentences) == len(decoder_sentences))
-    num_sent    = len(encoder_sentences)
-    num_batches = num_sent // batch_size
-    if num_batches < 1:
+    if len(encoder_sentences) < batch_size:
         raise ValueError("Received %d sentences, but need at least %d to batch concatenate."
-                         % (num_sent, batch_size))
-
-    # If needed, truncate sentences to be multiple of batch_size.
-    encoder_sentences = encoder_sentences[:batch_size * num_batches]
-    decoder_sentences = decoder_sentences[:batch_size * num_batches]
+                         % (len(encoder_sentences), batch_size))
 
     if not max_seq_len:
         max_enc = max([len(s) for s in encoder_sentences])
@@ -87,6 +81,13 @@ def batch_concatenate(encoder_sentences, decoder_sentences,
     encoder_sentences, decoder_sentences = _padded(encoder_sentences,
                                                    decoder_sentences,
                                                    max_seq_len)
+
+    # If needed, truncate sentences to be multiple of batch_size.
+    num_sent    = len(encoder_sentences)
+    num_batches = num_sent // batch_size
+    encoder_sentences = encoder_sentences[:batch_size * num_batches]
+    decoder_sentences = decoder_sentences[:batch_size * num_batches]
+
     encoder_sentences = encoder_sentences.reshape(num_batches, batch_size, max_seq_len)
     decoder_sentences = decoder_sentences.reshape(num_batches, batch_size, max_seq_len)
     assert(len(encoder_sentences.shape) == len(decoder_sentences.shape) == 3)

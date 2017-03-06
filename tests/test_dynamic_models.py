@@ -8,6 +8,13 @@ from data import Cornell
 from chatbot import DynamicBot
 from utils import batch_concatenate
 
+def get_batched_data(data, batch_size, max_seq_len):
+    encoder_sentences, decoder_sentences = data
+    encoder_sentences, decoder_sentences = batch_concatenate(
+        encoder_sentences, decoder_sentences,
+        batch_size, max_seq_len=max_seq_len
+    )
+    return encoder_sentences, decoder_sentences
 
 if __name__ == '__main__':
 
@@ -16,15 +23,20 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     log = logging.getLogger('TestDynamicLogger')
 
-    # Get dataset and its properties.
+    # =========================================================================
+    # Get training data and reformat as desired.
+    # =========================================================================
+
     log.info("Retrieving the Cornell dataset...")
     dataset = Cornell()
-    encoder_sentences, decoder_sentences = dataset.train_data
-    encoder_sentences, decoder_sentences = batch_concatenate(
-        encoder_sentences, decoder_sentences,
-        batch_size, max_seq_len=max_seq_len
+    encoder_sentences, decoder_sentences = get_batched_data(
+        dataset.train_data, batch_size, max_seq_len
     )
     log.info("...Dataset retrieved.")
+
+    # =========================================================================
+    # Set up DynamicBot.
+    # =========================================================================
 
     # Create the bot.
     log.info("Creating DynamicBot...")
@@ -33,6 +45,10 @@ if __name__ == '__main__':
     log.info("Compiling DynamicBot...")
     bot.compile()
     log.info("...DynamicBot compiiled.")
+
+    # =========================================================================
+    # Train DynamicBot.
+    # =========================================================================
 
     num_batches = dataset.train_size // batch_size
     log.info("Dataset has %d training samples." % dataset.train_size)
@@ -45,23 +61,14 @@ if __name__ == '__main__':
 
     bot.save()
 
-    encoder_sentences, decoder_sentences = dataset.valid_data
+    # =========================================================================
+    # Get validation data and reformat as desired.
+    # =========================================================================
 
-    # TODO: make max_seq_len take validation data into account. . . .
-    encoder_sentences = encoder_sentences[:batch_size]
-    decoder_sentences = decoder_sentences[:batch_size]
-    assert(len(encoder_sentences) == len(decoder_sentences))
-
-    encoder_sentences = batch_concatenate(encoder_sentences, batch_size, max_seq_len=dataset.max_seq_len)
-    decoder_sentences = batch_concatenate(decoder_sentences, batch_size, max_seq_len=dataset.max_seq_len)
-
-    assert(encoder_sentences.shape == decoder_sentences.shape)
-
-
-    rand_batch = np.random.randint(len(encoder_sentences))
-
-    eval_loss, outputs = bot(encoder_sentences[rand_batch],
-                            decoder_sentences[rand_batch])
+    encoder_sentences, decoder_sentences = get_batched_data(
+        dataset.valid_data, batch_size, max_seq_len
+    )
+    eval_loss, outputs = bot(encoder_sentences[0], decoder_sentences[0], forward_only=True)
     print("validation loss:", eval_loss)
 
 
