@@ -52,7 +52,7 @@ def _padded(encoder_sentences, decoder_sentences, max_length):
     return np.array(padded_encoder_sentences), np.array(padded_decoder_sentences)
 
 
-def batch_concatenate(encoder_sentences, decoder_sentences,
+def batch_concatenate(data,
                       batch_size,
                       max_seq_len=None):
     """Returns reshaped & padded numpy array of sentences.
@@ -67,6 +67,8 @@ def batch_concatenate(encoder_sentences, decoder_sentences,
         numpy array of shape [num_batches, batch_size, max_enc_seq], where
         num_batches = len(sentences) // batch_size
         """
+
+    encoder_sentences, decoder_sentences = data
 
     assert(len(encoder_sentences) == len(decoder_sentences))
     if len(encoder_sentences) < batch_size:

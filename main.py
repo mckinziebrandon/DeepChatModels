@@ -6,12 +6,12 @@ from chatbot import DynamicBot
 from data import Cornell
 from utils import data_utils
 
-# ==============================================================================================================================
+# ==================================================================================================
 # Parser for command-line arguments.
 # - Each flag below is formatted in three columns: [name] [default value] [description]
 # - Each flag's value can later be accessed via: FLAGS.name
 # - The flags are shown in alphabetical order (by name).
-# ==============================================================================================================================
+# ==================================================================================================
 
 flags = tf.app.flags
 # String flags -- directories and dataset name(s).
@@ -32,60 +32,25 @@ flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
 flags.DEFINE_float("lr_decay", 0.95, "Decay factor applied to learning rate.")
 FLAGS = flags.FLAGS
 
-
-def get_batched_data(data, batch_size, max_seq_len):
-    encoder_sentences, decoder_sentences = data
-    encoder_sentences, decoder_sentences = data_utils.batch_concatenate(
-        encoder_sentences, decoder_sentences,
-        batch_size, max_seq_len=max_seq_len
-    )
-    return encoder_sentences, decoder_sentences
-
 if __name__ == "__main__":
 
-    # =============================================================
-    # Setup - data and chatbot creation.
-    # =============================================================
-
+    # All datasets follow the same API, found in data/_dataset.py
     dataset = Cornell(FLAGS.vocab_size)
-    bot = DynamicBot(dataset,
-                     batch_size=FLAGS.batch_size,
-                     max_seq_len=FLAGS.max_seq_len)
+
+    # Create chat model of choice.
+    bot = DynamicBot(dataset, batch_size=FLAGS.batch_size, max_seq_len=FLAGS.max_seq_len)
+
     # Don't forget to compile!
     bot.compile(reset=True)
 
     # Get encoder/decoder training data, with shape [None, batch_size, max_seq_len].
-    encoder_sentences, decoder_sentences = get_batched_data(
+    encoder_sentences, decoder_sentences = data_utils.batch_concatenate(
         dataset.train_data, FLAGS.batch_size, FLAGS.max_seq_len
     )
 
-    # =========================================================================
-    # Train DynamicBot.
-    # =========================================================================
+    # Train an epoch on the data. CTRL-C at any time to safely stop training.
+    # Model saved in FLAGS.ckpt_dir if specified, else "./out"
+    bot.train(encoder_sentences, decoder_sentences, steps_per_ckpt=FLAGS.steps_per_ckpt)
 
-    i_step = 0
-    avg_loss = 0.0
-    avg_step_time = 0.0
-    try:
-        while True:
-            start_time      = time.time()
-            step_loss       = bot(encoder_sentences[i_step], decoder_sentences[i_step])
 
-            # Calculate running averages.
-            avg_step_time  += (time.time() - start_time) / FLAGS.steps_per_ckpt
-            avg_loss       += step_loss / FLAGS.steps_per_ckpt
-
-            # Print updates in desired intervals (steps_per_ckpt).
-            if i_step % FLAGS.steps_per_ckpt == 0:
-                bot.save()
-                print("Step {}: step time = {};  loss = {}".format(
-                    i_step, avg_step_time, avg_loss))
-                # Reset the running averages.
-                avg_step_time = 0.0
-                avg_loss = 0.0
-            i_step += 1
-
-    except (KeyboardInterrupt, SystemExit):
-        print("Training halted. Cleaning up . . . ")
-        bot.save()
 

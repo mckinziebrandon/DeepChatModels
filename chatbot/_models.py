@@ -75,11 +75,13 @@ class Model(object):
             # Initialize all model variables.
             self.sess.run(init_op)
 
-    def save(self):
+    def save(self, save_dir=None):
         """TODO"""
         if self.saver is None:
             raise ValueError("Tried saving model before defining a saver.")
-        checkpoint_path = os.path.join(self.ckpt_dir, "{}.ckpt".format(self.data_name))
+        if save_dir is None:
+            save_dir = self.ckpt_dir
+        checkpoint_path = os.path.join(save_dir, "{}.ckpt".format(self.data_name))
         # Saves the state of all global variables.
         self.saver.save(self.sess, checkpoint_path, global_step=self.global_step)
 

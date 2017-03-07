@@ -5,6 +5,7 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import time
 import logging
 import numpy as np
 import tensorflow as tf
@@ -139,6 +140,35 @@ class DynamicBot(Model):
             fetches = [self.loss, self.outputs]
             outputs = self.sess.run(fetches, input_feed)
             return outputs[0], outputs[1]  # loss, outputs
+
+    def train(self, encoder_inputs, decoder_inputs,
+              nb_eboch=1, steps_per_ckpt=100, save_dir=None):
+        i_step = 0
+        avg_loss = 0.0
+        avg_step_time = 0.0
+        try:
+            while True:
+                start_time      = time.time()
+                step_loss       = self.step(encoder_inputs[i_step], encoder_inputs[i_step])
+
+                # Calculate running averages.
+                avg_step_time  += (time.time() - start_time) / steps_per_ckpt
+                avg_loss       += step_loss / steps_per_ckpt
+
+                # Print updates in desired intervals (steps_per_ckpt).
+                if i_step % steps_per_ckpt == 0:
+                    self.save(save_dir)
+                    print("Step {}: step time = {};  loss = {}".format(
+                        i_step, avg_step_time, avg_loss))
+                    # Reset the running averages.
+                    avg_step_time = 0.0
+                    avg_loss = 0.0
+                i_step += 1
+
+        except (KeyboardInterrupt, SystemExit):
+            print("Training halted. Cleaning up . . . ")
+            self.save(save_dir)
+
 
     def __call__(self, encoder_inputs, decoder_inputs, forward_only=False):
         """Wrapper for self.step.

@@ -20,13 +20,13 @@ This project is still very much evolving each day, but the core goals are:
     bot.compile()
 
     # Get the desired data subset and reformat for training.
-    encoder_inputs, decoder_inputs = dataset.train_data
     encoder_inputs, decoder_inputs = data_utils.batch_concatenate(
-        encoder_inputs, decoder_inputs, batch_size, max_seq_len
+        dataset.train_data, batch_size, max_seq_len
     )
 
-    # Example showing how to do one training step (forward & backward pass).
-    bot(encoder_inputs[0], decoder_inputs[0])
+    # Train an epoch on the data. CTRL-C at any time to safely stop training.
+    # Model saved in FLAGS.ckpt_dir if specified, else "./out"
+    bot.train(encoder_sentences, decoder_sentences, steps_per_ckpt=FLAGS.steps_per_ckpt)
 
     # To save model parameters at any time, simply call save().
     # Default save location is $CWD/out. This can be set in the
