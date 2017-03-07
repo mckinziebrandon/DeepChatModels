@@ -1,40 +1,16 @@
-# STOP COMMITING SWAPS PLZ
-.*.swp
-*swp*
-./**/.*.swp
-**swp**
+# Note: Any leading '**' need to be followed by a '/'. 
+# Seems like '**/thing_to_ignore_always[/*]' covers all bases.
+**/.*.swp
+**/.log
+**/tmp*
+**/.idea/*
+**/.ipynb_checkpoints/*
+**/__pycache__/*
+**/*.pyc
+**/*.h5/*
+**/out/**
 
-*.log
-**.log
-
-*tmp*
-
-*.idea*
-**.idea*
-
-.idea/*
-.ipynb_checkpoints
-.ipynb_checkpoints/*
-
-__pycache__/*
-*pycache*
-*pycache*/*
-**.pyc
-
-**.h5
-*.h5
-*/*.h5
-
-*out/*
-out/*
-**out**
-
-**ckpt*
-*ckpt*
-models/*ckpt*
-models/*checkpoint*
-models/*out*
-models/*.pbtxt*
-models/*index*
-models/*meta*
-models/*.data*
+# Ignore collection of useful tf files that once 
+# existed in tf repo but have since been removed. 
+# They will be missed. 
+**/deleted_tensorflow_files/*
