@@ -1,5 +1,5 @@
-"""This shows how to run the new dynamic models (work in progress).
-"""
+#!/usr/bin/env python3
+"""This shows how to run the new dynamic models (work in progress)."""
 import time
 import tensorflow as tf
 from chatbot import DynamicBot
@@ -28,10 +28,10 @@ flags.DEFINE_integer("max_train_samples", int(3e6), "Limit training data size (0
 flags.DEFINE_integer("steps_per_ckpt", 50, "How many training steps to do per checkpoint.")
 flags.DEFINE_integer("batch_size", 64, "Batch size to use during training.")
 flags.DEFINE_integer("vocab_size", 20000, "English vocabulary size.")
-flags.DEFINE_integer("state_size", 256, "Size of each model layer.")
-flags.DEFINE_integer("embed_size", 256, "Size of word embedding dimension.")
+flags.DEFINE_integer("state_size", 128, "Size of each model layer.")
+flags.DEFINE_integer("embed_size", 128, "Size of word embedding dimension.")
 # TODO: maybe default as None would be better here? (chooses the true dataset max sequence length.)
-flags.DEFINE_integer("max_seq_len", 500, "Maximum number of words per sentence.")
+flags.DEFINE_integer("max_seq_len", 400, "Maximum number of words per sentence.")
 flags.DEFINE_integer("nb_epoch", 1, "Number of epochs over full train set to run.")
 
 # Float flags -- hyperparameters.
@@ -46,6 +46,7 @@ if __name__ == "__main__":
     dataset = Cornell(FLAGS.vocab_size)
 
     # Create chat model of choice. Pass in FLAGS values in case you want to change from defaults.
+    print("Creating DynamicBot.")
     bot = DynamicBot(dataset,
                      ckpt_dir=FLAGS.ckpt_dir,
                      batch_size=FLAGS.batch_size,
@@ -57,18 +58,25 @@ if __name__ == "__main__":
                      is_decoding=FLAGS.decode)
 
     # Don't forget to compile!
-    bot.compile(max_gradient=FLAGS.max_gradient, reset=True)
+    print("Compiling DynamicBot.")
+    bot.compile(max_gradient=FLAGS.max_gradient, reset=False)
 
-    # Get encoder/decoder training data, with shape [None, batch_size, max_seq_len].
-    encoder_sentences, decoder_sentences = io_utils.batch_concatenate(
-        dataset.train_data, FLAGS.batch_size, FLAGS.max_seq_len
-    )
+    if False:
+        # Get encoder/decoder training data, with shape [None, batch_size, max_seq_len].
+        print("Preparing data for training.")
+        encoder_sentences, decoder_sentences = io_utils.batch_concatenate(
+            dataset.train_data, FLAGS.batch_size, FLAGS.max_seq_len
+        )
 
-    # Train an epoch on the data. CTRL-C at any time to safely stop training.
-    # Model saved in FLAGS.ckpt_dir if specified, else "./out"
-    bot.train(encoder_sentences, decoder_sentences,
-              nb_epoch=FLAGS.nb_epoch,
-              steps_per_ckpt=FLAGS.steps_per_ckpt)
+        # Train an epoch on the data. CTRL-C at any time to safely stop training.
+        # Model saved in FLAGS.ckpt_dir if specified, else "./out"
+        print("Training bot. CTRL-C to stop training and start chatting.")
+        bot.train(encoder_sentences, decoder_sentences,
+                  nb_epoch=FLAGS.nb_epoch,
+                  steps_per_ckpt=FLAGS.steps_per_ckpt)
+
+    print("Initiating chat session")
+    bot.decode()
 
 
 

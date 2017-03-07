@@ -44,6 +44,7 @@ class DynamicBot(Model):
         self.dataset     = dataset
         self.state_size  = state_size
         self.embed_size  = embed_size
+        self.max_seq_len = max_seq_len
 
         # ==========================================================================================
         # Model Component Objects.
@@ -62,9 +63,8 @@ class DynamicBot(Model):
         # The sequence-to-sequence model.
         # ==========================================================================================
 
-        # Inputs (needed by feed_dict).
-        self.raw_encoder_inputs = tf.placeholder(tf.int32, (batch_size, max_seq_len))
-        self.raw_decoder_inputs = tf.placeholder(tf.int32, (batch_size, max_seq_len+1))
+        self.raw_encoder_inputs = tf.placeholder(tf.int32, (None, max_seq_len))
+        self.raw_decoder_inputs = tf.placeholder(tf.int32, (None, max_seq_len+1))
         # Embedded input tensors.
         encoder_inputs = encoder_embedder(self.raw_encoder_inputs, scope="encoder")
         decoder_inputs = decoder_embedder(self.raw_decoder_inputs, scope="decoder")
@@ -76,7 +76,7 @@ class DynamicBot(Model):
                                                  return_sequence=True)
         # Projection to vocab space.
         self.outputs = output_projection(decoder_outputs)
-        check_shape(self.outputs, [batch_size, max_seq_len+1, dataset.vocab_size], self.log)
+        check_shape(self.outputs, [None, max_seq_len+1, dataset.vocab_size], self.log)
 
         # ==========================================================================================
         # Training/evaluation operations.
@@ -84,7 +84,7 @@ class DynamicBot(Model):
 
         # Loss - target is to predict, as output, the next decoder input.
         target_labels = self.raw_decoder_inputs[:, 1:]
-        check_shape(target_labels, [batch_size, max_seq_len], self.log)
+        check_shape(target_labels, [None, max_seq_len], self.log)
         self.loss = tf.losses.sparse_softmax_cross_entropy(
             labels=target_labels, logits=self.outputs[:, :-1, :]
         )
@@ -128,8 +128,10 @@ class DynamicBot(Model):
         """
 
         if forward_only and decoder_inputs is None:
-            decoder_inputs = [GO_ID]
+            decoder_inputs = np.array([GO_ID] + [io_utils.PAD_ID] * 400)
+            decoder_inputs = decoder_inputs.reshape(1, 401)
         else:
+            # TODO: Why does this work?? No PAD!
             decoder_inputs = [np.hstack(([GO_ID], sent)) for sent in decoder_inputs]
 
         input_feed = {}
@@ -173,7 +175,7 @@ class DynamicBot(Model):
             print("Training halted. Cleaning up . . . ")
             self.save(save_dir)
 
-    def decode(self, ):
+    def decode(self):
         # We decode one sentence at a time.
         self.batch_size = 1
 
@@ -186,17 +188,23 @@ class DynamicBot(Model):
             response = self(sentence)
             print(response)
             sentence = io_utils.get_sentence()
+            if sentence == 'exit':
+                print("Farewell, human.")
+                break
 
     def __call__(self, sentence):
         """This is how we talk to the bot."""
         # Convert input sentence to token-ids.
         encoder_inputs = io_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence),
                                                    self.dataset.word_to_idx)
+
+        encoder_inputs += [io_utils.PAD_ID] * (self.max_seq_len - len(encoder_inputs))
+        encoder_inputs = np.array(encoder_inputs).reshape(1, self.max_seq_len)
         # Get output sentence from the chatbot.
-        _, logits = self.step([encoder_inputs], forward_only=True)
+        _, logits = self.step(encoder_inputs, forward_only=True)
 
         # TODO: temperature sampling support soon.
-        output_tokens = [np.argmax(logit, axis=1) for logit in logits]
+        output_tokens  = logits[0].argmax(axis=1)
         # If there is an EOS symbol in outputs, cut them at that point.
         if io_utils.EOS_ID in output_tokens:
             output_tokens = output_tokens[:output_tokens.index(io_utils.EOS_ID)]

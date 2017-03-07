@@ -1,5 +1,4 @@
 import tensorflow as tf
-__all__ = ['Embedder', 'DynamicRNN', 'OutputProjection']
 
 
 class Embedder:
@@ -82,13 +81,14 @@ class OutputProjection:
 
         with tf.variable_scope(scope or "output_projection_call"):
             # Swap 1st and 2nd indices to match expected input of map_fn.
-            b, m, s = outputs.shape.as_list()
-            reshaped_state = tf.reshape(outputs, [m, b, s])
+            #b, m, s = outputs.shape.as_list()
+            # TODO: make not hardcoded.
+            m = 401
+            s = 128
+            reshaped_state = tf.reshape(outputs, [m, -1, s])
             # Get projected output states; 3D Tensor.
             projected_state = tf.map_fn(single_proj, reshaped_state)
-            assert(projected_state.shape == (m, b, self.output_size))
+            #assert(projected_state.shape == (m, b, self.output_size))
             # Return projected outputs reshaped in same general ordering as input outputs.
-        return tf.reshape(projected_state, [b, m, self.output_size])
-
-
+        return tf.reshape(projected_state, [-1, m, self.output_size])
 
