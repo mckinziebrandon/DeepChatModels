@@ -46,35 +46,34 @@ class DynamicBot(Model):
         self.embed_size  = embed_size
         self.max_seq_len = max_seq_len
 
-        # ==========================================================================================
-        # Model Component Objects.
-        # ==========================================================================================
-
-        # Embedders.
-        encoder_embedder = Embedder(dataset.vocab_size, embed_size)
-        decoder_embedder = Embedder(dataset.vocab_size, embed_size)
-        # DynamicRNNs.
-        encoder = DynamicRNN(tf.contrib.rnn.GRUCell(state_size))
-        decoder = DynamicRNN(tf.contrib.rnn.GRUCell(state_size))
-        # OutputProjection.
-        output_projection = OutputProjection(state_size, dataset.vocab_size)
+        # Thanks to variable scoping, only need one object for multiple embeddings/rnns.
+        embedder    = Embedder(dataset.vocab_size, embed_size)
+        dynamic_rnn = DynamicRNN(state_size)
 
         # ==========================================================================================
-        # The sequence-to-sequence model.
+        # Input sentences are embedded and fed to an encoder.
         # ==========================================================================================
 
-        self.raw_encoder_inputs = tf.placeholder(tf.int32, (None, max_seq_len))
-        self.raw_decoder_inputs = tf.placeholder(tf.int32, (None, max_seq_len+1))
-        # Embedded input tensors.
-        encoder_inputs = encoder_embedder(self.raw_encoder_inputs, scope="encoder")
-        decoder_inputs = decoder_embedder(self.raw_decoder_inputs, scope="decoder")
-        # Encoder-Decoder.
-        encoder_state = encoder(encoder_inputs, scope="encoder")
-        decoder_outputs, decoder_state = decoder(decoder_inputs,
+        self.encoder_inputs = tf.placeholder(tf.int32, (None, max_seq_len))
+        # Create the embedder, then apply it on the inputs.
+        embedded_enc_inputs = embedder(self.encoder_inputs, scope="encoder")
+        # Create the encoder, then feed it the embedded inputs.
+        encoder_state = dynamic_rnn(embedded_enc_inputs, scope="encoder")
+
+        # ==========================================================================================
+        # When training, decoder is fed embedded target response sentences.
+        # ==========================================================================================
+
+        self.decoder_inputs = tf.placeholder(tf.int32, (None, max_seq_len + 1))
+        # Create the embedder, then apply it on the inputs.
+        embedded_dec_inputs = embedder(self.decoder_inputs, scope="decoder")
+        # Create the decoder, then feed it the embedded inputs.
+        decoder_outputs, decoder_state = dynamic_rnn(embedded_dec_inputs,
                                                  scope="decoder",
                                                  initial_state=encoder_state,
                                                  return_sequence=True)
         # Projection to vocab space.
+        output_projection = OutputProjection(state_size, dataset.vocab_size)
         self.outputs = output_projection(decoder_outputs)
         check_shape(self.outputs, [None, max_seq_len+1, dataset.vocab_size], self.log)
 
@@ -83,7 +82,7 @@ class DynamicBot(Model):
         # ==========================================================================================
 
         # Loss - target is to predict, as output, the next decoder input.
-        target_labels = self.raw_decoder_inputs[:, 1:]
+        target_labels = self.decoder_inputs[:, 1:]
         check_shape(target_labels, [None, max_seq_len], self.log)
         self.loss = tf.losses.sparse_softmax_cross_entropy(
             labels=target_labels, logits=self.outputs[:, :-1, :]
@@ -135,8 +134,8 @@ class DynamicBot(Model):
             decoder_inputs = [np.hstack(([GO_ID], sent)) for sent in decoder_inputs]
 
         input_feed = {}
-        input_feed[self.raw_encoder_inputs.name] = encoder_inputs
-        input_feed[self.raw_decoder_inputs.name] = decoder_inputs
+        input_feed[self.encoder_inputs.name] = encoder_inputs
+        input_feed[self.decoder_inputs.name] = decoder_inputs
 
         if not forward_only:
             fetches = [self.loss, self.apply_gradients]

@@ -30,8 +30,8 @@ class Embedder:
 class DynamicRNN:
     """Wrapper class for tensorflow's dynamic_rnn, since I prefer OOP."""
 
-    def __init__(self, cell, initial_state=None):
-        self.cell = cell
+    def __init__(self, state_size, initial_state=None):
+        self.state_size = state_size
         self.initial_state = initial_state
 
     def __call__(self, inputs, scope=None,
@@ -46,7 +46,8 @@ class DynamicRNN:
         if initial_state is not None:
             self.initial_state = initial_state
         with tf.variable_scope(scope or "dynamic_rnn_call"):
-            outputs, state = tf.nn.dynamic_rnn(self.cell, inputs,
+            cell = tf.contrib.rnn.GRUCell(self.state_size)
+            outputs, state = tf.nn.dynamic_rnn(cell, inputs,
                                                initial_state=self.initial_state,
                                                dtype=tf.float32)
 
@@ -81,14 +82,10 @@ class OutputProjection:
 
         with tf.variable_scope(scope or "output_projection_call"):
             # Swap 1st and 2nd indices to match expected input of map_fn.
-            #b, m, s = outputs.shape.as_list()
-            # TODO: make not hardcoded.
-            m = 401
-            s = 128
+            _, m, s = outputs.shape.as_list()
             reshaped_state = tf.reshape(outputs, [m, -1, s])
             # Get projected output states; 3D Tensor.
             projected_state = tf.map_fn(single_proj, reshaped_state)
-            #assert(projected_state.shape == (m, b, self.output_size))
             # Return projected outputs reshaped in same general ordering as input outputs.
         return tf.reshape(projected_state, [-1, m, self.output_size])
 
