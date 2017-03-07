@@ -3,8 +3,8 @@ import logging
 import os
 import sys
 
-import utils.data_utils as data_utils
-from utils.data_utils import sentence_to_token_ids, get_vocab_dicts
+import utils.io_utils as data_utils
+from utils.io_utils import sentence_to_token_ids, get_vocab_dicts
 import numpy as np
 
 def decode(bot, test_config):

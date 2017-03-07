@@ -14,7 +14,7 @@ import numpy as np
 import tensorflow as tf
 
 # User-defined imports.
-from utils import data_utils
+from utils import io_utils
 
 
 class Model(object):
@@ -170,11 +170,11 @@ class BucketModel(Model):
         for _ in range(self.batch_size):
             encoder_input, decoder_input = random.choice(data[bucket_id])
             # Encoder inputs are padded and then reversed.
-            encoder_pad = [data_utils.PAD_ID] * (encoder_size - len(encoder_input))
+            encoder_pad = [io_utils.PAD_ID] * (encoder_size - len(encoder_input))
             encoder_inputs.append(list(reversed(encoder_input + encoder_pad)))
             # Decoder inputs get an extra "GO" symbol, and are padded then.
-            decoder_pad= [data_utils.PAD_ID] * (decoder_size - len(decoder_input) - 1)
-            decoder_inputs.append([data_utils.GO_ID] + decoder_input + decoder_pad)
+            decoder_pad= [io_utils.PAD_ID] * (decoder_size - len(decoder_input) - 1)
+            decoder_inputs.append([io_utils.GO_ID] + decoder_input + decoder_pad)
 
         # Define some small helper functions before we re-index & weight.
         def inputs_to_unit(uid, inputs):
@@ -196,7 +196,7 @@ class BucketModel(Model):
         # Also set any decoder-input-weights to 0 that have PAD as target decoder output.
         for unit_id in range(decoder_size - 1):
             ids_with_pad_target = [b for b in range(self.batch_size)
-                                   if decoder_inputs[b][unit_id+1] == data_utils.PAD_ID]
+                                   if decoder_inputs[b][unit_id+1] == io_utils.PAD_ID]
             batch_weights[unit_id][ids_with_pad_target] = 0.0
 
         return batch_encoder_inputs, batch_decoder_inputs, batch_weights

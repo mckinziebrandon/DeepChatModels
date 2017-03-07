@@ -29,6 +29,15 @@ _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
 _DIGIT_RE   = re.compile(br"\d")
 
 
+def get_sentence():
+    """Simple function to prompt user for input and return it w/o newline.
+    Frequently used in chat sessions, of course.
+    """
+    sys.stdout.write("> ")
+    sys.stdout.flush()
+    return sys.stdin.readline()[:-1]
+
+
 def basic_tokenizer(sentence):
     """Very basic tokenizer: split the sentence into a list of tokens."""
     words = []

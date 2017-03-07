@@ -3,7 +3,7 @@ import logging
 import tensorflow as tf
 
 from data._dataset import Dataset
-from utils import data_utils
+from utils import io_utils
 
 
 class TestData(Dataset):
@@ -15,12 +15,12 @@ class TestData(Dataset):
         self._name = "test_data"
         self.vocab_size = vocab_size
         self._data_dir = '/home/brandon/terabyte/Datasets/test_data'
-        paths_triplet = data_utils.prepare_data(self._data_dir,
-                                     self._data_dir + "/train_from.txt",
-                                     self._data_dir + "/train_to.txt",
-                                     self._data_dir + "/valid_from.txt",
-                                     self._data_dir + "/valid_to.txt",
-                                     vocab_size, vocab_size)
+        paths_triplet = io_utils.prepare_data(self._data_dir,
+                                              self._data_dir + "/train_from.txt",
+                                              self._data_dir + "/train_to.txt",
+                                              self._data_dir + "/valid_from.txt",
+                                              self._data_dir + "/valid_to.txt",
+                                              vocab_size, vocab_size)
         train_path, valid_path, vocab_path = paths_triplet
         self.paths = {}
         self.paths['from_train']    = train_path[0]
@@ -65,8 +65,8 @@ class TestData(Dataset):
         """Return dictionary map from int -> str. """
         return self._idx_to_word
 
-    def translate(self, sentence):
-        return " ".join([tf.compat.as_str(self._idx_to_word[i]) for i in sentence]) + "."
+    def as_english(self, token_ids):
+        return " ".join([tf.compat.as_str(self._idx_to_word[i]) for i in token_ids]) + "."
 
     @property
     def data_dir(self):
@@ -89,7 +89,7 @@ class TestData(Dataset):
                     # Get source/target as list of word IDs.
                     source_ids = [int(x) for x in source.split()]
                     target_ids = [int(x) for x in target.split()]
-                    target_ids.append(data_utils.EOS_ID)
+                    target_ids.append(io_utils.EOS_ID)
                     # Add to data_set and retrieve next id list.
                     source_data.append(source_ids)
                     target_data.append(target_ids)

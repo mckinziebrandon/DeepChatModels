@@ -6,7 +6,7 @@ import unittest
 import tensorflow as tf
 import numpy as np
 import time
-from utils.data_utils import *
+from utils.io_utils import *
 from utils.config import TrainConfig
 
 import warnings

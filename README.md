@@ -25,13 +25,9 @@ This project is still very much evolving each day, but the core goals are:
     )
 
     # Train an epoch on the data. CTRL-C at any time to safely stop training.
-    # Model saved in FLAGS.ckpt_dir if specified, else "./out"
+    # Model saved in "./out" by default. To modify, just pass in
+    # 'save_dir=<your preferred directory>" as another argument in train.
     bot.train(encoder_sentences, decoder_sentences, steps_per_ckpt=FLAGS.steps_per_ckpt)
-
-    # To save model parameters at any time, simply call save().
-    # Default save location is $CWD/out. This can be set in the
-    # DynamicBot constructor as 'ckpt_dir="path_to_my_output_dir"'
-    bot.save()
 ```
 
 

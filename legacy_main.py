@@ -2,6 +2,7 @@
 """
 import tensorflow as tf
 import chatbot
+from data import Cornell, Ubuntu, WMT
 from utils import *
 
 # ==============================================================================================================================
@@ -57,6 +58,6 @@ if __name__ == "__main__":
     else:
         print("Preparing for training session.")
         config  = TrainConfig(FLAGS)
-        dataset = get_dataset(FLAGS.data_name, FLAGS.vocab_size)
+        dataset = Cornell(vocab_size=40000)
         chatbot.train(dataset, config)
 

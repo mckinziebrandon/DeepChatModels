@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from data._dataset import Dataset
-from utils import data_utils
+from utils import io_utils
 
 
 class Ubuntu(Dataset):
@@ -14,12 +14,12 @@ class Ubuntu(Dataset):
         self.vocab_size = vocab_size
         self._data_dir = '/home/brandon/terabyte/Datasets/ubuntu_dialogue_corpus'
 
-        paths_triplet = data_utils.prepare_data(self._data_dir,
-                                     self._data_dir + "/train_from.txt",
-                                     self._data_dir + "/train_to.txt",
-                                     self._data_dir + "/valid_from.txt",
-                                     self._data_dir + "/valid_to.txt",
-                                     vocab_size, vocab_size)
+        paths_triplet = io_utils.prepare_data(self._data_dir,
+                                              self._data_dir + "/train_from.txt",
+                                              self._data_dir + "/train_to.txt",
+                                              self._data_dir + "/valid_from.txt",
+                                              self._data_dir + "/valid_to.txt",
+                                              vocab_size, vocab_size)
 
         train_path, valid_path, vocab_path = paths_triplet
 
@@ -31,8 +31,8 @@ class Ubuntu(Dataset):
         self.paths['from_vocab']    = vocab_path[0]
         self.paths['to_vocab']      = vocab_path[1]
 
-        encoder_dictionaries = data_utils.get_vocab_dicts(self.paths['from_vocab'])
-        decoder_dictionaries = data_utils.get_vocab_dicts(self.paths['to_vocab'])
+        encoder_dictionaries = io_utils.get_vocab_dicts(self.paths['from_vocab'])
+        decoder_dictionaries = io_utils.get_vocab_dicts(self.paths['to_vocab'])
 
         self._word_to_idx, _ = encoder_dictionaries
         _, self._idx_to_word = decoder_dictionaries
@@ -100,7 +100,7 @@ class Ubuntu(Dataset):
                     # Get source/target as list of word IDs.
                     source_ids = [int(x) for x in source.split()]
                     target_ids = [int(x) for x in target.split()]
-                    target_ids.append(data_utils.EOS_ID)
+                    target_ids.append(io_utils.EOS_ID)
                     # Add to data_set and retrieve next id list.
                     source_data.append(source_ids)
                     target_data.append(target_ids)

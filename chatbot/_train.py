@@ -11,9 +11,9 @@ def train(bot, dataset, train_config):
     with bot.sess as sess:
         print("Reading data (limit: %d)." % train_config.max_train_samples)
         # Get data as token-ids.
-        train_set, dev_set = data_utils.read_data(dataset,
-                                                  bot.buckets,
-                                                  train_config.max_train_samples)
+        train_set, dev_set = io_utils.read_data(dataset,
+                                                bot.buckets,
+                                                train_config.max_train_samples)
 
         # Interpret train_buckets_scale[i] as [cumulative] frac of samples in bucket i or below.
         train_buckets_scale = _get_data_distribution(train_set, bot.buckets)

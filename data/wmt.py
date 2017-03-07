@@ -1,5 +1,5 @@
 from data._dataset import Dataset
-from utils.data_utils import *
+from utils.io_utils import *
 
 
 class WMT(Dataset):

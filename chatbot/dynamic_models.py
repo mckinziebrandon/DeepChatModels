@@ -9,7 +9,8 @@ import time
 import logging
 import numpy as np
 import tensorflow as tf
-from utils.data_utils import GO_ID
+from utils import io_utils
+from utils.io_utils import GO_ID
 from chatbot._models import Model
 from chatbot.model_components import *
 
@@ -113,7 +114,7 @@ class DynamicBot(Model):
         # initialize newly created model.
         super(DynamicBot, self).compile(reset=reset)
 
-    def step(self, encoder_inputs, decoder_inputs, forward_only=False):
+    def step(self, encoder_inputs, decoder_inputs=None, forward_only=False):
         """Run forward and backward pass on single data batch.
 
         Args:
@@ -126,7 +127,10 @@ class DynamicBot(Model):
             outputs: array with shape [batch_size, max_time+1, vocab_size]
         """
 
-        decoder_inputs = [np.hstack(([GO_ID], sent)) for sent in decoder_inputs]
+        if forward_only and decoder_inputs is None:
+            decoder_inputs = [GO_ID]
+        else:
+            decoder_inputs = [np.hstack(([GO_ID], sent)) for sent in decoder_inputs]
 
         input_feed = {}
         input_feed[self.raw_encoder_inputs.name] = encoder_inputs
@@ -142,7 +146,7 @@ class DynamicBot(Model):
             return outputs[0], outputs[1]  # loss, outputs
 
     def train(self, encoder_inputs, decoder_inputs,
-              nb_eboch=1, steps_per_ckpt=100, save_dir=None):
+              nb_epoch=1, steps_per_ckpt=100, save_dir=None):
         i_step = 0
         avg_loss = 0.0
         avg_step_time = 0.0
@@ -169,8 +173,32 @@ class DynamicBot(Model):
             print("Training halted. Cleaning up . . . ")
             self.save(save_dir)
 
+    def decode(self, ):
+        # We decode one sentence at a time.
+        self.batch_size = 1
 
-    def __call__(self, encoder_inputs, decoder_inputs, forward_only=False):
-        """Wrapper for self.step.
-        """
-        return self.step(encoder_inputs, decoder_inputs, forward_only)
+        # Decode from standard input.
+        print("Type \"exit\" to exit.")
+        print("Write stuff after the \">\" below and I, your robot friend, will respond.")
+
+        sentence = io_utils.get_sentence()
+        while sentence:
+            response = self(sentence)
+            print(response)
+            sentence = io_utils.get_sentence()
+
+    def __call__(self, sentence):
+        """This is how we talk to the bot."""
+        # Convert input sentence to token-ids.
+        encoder_inputs = io_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence),
+                                                   self.dataset.word_to_idx)
+        # Get output sentence from the chatbot.
+        _, logits = self.step([encoder_inputs], forward_only=True)
+
+        # TODO: temperature sampling support soon.
+        output_tokens = [np.argmax(logit, axis=1) for logit in logits]
+        # If there is an EOS symbol in outputs, cut them at that point.
+        if io_utils.EOS_ID in output_tokens:
+            output_tokens = output_tokens[:output_tokens.index(io_utils.EOS_ID)]
+
+        return self.dataset.as_words(output_tokens)
