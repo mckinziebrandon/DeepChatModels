@@ -54,17 +54,22 @@ class DynamicBot(Model):
         # Input sentences are embedded and fed to an encoder.
         # ==========================================================================================
 
-        self.encoder_inputs = tf.placeholder(tf.int32, (None, max_seq_len))
+        #self.encoder_inputs = tf.placeholder(tf.int32, (None, max_seq_len))
+        # If shape is not specified, you can feed any shape (what??)
+        self.encoder_inputs = tf.placeholder(tf.int32, [None, None])
+
         # Create the embedder, then apply it on the inputs.
         embedded_enc_inputs = embedder(self.encoder_inputs, scope="encoder")
         # Create the encoder, then feed it the embedded inputs.
         encoder_state = dynamic_rnn(embedded_enc_inputs, scope="encoder")
 
+
         # ==========================================================================================
         # When training, decoder is fed embedded target response sentences.
         # ==========================================================================================
 
-        self.decoder_inputs = tf.placeholder(tf.int32, (None, max_seq_len + 1))
+        #self.decoder_inputs = tf.placeholder(tf.int32, (None, max_seq_len + 1))
+        self.decoder_inputs = tf.placeholder(tf.int32, [None, None])
         # Create the embedder, then apply it on the inputs.
         embedded_dec_inputs = embedder(self.decoder_inputs, scope="decoder")
         # Create the decoder, then feed it the embedded inputs.
@@ -75,7 +80,8 @@ class DynamicBot(Model):
         # Projection to vocab space.
         output_projection = OutputProjection(state_size, dataset.vocab_size)
         self.outputs = output_projection(decoder_outputs)
-        check_shape(self.outputs, [None, max_seq_len+1, dataset.vocab_size], self.log)
+        #check_shape(self.outputs, [None, max_seq_len+1, dataset.vocab_size], self.log)
+        check_shape(self.outputs, [None, None, dataset.vocab_size], self.log)
 
         # ==========================================================================================
         # Training/evaluation operations.
@@ -83,9 +89,10 @@ class DynamicBot(Model):
 
         # Loss - target is to predict, as output, the next decoder input.
         target_labels = self.decoder_inputs[:, 1:]
-        check_shape(target_labels, [None, max_seq_len], self.log)
+        self.target_weights = tf.placeholder(tf.float32, [None, None])
+        check_shape(target_labels, [None, None], self.log)
         self.loss = tf.losses.sparse_softmax_cross_entropy(
-            labels=target_labels, logits=self.outputs[:, :-1, :]
+            labels=target_labels, logits=self.outputs[:, :-1, :], weights=self.target_weights
         )
 
         # Let superclass handle the boring stuff (dirs/more instance variables).
@@ -127,15 +134,20 @@ class DynamicBot(Model):
         """
 
         if forward_only and decoder_inputs is None:
-            decoder_inputs = np.array([GO_ID] + [io_utils.PAD_ID] * 400)
-            decoder_inputs = decoder_inputs.reshape(1, 401)
+            decoder_inputs = np.array([[GO_ID]])
         else:
-            # TODO: Why does this work?? No PAD!
             decoder_inputs = [np.hstack(([GO_ID], sent)) for sent in decoder_inputs]
 
         input_feed = {}
+        target_weights = list(np.ones(shape=(self.batch_size, self.max_seq_len)))
+        for b in range(self.batch_size):
+            for m in range(self.max_seq_len):
+                if decoder_inputs[b][m+1] == io_utils.PAD_ID:
+                    target_weights[b][m] = 0.0
+
         input_feed[self.encoder_inputs.name] = encoder_inputs
         input_feed[self.decoder_inputs.name] = decoder_inputs
+        input_feed[self.target_weights.name] = target_weights
 
         if not forward_only:
             fetches = [self.loss, self.apply_gradients]
@@ -194,11 +206,15 @@ class DynamicBot(Model):
     def __call__(self, sentence):
         """This is how we talk to the bot."""
         # Convert input sentence to token-ids.
-        encoder_inputs = io_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence),
-                                                   self.dataset.word_to_idx)
+        encoder_inputs = io_utils.sentence_to_token_ids(
+            tf.compat.as_bytes(sentence),self.dataset.word_to_idx)
 
-        encoder_inputs += [io_utils.PAD_ID] * (self.max_seq_len - len(encoder_inputs))
-        encoder_inputs = np.array(encoder_inputs).reshape(1, self.max_seq_len)
+        #encoder_inputs += [io_utils.PAD_ID] * (self.max_seq_len - len(encoder_inputs))
+        #encoder_inputs = np.array(encoder_inputs).reshape(1, self.max_seq_len)
+        encoder_inputs = np.array([encoder_inputs])
+        print("enc_in:", encoder_inputs)
+        print("shape enc in", encoder_inputs.shape)
+        assert(len(encoder_inputs.shape) == 2)
         # Get output sentence from the chatbot.
         _, logits = self.step(encoder_inputs, forward_only=True)
 

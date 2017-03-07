@@ -82,7 +82,9 @@ class OutputProjection:
 
         with tf.variable_scope(scope or "output_projection_call"):
             # Swap 1st and 2nd indices to match expected input of map_fn.
-            _, m, s = outputs.shape.as_list()
+            #_, m, s = outputs.shape.as_list()
+            m  = tf.shape(outputs)[1]
+            s  = tf.shape(outputs)[2]
             reshaped_state = tf.reshape(outputs, [m, -1, s])
             # Get projected output states; 3D Tensor.
             projected_state = tf.map_fn(single_proj, reshaped_state)

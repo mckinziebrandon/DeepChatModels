@@ -57,9 +57,10 @@ if __name__ == "__main__":
                      max_seq_len=FLAGS.max_seq_len,
                      is_decoding=FLAGS.decode)
 
+
     # Don't forget to compile!
     print("Compiling DynamicBot.")
-    bot.compile(max_gradient=FLAGS.max_gradient, reset=FLAGS.reset_model)
+    bot.compile(max_gradient=FLAGS.max_gradient, reset=True)# , reset=FLAGS.reset_model)
 
     # Get encoder/decoder training data, with shape [None, batch_size, max_seq_len].
     print("Preparing data for training.")
