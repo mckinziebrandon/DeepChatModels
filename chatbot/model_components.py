@@ -35,7 +35,7 @@ class DynamicRNN:
         self.initial_state = initial_state
 
     def __call__(self, inputs, scope=None,
-                 return_sequence=False, initial_state=None):
+                 return_sequence=False, initial_state=None, is_decoding=False):
         """Mimicking the tensorflow Layers API.
             Arguments:
               inputs: embedded input tensor of shape [batch_size, max_time, embed_size].

@@ -135,16 +135,16 @@ class DynamicBot(Model):
 
         if forward_only and decoder_inputs is None:
             decoder_inputs = np.array([[GO_ID]])
+            target_weights = np.array([[1.0]])
         else:
             decoder_inputs = [np.hstack(([GO_ID], sent)) for sent in decoder_inputs]
+            target_weights = list(np.ones(shape=(self.batch_size, self.max_seq_len)))
+            for b in range(self.batch_size):
+                for m in range(self.max_seq_len):
+                    if decoder_inputs[b][m+1] == io_utils.PAD_ID:
+                        target_weights[b][m] = 0.0
 
         input_feed = {}
-        target_weights = list(np.ones(shape=(self.batch_size, self.max_seq_len)))
-        for b in range(self.batch_size):
-            for m in range(self.max_seq_len):
-                if decoder_inputs[b][m+1] == io_utils.PAD_ID:
-                    target_weights[b][m] = 0.0
-
         input_feed[self.encoder_inputs.name] = encoder_inputs
         input_feed[self.decoder_inputs.name] = decoder_inputs
         input_feed[self.target_weights.name] = target_weights
@@ -209,11 +209,7 @@ class DynamicBot(Model):
         encoder_inputs = io_utils.sentence_to_token_ids(
             tf.compat.as_bytes(sentence),self.dataset.word_to_idx)
 
-        #encoder_inputs += [io_utils.PAD_ID] * (self.max_seq_len - len(encoder_inputs))
-        #encoder_inputs = np.array(encoder_inputs).reshape(1, self.max_seq_len)
         encoder_inputs = np.array([encoder_inputs])
-        print("enc_in:", encoder_inputs)
-        print("shape enc in", encoder_inputs.shape)
         assert(len(encoder_inputs.shape) == 2)
         # Get output sentence from the chatbot.
         _, logits = self.step(encoder_inputs, forward_only=True)
