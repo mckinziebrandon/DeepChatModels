@@ -35,6 +35,19 @@ class DynamicBot(Model):
                  lr_decay=0.98,
                  max_seq_len=500,
                  is_decoding=False):
+        """
+        Args:
+            dataset: 'Dataset' instance. Will likely be removed soon since it's only used
+                      for grabbing quantities like vocab size.
+            ckpt_dir: location where training checkpoint files will be saved.
+            batch_size: number of samples per training step.
+            state_size: number of nodes in the underlying RNN cell state.
+            embed_size: size of embedding dimension that integer IDs get mapped into.
+            learning_rate: float, typically in range [0, 1].
+            lr_decay: weight decay factor, not strictly necessary since default optimizer is adagrad.
+            max_seq_len: maximum allowed number of words per sentence.
+            is_decoding: boolean, should be False when training and True when chatting.
+        """
 
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('DynamicBotLogger')

@@ -5,7 +5,8 @@ from utils.io_utils import EOS_ID
 
 class Embedder:
     """Acts on tensors with integer elements, embedding them in a higher-dimensional
-    vector space."""
+    vector space. A single Embedder instance can embed both encoder and decoder by associating them with
+    distinct scopes. """
 
     def __init__(self, vocab_size, embed_size):
         self.vocab_size = vocab_size
@@ -30,7 +31,9 @@ class Embedder:
 
 
 class DynamicRNN:
-    """Wrapper class for tensorflow's dynamic_rnn, since I prefer OOP."""
+    """Wrapper class for the underling RNN. Customizes the graph operations executed depending on
+    if we are in a training session or chatting (decoding) session.
+    """
 
     def __init__(self, state_size, output_size, embed_size=128, initial_state=None):
         self.state_size = state_size
@@ -110,7 +113,10 @@ class DynamicRNN:
 
 
 class OutputProjection:
-    """An OutputProjection applies an affine transformation to network outputs."""
+    """An OutputProjection applies an affine transformation to network outputs.
+    Will likely be deleted soon, since functionality has now been incorporated within the
+    DynamicRNN class, which was required for online chat.
+    """
 
     def __init__(self, state_size, output_size):
         self.state_size = state_size
