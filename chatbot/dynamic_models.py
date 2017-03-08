@@ -64,20 +64,16 @@ class DynamicBot(Model):
         # Decoder inputs in embedding space. Shape is [None, None, embed_size].
         embedded_dec_inputs = embedder(self.decoder_inputs, scope="decoder")
         # For decoder, we want the full sequence of output states, not simply the last.
-        decoder_outputs, decoder_state = self.dynamic_rnn(embedded_dec_inputs,
-                                                     initial_state=encoder_state,
-                                                     return_sequence=True,
-                                                     scope="decoder")
+        decoder_outputs, decoder_state = self.dynamic_rnn(
+            embedded_dec_inputs,initial_state=encoder_state,return_sequence=True,is_decoding=is_decoding,scope="decoder")
 
         # Projection from state space to vocab space.
-        #output_projection = OutputProjection(state_size, self.vocab_size)
-        #self.outputs = output_projection(decoder_outputs)
         self.outputs = decoder_outputs
-        check_shape(self.outputs, [None, None, dataset.vocab_size], self.log)
+        #check_shape(self.outputs, [None, None, dataset.vocab_size], self.log)
 
         # Loss - target is to predict, as output, the next decoder input.
         target_labels = self.decoder_inputs[:, 1:]
-        check_shape(target_labels, [None, None], self.log)
+        #check_shape(target_labels, [None, None], self.log)
         self.loss = tf.losses.sparse_softmax_cross_entropy(
             labels=target_labels, logits=self.outputs[:, :-1, :], weights=self.target_weights
         )
@@ -165,6 +161,8 @@ class DynamicBot(Model):
             save_dir: (str) Path to save ckpt files. If None, defaults to self.ckpt_dir.
         """
 
+        print("Preparing data batches . . . ")
+
         # Get training data in proper format.
         encoder_inputs_train, decoder_inputs_train = io_utils.batch_concatenate(
             train_data, self.batch_size, self.max_seq_len)
@@ -206,6 +204,7 @@ class DynamicBot(Model):
     def decode(self):
         # We decode one sentence at a time.
         self.batch_size = 1
+        self.dynamic_rnn.is_decoding = True
 
         # Decode from standard input.
         print("Type \"exit\" to exit.")

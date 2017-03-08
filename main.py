@@ -55,27 +55,22 @@ if __name__ == "__main__":
                      learning_rate=FLAGS.learning_rate,
                      lr_decay=FLAGS.lr_decay,
                      max_seq_len=FLAGS.max_seq_len,
-                     is_decoding=FLAGS.decode)
+                     is_decoding=True)
 
 
     # Don't forget to compile!
     print("Compiling DynamicBot.")
-    bot.compile(max_gradient=FLAGS.max_gradient, reset=True)# , reset=FLAGS.reset_model)
-
-    # Get encoder/decoder training data, with shape [None, batch_size, max_seq_len].
-    print("Preparing data for training.")
-    encoder_sentences, decoder_sentences = io_utils.batch_concatenate(
-        dataset.train_data, FLAGS.batch_size, FLAGS.max_seq_len
-    )
+    bot.compile(max_gradient=FLAGS.max_gradient, reset=True)
 
     # Train an epoch on the data. CTRL-C at any time to safely stop training.
     # Model saved in FLAGS.ckpt_dir if specified, else "./out"
-    print("Training bot. CTRL-C to stop training and start chatting.")
-    bot.train(encoder_sentences, decoder_sentences,
-              nb_epoch=FLAGS.nb_epoch,
-              steps_per_ckpt=FLAGS.steps_per_ckpt)
-
     if False:
+        print("Training bot. CTRL-C to stop training and start chatting.")
+        bot.train(dataset.train_data, dataset.valid_data,
+                  nb_epoch=FLAGS.nb_epoch,
+                  steps_per_ckpt=FLAGS.steps_per_ckpt)
+
+    if True:
         print("Initiating chat session")
         bot.decode()
 
