@@ -65,18 +65,22 @@ class DynamicBot(Model):
         embedded_dec_inputs = embedder(self.decoder_inputs, scope="decoder")
         # For decoder, we want the full sequence of output states, not simply the last.
         decoder_outputs, decoder_state = self.dynamic_rnn(
-            embedded_dec_inputs,initial_state=encoder_state,return_sequence=True,is_decoding=is_decoding,scope="decoder")
+            embedded_dec_inputs,
+            initial_state=encoder_state,
+            return_sequence=True,
+            is_decoding=is_decoding,scope="decoder")
 
         # Projection from state space to vocab space.
         self.outputs = decoder_outputs
         #check_shape(self.outputs, [None, None, dataset.vocab_size], self.log)
 
-        # Loss - target is to predict, as output, the next decoder input.
-        target_labels = self.decoder_inputs[:, 1:]
-        #check_shape(target_labels, [None, None], self.log)
-        self.loss = tf.losses.sparse_softmax_cross_entropy(
-            labels=target_labels, logits=self.outputs[:, :-1, :], weights=self.target_weights
-        )
+        if not is_decoding:
+            # Loss - target is to predict, as output, the next decoder input.
+            target_labels = self.decoder_inputs[:, 1:]
+            #check_shape(target_labels, [None, None], self.log)
+            self.loss = tf.losses.sparse_softmax_cross_entropy(
+                labels=target_labels, logits=self.outputs[:, :-1, :], weights=self.target_weights
+            )
 
         # Let superclass handle the boring stuff (dirs/more instance variables).
         super(DynamicBot, self).__init__(dataset.name,
@@ -97,14 +101,15 @@ class DynamicBot(Model):
                             a model from scratch or load existing parameters from ckpt_dir.
         """
 
-        # First, define the training portion of the graph.
-        params = tf.trainable_variables()
-        if optimizer is None:
-            optimizer = tf.train.AdagradOptimizer(self.learning_rate)
-        gradients = tf.gradients(self.loss, params)
-        clipped_gradients, self.gradient_norm = tf.clip_by_global_norm(gradients, 10.0)
-        self.apply_gradients = optimizer.apply_gradients(
-            zip(clipped_gradients, params), global_step=self.global_step)
+        if not self.is_decoding:
+            # First, define the training portion of the graph.
+            params = tf.trainable_variables()
+            if optimizer is None:
+                optimizer = tf.train.AdagradOptimizer(self.learning_rate)
+            gradients = tf.gradients(self.loss, params)
+            clipped_gradients, self.gradient_norm = tf.clip_by_global_norm(gradients, 10.0)
+            self.apply_gradients = optimizer.apply_gradients(
+                zip(clipped_gradients, params), global_step=self.global_step)
 
         # Next, let superclass load param values from file (if not reset), otherwise
         # initialize newly created model.
@@ -123,6 +128,9 @@ class DynamicBot(Model):
 
         """
 
+        input_feed = {}
+        input_feed[self.encoder_inputs.name] = encoder_inputs
+
         if forward_only and decoder_inputs is None:
             decoder_inputs = np.array([[GO_ID]])
             target_weights = np.array([[1.0]])
@@ -133,20 +141,23 @@ class DynamicBot(Model):
                 for m in range(self.max_seq_len):
                     if decoder_inputs[b][m+1] == io_utils.PAD_ID:
                         target_weights[b][m] = 0.0
-
-        input_feed = {}
-        input_feed[self.encoder_inputs.name] = encoder_inputs
         input_feed[self.decoder_inputs.name] = decoder_inputs
         input_feed[self.target_weights.name] = target_weights
+
 
         if not forward_only:
             fetches = [self.loss, self.apply_gradients]
             step_loss, _ = self.sess.run(fetches, input_feed)
             return step_loss, None
         else:
-            fetches = [self.loss, self.outputs]
-            step_loss, step_outputs = self.sess.run(fetches, input_feed)
-            return step_loss, step_outputs
+            if self.is_decoding:
+                fetches = [self.outputs]
+                step_outputs = self.sess.run(fetches, input_feed)
+                return None, step_outputs[0]
+            else:
+                fetches = [self.loss, self.outputs]
+                step_loss, step_outputs = self.sess.run(fetches, input_feed)
+                return step_loss, step_outputs
 
     #def train(self, encoder_inputs, decoder_inputs,
     def train(self, train_data, valid_data,
@@ -204,12 +215,9 @@ class DynamicBot(Model):
     def decode(self):
         # We decode one sentence at a time.
         self.batch_size = 1
-        self.dynamic_rnn.is_decoding = True
-
         # Decode from standard input.
         print("Type \"exit\" to exit.")
         print("Write stuff after the \">\" below and I, your robot friend, will respond.")
-
         sentence = io_utils.get_sentence()
         while sentence:
             response = self(sentence)
@@ -226,14 +234,13 @@ class DynamicBot(Model):
             tf.compat.as_bytes(sentence),self.dataset.word_to_idx)
 
         encoder_inputs = np.array([encoder_inputs])
-        assert(len(encoder_inputs.shape) == 2)
         # Get output sentence from the chatbot.
         _, logits = self.step(encoder_inputs, forward_only=True)
 
-        # TODO: temperature sampling support soon.
-        output_tokens  = logits[0].argmax(axis=1)
+        output_tokens  = logits.argmax(axis=2)[:, 0]
+        print(output_tokens)
         # If there is an EOS symbol in outputs, cut them at that point.
-        if io_utils.EOS_ID in output_tokens:
-            output_tokens = output_tokens[:output_tokens.index(io_utils.EOS_ID)]
+        #if io_utils.EOS_ID in output_tokens:
+        #    output_tokens = output_tokens[:output_tokens.index(io_utils.EOS_ID)]
 
         return self.dataset.as_words(output_tokens)

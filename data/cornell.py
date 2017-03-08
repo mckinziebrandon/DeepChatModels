@@ -71,7 +71,7 @@ class Cornell(Dataset):
         return self._idx_to_word
 
     def as_words(self, sentence):
-        return " ".join([tf.compat.as_str(self._idx_to_word[i]) for i in sentence]) + "."
+        return " ".join([tf.compat.as_str(self._idx_to_word[i]) for i in sentence])
 
     @property
     def data_dir(self):

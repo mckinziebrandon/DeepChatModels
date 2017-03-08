@@ -32,11 +32,13 @@ class Embedder:
 class DynamicRNN:
     """Wrapper class for tensorflow's dynamic_rnn, since I prefer OOP."""
 
-    def __init__(self, state_size, output_size, initial_state=None):
+    def __init__(self, state_size, output_size, embed_size=128, initial_state=None):
         self.state_size = state_size
         self.initial_state = initial_state
         self.state_size = state_size
         self.output_size = output_size
+        self.embed_size = embed_size
+        self.out_to_embed = tf.get_variable("out_to_embed", [self.output_size, embed_size])
         w = tf.get_variable("w", [state_size, output_size], dtype=tf.float32)
         b = tf.get_variable("b", [output_size], dtype=tf.float32)
         self.projection = (w, b)
@@ -58,26 +60,24 @@ class DynamicRNN:
             outputs, state = tf.nn.dynamic_rnn(cell, inputs,
                                                initial_state=self.initial_state,
                                                dtype=tf.float32)
+            # Outputs has shape [batch_size, max_time, output_size].
             outputs = self.output_projection(outputs)
 
+            # outputs.shape in this case is [1, 1, output_size].
+            output_logits = [outputs[0][0]]
+            pred = tf.argmax(output_logits[-1])
             if is_decoding:
-                params = tf.get_variable("plzhelp", [20000, 128])
-                # outputs.shape in this case is [1, 1, output_size].
-                output_logits = [outputs[0, 0]]
-                pred = tf.argmax(output_logits[-1])
                 tf.get_variable_scope().reuse_variables()
                 output_length = 1
                 while output_length <= 20:
                     with tf.variable_scope("loop_function", reuse=True):
-                        inp = tf.nn.embedding_lookup(params, tf.argmax(output_logits[-1]))
-                        inp = tf.reshape(inp, [1, 1, 128])
+                        inp = tf.nn.embedding_lookup(self.out_to_embed, tf.argmax(output_logits[-1]))
+                        inp = tf.reshape(inp, [-1, -1, self.embed_size])
                     outputs, state = tf.nn.dynamic_rnn(cell, inp, initial_state=state, dtype=tf.float32)
                     outputs = self.output_projection(outputs)
-                    output_logits.append(outputs[0, 0])
+                    output_logits.append(outputs[0][0])
                     output_length += 1
-
-                print("OUTPUT LENGTH ", output_length)
-                outputs = tf.stack([output_logits], axis=1)
+                outputs = tf.reshape(tf.stack(output_logits), [-1, -1, self.output_size])
 
         if return_sequence:
             return outputs, state
