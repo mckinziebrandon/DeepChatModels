@@ -60,39 +60,24 @@ class DynamicRNN:
                                                dtype=tf.float32)
             outputs = self.output_projection(outputs)
 
-
             if is_decoding:
-
                 params = tf.get_variable("plzhelp", [20000, 128])
-                def loop_function(prev):
-                    prev_symbol = tf.argmax(prev)
-                    emb_prev = tf.nn.embedding_lookup(params, prev_symbol)
-                    return emb_prev
-
                 # outputs.shape in this case is [1, 1, output_size].
                 output_logits = [outputs[0, 0]]
                 pred = tf.argmax(output_logits[-1])
-
                 tf.get_variable_scope().reuse_variables()
                 output_length = 1
                 while output_length <= 20:
-
                     with tf.variable_scope("loop_function", reuse=True):
-                        inp = loop_function(output_logits[-1])
+                        inp = tf.nn.embedding_lookup(params, tf.argmax(output_logits[-1]))
                         inp = tf.reshape(inp, [1, 1, 128])
-
-                    outputs, state = tf.nn.dynamic_rnn(cell, inp,
-                                                       initial_state=state,
-                                                       dtype=tf.float32)
-
+                    outputs, state = tf.nn.dynamic_rnn(cell, inp, initial_state=state, dtype=tf.float32)
                     outputs = self.output_projection(outputs)
                     output_logits.append(outputs[0, 0])
                     output_length += 1
 
                 print("OUTPUT LENGTH ", output_length)
-                outputs = output_logits
-                outputs = tf.stack(outputs)
-                outputs = tf.stack([outputs])
+                outputs = tf.stack([output_logits], axis=1)
 
         if return_sequence:
             return outputs, state
