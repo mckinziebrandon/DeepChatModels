@@ -76,12 +76,12 @@ class DynamicRNN:
                 while output_length <= 20:
                     with tf.variable_scope("loop_function", reuse=True):
                         inp = tf.nn.embedding_lookup(self.out_to_embed, tf.argmax(output_logits[-1]))
-                        inp = tf.reshape(inp, [-1, -1, self.embed_size])
+                        inp = tf.reshape(inp, [1, -1, self.embed_size])
                     outputs, state = tf.nn.dynamic_rnn(cell, inp, initial_state=state, dtype=tf.float32)
                     outputs = self.output_projection(outputs)
                     output_logits.append(outputs[0][0])
                     output_length += 1
-                outputs = tf.reshape(tf.stack(output_logits), [-1, -1, self.output_size])
+                outputs = tf.reshape(tf.stack(output_logits), [1, -1, self.output_size])
 
         if return_sequence:
             return outputs, state

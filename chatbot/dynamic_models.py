@@ -249,10 +249,9 @@ class DynamicBot(Model):
         # Get output sentence from the chatbot.
         _, logits = self.step(encoder_inputs, forward_only=True)
 
-        output_tokens  = logits.argmax(axis=2)[:, 0]
-        print(output_tokens)
+        output_tokens  = np.array(logits).argmax(axis=2).flatten()
         # If there is an EOS symbol in outputs, cut them at that point.
-        #if io_utils.EOS_ID in output_tokens:
-        #    output_tokens = output_tokens[:output_tokens.index(io_utils.EOS_ID)]
+        if io_utils.EOS_ID in output_tokens:
+            output_tokens = output_tokens[:output_tokens.index(io_utils.EOS_ID)]
 
         return self.dataset.as_words(output_tokens)
