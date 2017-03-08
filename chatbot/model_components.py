@@ -1,4 +1,5 @@
 import tensorflow as tf
+from utils.io_utils import EOS_ID
 
 
 class Embedder:
@@ -30,17 +31,24 @@ class Embedder:
 class DynamicRNN:
     """Wrapper class for tensorflow's dynamic_rnn, since I prefer OOP."""
 
-    def __init__(self, state_size, initial_state=None):
+    def __init__(self, state_size, output_size, initial_state=None):
         self.state_size = state_size
         self.initial_state = initial_state
+        self.state_size = state_size
+        self.output_size = output_size
+        w = tf.get_variable("w", [state_size, output_size], dtype=tf.float32)
+        b = tf.get_variable("b", [output_size], dtype=tf.float32)
+        self.projection = (w, b)
+        self.is_decoding = False
 
     def __call__(self, inputs, scope=None,
-                 return_sequence=False, initial_state=None, is_decoding=False):
+                 return_sequence=False, initial_state=None):
         """Mimicking the tensorflow Layers API.
             Arguments:
               inputs: embedded input tensor of shape [batch_size, max_time, embed_size].
             Returns:
-                outputs, state
+                outputs:  logits after projection.
+                state:
         """
 
         if initial_state is not None:
@@ -50,11 +58,51 @@ class DynamicRNN:
             outputs, state = tf.nn.dynamic_rnn(cell, inputs,
                                                initial_state=self.initial_state,
                                                dtype=tf.float32)
+            outputs = self.output_projection(outputs)
+
+            if self.is_decoding:
+                # outputs.shape in this case is [1, 1, output_size].
+                out_seq = [outputs[0, 0]]
+                pred = tf.argmax(out_seq[-1])
+                tf.get_variable_scope().reuse_variables()
+                output_length = 1
+                # TODO: make cutoff number be parameter.
+                while output_length < 20 and pred != EOS_ID:
+                    outputs, state = tf.nn.dynamic_rnn(cell, outputs,
+                                                       initial_state=state,
+                                                       dtype=tf.float32)
+                    out_seq.append(outputs[0, 0])
+                    pred = tf.argmax(out_seq[-1])
+                    output_length += 1
+                outputs = out_seq
 
         if return_sequence:
             return outputs, state
         else:
             return state
+
+    def output_projection(self, outputs, scope=None):
+        """
+        :param outputs: [batch_size, max_time, state_size] (1st output from dynamic_rnn)
+        :return: projected outputs with shape [batch_size, max_time, output_size]
+        """
+
+        def single_proj(single_batch):
+            """
+            :param single_batch: [batch_size, state_size]
+            :return: tensor shape [batch_size, output_size]
+            """
+            return tf.matmul(single_batch, self.projection[0]) + self.projection[1]
+
+        with tf.variable_scope(scope or "output_projection_call"):
+            # Swap 1st and 2nd indices to match expected input of map_fn.
+            m  = tf.shape(outputs)[1]
+            s  = tf.shape(outputs)[2]
+            reshaped_state = tf.reshape(outputs, [m, -1, s])
+            # Get projected output states; 3D Tensor.
+            projected_state = tf.map_fn(single_proj, reshaped_state)
+            # Return projected outputs reshaped in same general ordering as input outputs.
+        return tf.reshape(projected_state, [-1, m, self.output_size])
 
 
 class OutputProjection:

@@ -33,63 +33,50 @@ class DynamicBot(Model):
                  embed_size=32,
                  learning_rate=0.4,
                  lr_decay=0.98,
-                 max_seq_len=None,
+                 max_seq_len=500,
                  is_decoding=False):
-
-        if max_seq_len is None:
-            max_seq_len = dataset.max_seq_len
 
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('DynamicBotLogger')
-        self.dataset     = dataset
         self.state_size  = state_size
         self.embed_size  = embed_size
         self.max_seq_len = max_seq_len
+        self.vocab_size  = dataset.vocab_size
+        # FIXME: Not sure how I feel about dataset as instance attribute.
+        # It's quite helpful in the decoding/chat sessions, but it feels even more odd
+        # passing it as an argument there.
+        self.dataset = dataset
 
         # Thanks to variable scoping, only need one object for multiple embeddings/rnns.
-        embedder    = Embedder(dataset.vocab_size, embed_size)
-        dynamic_rnn = DynamicRNN(state_size)
+        embedder    = Embedder(self.vocab_size, embed_size)
+        self.dynamic_rnn = DynamicRNN(state_size, self.vocab_size)
 
-        # ==========================================================================================
-        # Input sentences are embedded and fed to an encoder.
-        # ==========================================================================================
-
-        #self.encoder_inputs = tf.placeholder(tf.int32, (None, max_seq_len))
-        # If shape is not specified, you can feed any shape (what??)
+        # The following placeholder shapes correspond with [batch_size, seq_len].
         self.encoder_inputs = tf.placeholder(tf.int32, [None, None])
-
-        # Create the embedder, then apply it on the inputs.
-        embedded_enc_inputs = embedder(self.encoder_inputs, scope="encoder")
-        # Create the encoder, then feed it the embedded inputs.
-        encoder_state = dynamic_rnn(embedded_enc_inputs, scope="encoder")
-
-
-        # ==========================================================================================
-        # When training, decoder is fed embedded target response sentences.
-        # ==========================================================================================
-
-        #self.decoder_inputs = tf.placeholder(tf.int32, (None, max_seq_len + 1))
         self.decoder_inputs = tf.placeholder(tf.int32, [None, None])
-        # Create the embedder, then apply it on the inputs.
-        embedded_dec_inputs = embedder(self.decoder_inputs, scope="decoder")
-        # Create the decoder, then feed it the embedded inputs.
-        decoder_outputs, decoder_state = dynamic_rnn(embedded_dec_inputs,
-                                                 scope="decoder",
-                                                 initial_state=encoder_state,
-                                                 return_sequence=True)
-        # Projection to vocab space.
-        output_projection = OutputProjection(state_size, dataset.vocab_size)
-        self.outputs = output_projection(decoder_outputs)
-        #check_shape(self.outputs, [None, max_seq_len+1, dataset.vocab_size], self.log)
-        check_shape(self.outputs, [None, None, dataset.vocab_size], self.log)
+        self.target_weights = tf.placeholder(tf.float32, [None, None])
 
-        # ==========================================================================================
-        # Training/evaluation operations.
-        # ==========================================================================================
+        # Encoder inputs in embedding space. Shape is [None, None, embed_size].
+        embedded_enc_inputs = embedder(self.encoder_inputs, scope="encoder")
+        # Get encoder state after feeding the sequence(s). Shape is [None, state_size].
+        encoder_state = self.dynamic_rnn(embedded_enc_inputs, scope="encoder")
+
+        # Decoder inputs in embedding space. Shape is [None, None, embed_size].
+        embedded_dec_inputs = embedder(self.decoder_inputs, scope="decoder")
+        # For decoder, we want the full sequence of output states, not simply the last.
+        decoder_outputs, decoder_state = self.dynamic_rnn(embedded_dec_inputs,
+                                                     initial_state=encoder_state,
+                                                     return_sequence=True,
+                                                     scope="decoder")
+
+        # Projection from state space to vocab space.
+        #output_projection = OutputProjection(state_size, self.vocab_size)
+        #self.outputs = output_projection(decoder_outputs)
+        self.outputs = decoder_outputs
+        check_shape(self.outputs, [None, None, dataset.vocab_size], self.log)
 
         # Loss - target is to predict, as output, the next decoder input.
         target_labels = self.decoder_inputs[:, 1:]
-        self.target_weights = tf.placeholder(tf.float32, [None, None])
         check_shape(target_labels, [None, None], self.log)
         self.loss = tf.losses.sparse_softmax_cross_entropy(
             labels=target_labels, logits=self.outputs[:, :-1, :], weights=self.target_weights
@@ -105,7 +92,14 @@ class DynamicBot(Model):
                                          is_decoding)
 
     def compile(self, optimizer=None, max_gradient=5.0, reset=False):
-        """ Configure training process and initialize model. Inspired by Keras."""
+        """ Configure training process and initialize model. Inspired by Keras.
+
+        Args:
+            optimizer: instance of tf.train.Optimizer. Defaults to AdagradOptimizer.
+            max_gradient: float. Gradients will be clipped to be below this value.
+            reset: boolean. Tells Model superclass whether or not we wish to compile
+                            a model from scratch or load existing parameters from ckpt_dir.
+        """
 
         # First, define the training portion of the graph.
         params = tf.trainable_variables()
@@ -124,13 +118,13 @@ class DynamicBot(Model):
         """Run forward and backward pass on single data batch.
 
         Args:
-            encoder_inputs: shape [batch_size, max_time]
-            decoder_inputs: shape [batch_size, max_time]
+            encoder_inputs: token ids with shape [batch_size, max_time].
+            decoder_inputs: None, or token ids with shape [batch_size, max_time].
+            forward_only: if True, don't perform backward pass (gradient updates).
 
         Returns:
-            self.is_decoding is True:
-                loss: (scalar) for this batch.
-            outputs: array with shape [batch_size, max_time+1, vocab_size]
+            step_loss, step_outputs. If forward_only == False, then outputs is None
+
         """
 
         if forward_only and decoder_inputs is None:
@@ -151,22 +145,41 @@ class DynamicBot(Model):
 
         if not forward_only:
             fetches = [self.loss, self.apply_gradients]
-            outputs = self.sess.run(fetches, input_feed)
-            return outputs[0]  # loss
+            step_loss, _ = self.sess.run(fetches, input_feed)
+            return step_loss, None
         else:
             fetches = [self.loss, self.outputs]
-            outputs = self.sess.run(fetches, input_feed)
-            return outputs[0], outputs[1]  # loss, outputs
+            step_loss, step_outputs = self.sess.run(fetches, input_feed)
+            return step_loss, step_outputs
 
-    def train(self, encoder_inputs, decoder_inputs,
+    #def train(self, encoder_inputs, decoder_inputs,
+    def train(self, train_data, valid_data,
               nb_epoch=1, steps_per_ckpt=100, save_dir=None):
+        """Train bot on inputs for nb_epoch epochs, or until user types CTRL-C.
+
+        Args:
+            train_data:
+            valid_data:
+            nb_epoch: (int) Number of times to train over all entries in inputs.
+            steps_per_ckpt: (int) Specifies step interval for testing on validation data.
+            save_dir: (str) Path to save ckpt files. If None, defaults to self.ckpt_dir.
+        """
+
+        # Get training data in proper format.
+        encoder_inputs_train, decoder_inputs_train = io_utils.batch_concatenate(
+            train_data, self.batch_size, self.max_seq_len)
+
+        # Get validation data in proper format.
+        encoder_inputs_valid, decoder_inputs_valid = io_utils.batch_concatenate(
+            valid_data, self.batch_size, self.max_seq_len)
+
         i_step = 0
-        avg_loss = 0.0
-        avg_step_time = 0.0
+        avg_loss = avg_step_time = 0.0
         try:
             while True:
-                start_time      = time.time()
-                step_loss       = self.step(encoder_inputs[i_step], encoder_inputs[i_step])
+                start_time = time.time()
+                step_loss, _ = self.step(encoder_inputs_train[i_step],
+                                         encoder_inputs_train[i_step])
 
                 # Calculate running averages.
                 avg_step_time  += (time.time() - start_time) / steps_per_ckpt
@@ -175,11 +188,15 @@ class DynamicBot(Model):
                 # Print updates in desired intervals (steps_per_ckpt).
                 if i_step % steps_per_ckpt == 0:
                     self.save(save_dir)
-                    print("Step {}: step time = {};  loss = {}".format(
-                        i_step, avg_step_time, avg_loss))
+                    print("Step %d: step time = %.3f;  train loss = %.3f"
+                          % (i_step, avg_step_time, avg_loss))
+
+                    eval_loss, _ = self.step(encoder_inputs_train[i_step],
+                                             encoder_inputs_train[i_step])
+                    eval_ppx = np.exp(float(eval_loss)) if eval_loss < 300 else float("inf")
+                    print("\tEval: loss = %.3f;  perplexity = %.3f" % (eval_loss, eval_ppx))
                     # Reset the running averages.
-                    avg_step_time = 0.0
-                    avg_loss = 0.0
+                    avg_loss = avg_step_time = 0.0
                 i_step += 1
 
         except (KeyboardInterrupt, SystemExit):
