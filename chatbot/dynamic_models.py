@@ -72,12 +72,12 @@ class DynamicBot(Model):
 
         # Projection from state space to vocab space.
         self.outputs = decoder_outputs
-        #check_shape(self.outputs, [None, None, dataset.vocab_size], self.log)
 
         if not is_decoding:
+            check_shape(self.outputs, [None, None, dataset.vocab_size], self.log)
             # Loss - target is to predict, as output, the next decoder input.
             target_labels = self.decoder_inputs[:, 1:]
-            #check_shape(target_labels, [None, None], self.log)
+            check_shape(target_labels, [None, None], self.log)
             self.loss = tf.losses.sparse_softmax_cross_entropy(
                 labels=target_labels, logits=self.outputs[:, :-1, :], weights=self.target_weights
             )
@@ -159,7 +159,6 @@ class DynamicBot(Model):
                 step_loss, step_outputs = self.sess.run(fetches, input_feed)
                 return step_loss, step_outputs
 
-    #def train(self, encoder_inputs, decoder_inputs,
     def train(self, train_data, valid_data,
               nb_epoch=1, steps_per_ckpt=100, save_dir=None):
         """Train bot on inputs for nb_epoch epochs, or until user types CTRL-C.

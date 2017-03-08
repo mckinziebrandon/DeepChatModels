@@ -65,6 +65,7 @@ class DynamicRNN:
 
             # outputs.shape in this case is [1, 1, output_size].
             output_logits = [outputs[0][0]]
+            assert(output_logits[0].shape == self.output_size)
             pred = tf.argmax(output_logits[-1])
             if is_decoding:
                 tf.get_variable_scope().reuse_variables()
