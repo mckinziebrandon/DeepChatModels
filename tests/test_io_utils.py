@@ -46,7 +46,7 @@ class TestIOUtils(unittest.TestCase):
         decoder_sentences.append(decoder_batch)
 
         self.assertEqual(len(encoder_sentences), len(decoder_sentences))
-        gen = batch_generator(encoder_sentences, decoder_sentences, self.batch_size)
+        gen = batch_generator(encoder_sentences, decoder_sentences)
 
         batch_ctr = 0
         for batch_gen in gen:

@@ -92,7 +92,7 @@ class DynamicBot(Model):
             target_labels = self.decoder_inputs[:, 1:]
             check_shape(target_labels, [None, None], self.log)
             self.loss = tf.losses.sparse_softmax_cross_entropy(
-                labels=target_labels, logits=self.outputs[:, :-1, :], weights=self.target_weights
+                labels=target_labels, logits=self.outputs[:, :-1, :], weights=self.target_weights[:, :-1]
             )
 
         # Let superclass handle the boring stuff (dirs/more instance variables).
@@ -132,33 +132,38 @@ class DynamicBot(Model):
         """Run forward and backward pass on single data batch.
 
         Args:
-            encoder_batch: token ids with shape [batch_size, max_time].
-            decoder_batch: None, or token ids with shape [batch_size, max_time].
+            encoder_batch: integer numpy array with shape [batch_size, seq_len].
+            decoder_batch: None, or numpy array with shape [batch_size, seq_len].
             forward_only: if True, don't perform backward pass (gradient updates).
 
         Returns:
             step_loss, step_outputs. If forward_only == False, then outputs is None
 
         """
-        assert(encoder_batch.shape == decoder_batch.shape)
-        max_time = decoder_batch.shape[1]
-
-        input_feed = {}
-        input_feed[self.encoder_inputs.name] = encoder_batch
+        assert encoder_batch.shape == decoder_batch.shape
+        assert len(encoder_batch.shape) == 2
+        if decoder_batch is None and not forward_only:
+            self.log.error("Can't perform gradient updates without a decoder_batch.")
 
         if forward_only and decoder_batch is None:
+            # This is true if and only if we are in a chat session.
+            # In a chat session, our batch size is 1 by definition, and
+            # the inputs are fed 1 token at a time.
             decoder_batch = np.array([[GO_ID]])
             target_weights = np.array([[1.0]])
         else:
-            target_weights = list(np.ones(shape=decoder_batch.shape))
-            decoder_batch = [np.hstack(([GO_ID], sent)) for sent in decoder_batch]
-            for b in range(self.batch_size):
-                for m in range(max_time):
-                    if decoder_batch[b][m+1] == io_utils.PAD_ID:
-                        target_weights[b][m] = 0.0
+            # Prepend GO token to each sample in decoder_batch.
+            decoder_batch   = np.insert(decoder_batch, 0, [GO_ID], axis=1)
+            # Define weights to be 0 if next decoder input is PAD, else 1.
+            target_weights  = np.ones(shape=decoder_batch.shape)
+            pad_indices = np.where(decoder_batch == io_utils.PAD_ID)
+            for b, m in np.stack(pad_indices, axis=1):
+                target_weights[b, m-1] = 0.0
+
+        input_feed = {}
+        input_feed[self.encoder_inputs.name] = encoder_batch
         input_feed[self.decoder_inputs.name] = decoder_batch
         input_feed[self.target_weights.name] = target_weights
-
 
         if not forward_only:
             fetches = [self.loss, self.apply_gradients]
@@ -179,8 +184,8 @@ class DynamicBot(Model):
         """Train bot on inputs for nb_epoch epochs, or until user types CTRL-C.
 
         Args:
-            train_data:
-            valid_data:
+            train_data: (2-tuple) property of any 'Dataset' instance.
+            valid_data: (2-tuple) property of any 'Dataset' instance.
             nb_epoch: (int) Number of times to train over all entries in inputs.
             steps_per_ckpt: (int) Specifies step interval for testing on validation data.
             save_dir: (str) Path to save ckpt files. If None, defaults to self.ckpt_dir.
@@ -196,33 +201,32 @@ class DynamicBot(Model):
         # Get validation data as batch-padded lists.
         encoder_inputs_valid, decoder_inputs_valid = batch_padded(valid_data, self.batch_size)
 
-        i_step = 0
-        avg_loss = avg_step_time = 0.0
         try:
-            # Create data generators.
-            train_gen = batch_generator(encoder_inputs_train, decoder_inputs_train)
-            valid_gen = batch_generator(encoder_inputs_valid, decoder_inputs_valid)
-            for encoder_batch, decoder_batch in train_gen:
-                start_time = time.time()
-                step_loss, _ = self.step(encoder_batch, decoder_batch)
-
-                # Calculate running averages.
-                avg_step_time  += (time.time() - start_time) / steps_per_ckpt
-                avg_loss       += step_loss / steps_per_ckpt
-
-                # Print updates in desired intervals (steps_per_ckpt).
-                if i_step % steps_per_ckpt == 0:
-                    # Save current parameter values in a new checkpoint file.
-                    self.save(save_dir)
-                    # Report training averages.
-                    print("Step %d: step time = %.3f;  perplexity = %.3f"
-                          % (i_step, avg_step_time, perplexity(avg_loss)))
-                    # Generate & run a batch of validation data.
-                    eval_loss, _ = self.step(*next(valid_gen))
-                    print("Validation perplexity: %.3f" % perplexity(eval_loss))
-                    # Reset the running averages.
-                    avg_loss = avg_step_time = 0.0
-                i_step += 1
+            for _ in range(nb_epoch):
+                i_step = 0
+                avg_loss = avg_step_time = 0.0
+                # Create data generators.
+                train_gen = batch_generator(encoder_inputs_train, decoder_inputs_train)
+                valid_gen = batch_generator(encoder_inputs_valid, decoder_inputs_valid)
+                for encoder_batch, decoder_batch in train_gen:
+                    start_time = time.time()
+                    step_loss, _ = self.step(encoder_batch, decoder_batch)
+                    # Calculate running averages.
+                    avg_step_time  += (time.time() - start_time) / steps_per_ckpt
+                    avg_loss       += step_loss / steps_per_ckpt
+                    # Print updates in desired intervals (steps_per_ckpt).
+                    if i_step % steps_per_ckpt == 0:
+                        # Save current parameter values in a new checkpoint file.
+                        self.save(save_dir)
+                        # Report training averages.
+                        print("Step %d: step time = %.3f;  perplexity = %.3f"
+                              % (i_step, avg_step_time, perplexity(avg_loss)))
+                        # Generate & run a batch of validation data.
+                        eval_loss, _ = self.step(*next(valid_gen))
+                        print("Validation perplexity: %.3f" % perplexity(eval_loss))
+                        # Reset the running averages.
+                        avg_loss = avg_step_time = 0.0
+                    i_step += 1
         except (KeyboardInterrupt, SystemExit):
             print("Training halted. Cleaning up . . . ")
             self.save(save_dir)

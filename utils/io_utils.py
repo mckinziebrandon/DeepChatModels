@@ -98,7 +98,7 @@ def batch_padded(data, batch_size):
     num_residual = len(encoder_sentences) % batch_size
     for b in range(num_batches):
         batch = get_batch(b * batch_size)
-        padded_encoder_batches.append(padded_batch(batch[0], batch[-1]))
+        padded_encoder_batches.append(padded_batch(batch[0], batch[-1])[:, ::-1])
         padded_decoder_batches.append(padded_batch(batch[1], batch[-1]))
         expected_shape = (batch_size, batch[-1])
         assert padded_encoder_batches[-1].shape == padded_decoder_batches[-1].shape
