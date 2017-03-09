@@ -186,8 +186,11 @@ class DynamicBot(Model):
             save_dir: (str) Path to save ckpt files. If None, defaults to self.ckpt_dir.
         """
 
-        print("Preparing data batches . . . ")
+        def perplexity(loss):
+            """Common alternative to loss in NLP models."""
+            return np.exp(float(loss)) if loss < 300 else float("inf")
 
+        print("Preparing data batches . . . ")
         # Get training data as batch_padded lists.
         encoder_inputs_train, decoder_inputs_train = batch_padded(train_data, self.batch_size)
         # Get validation data as batch-padded lists.
@@ -209,18 +212,17 @@ class DynamicBot(Model):
 
                 # Print updates in desired intervals (steps_per_ckpt).
                 if i_step % steps_per_ckpt == 0:
+                    # Save current parameter values in a new checkpoint file.
                     self.save(save_dir)
-                    print("Step %d: step time = %.3f;  train loss = %.3f"
-                          % (i_step, avg_step_time, avg_loss))
-
-                    enc_valid_batch, dec_valid_batch = next(valid_gen)
-                    eval_loss, _ = self.step(enc_valid_batch, dec_valid_batch)
-                    eval_ppx = np.exp(float(eval_loss)) if eval_loss < 300 else float("inf")
-                    print("\tEval: loss = %.3f;  perplexity = %.3f" % (eval_loss, eval_ppx))
+                    # Report training averages.
+                    print("Step %d: step time = %.3f;  perplexity = %.3f"
+                          % (i_step, avg_step_time, perplexity(avg_loss)))
+                    # Generate & run a batch of validation data.
+                    eval_loss, _ = self.step(*next(valid_gen))
+                    print("Validation perplexity: %.3f" % perplexity(eval_loss))
                     # Reset the running averages.
                     avg_loss = avg_step_time = 0.0
                 i_step += 1
-
         except (KeyboardInterrupt, SystemExit):
             print("Training halted. Cleaning up . . . ")
             self.save(save_dir)

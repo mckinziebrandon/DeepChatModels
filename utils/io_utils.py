@@ -51,13 +51,24 @@ def batch_padded(data, batch_size):
     Need encoder & decoder inputs together in case we remove sequences.
 
     Args:
-        data: Any DataSet.train_data or Dataset.valid_data
-        batch_size:     size of 2nd dimension of returned array.
+        data: 2-tuple, where both entries are lists of token-id sentence lists.
+              Assumed to be form of any DataSet.train_data or Dataset.valid_data.
+        batch_size: (int) determines how the data is partitioned (batched) and dynamically padded.
 
     Returns:
-        numpy array of shape [num_batches, batch_size, max_enc_seq], where
-        num_batches = len(sentences) // batch_size
+        2-tuple containing the batch-padded data.
+        Each of the tuple elements is a list of the same length.
+        Each such list entry is a 2D numpy array (a data batch).
         """
+
+    # Extract entries in the data 2-tuple.
+    encoder_sentences, decoder_sentences = data
+    num_sentences = len(encoder_sentences)
+
+    assert(len(encoder_sentences) == len(decoder_sentences))
+    if num_sentences < batch_size:
+        raise ValueError("Received %d sentences, but need at least %d to batch."
+                         % (len(encoder_sentences), batch_size))
 
     def padded_batch(sentences, max_length, is_residual=False):
         padded = np.array([s + [PAD_ID] * (max_length - len(s)) for s in sentences])
@@ -73,15 +84,6 @@ def batch_padded(data, batch_size):
         max_dec_len = max([len(s) for s in dec_list])
         return max(max_enc_len, max_dec_len)
 
-    # Extract entries in the data 2-tuple.
-    encoder_sentences, decoder_sentences = data
-    num_sentences = len(encoder_sentences)
-
-    assert(len(encoder_sentences) == len(decoder_sentences))
-    if num_sentences < batch_size:
-        raise ValueError("Received %d sentences, but need at least %d to batch."
-                         % (len(encoder_sentences), batch_size))
-
     def get_batch(start, is_residual=False):
         stop = start + batch_size if not is_residual else num_sentences
         enc_batch   = encoder_sentences[start:stop]
@@ -89,6 +91,7 @@ def batch_padded(data, batch_size):
         max_sent_len = longest_sentence(enc_batch, dec_batch)
         return enc_batch, dec_batch, max_sent_len
 
+    # TODO: Methinks this is asking to be refactored a bit.
     padded_encoder_batches = []
     padded_decoder_batches = []
     num_batches  = len(encoder_sentences) // batch_size
@@ -111,7 +114,8 @@ def batch_padded(data, batch_size):
 
 
 def batch_generator(padded_encoder_batches, padded_decoder_batches):
-    """
+    """Standard generator function that yields batch inputs that can be directly fed to
+    any model's train function.
     """
     assert(len(padded_encoder_batches) == len(padded_decoder_batches))
     for encoder_batch, decoder_batch in zip(padded_encoder_batches, padded_decoder_batches):
