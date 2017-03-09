@@ -62,7 +62,7 @@ class DynamicBot(Model):
 
         # Thanks to variable scoping, only need one object for multiple embeddings/rnns.
         embedder    = Embedder(self.vocab_size, embed_size)
-        self.dynamic_rnn = DynamicRNN(state_size, self.vocab_size)
+        self.dynamic_rnn = DynamicRNN(state_size, self.vocab_size, embed_size=self.embed_size)
 
         # The following placeholder shapes correspond with [batch_size, seq_len].
         self.encoder_inputs = tf.placeholder(tf.int32, [None, None])

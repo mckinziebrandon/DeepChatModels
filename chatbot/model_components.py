@@ -15,7 +15,7 @@ class Embedder:
     def __call__(self, inputs, scope=None):
         """Mimicking the tensorflow Layers API.
             Arguments:
-              inputs: input tensor of shape [batch_size, max_time].
+              inputs: input tensor of shape [batch_size, max_tgraph & summaries ime].
             Returns:
               Output tensor of shape [batch_size, max_time, embed_size]
         """
@@ -35,7 +35,7 @@ class DynamicRNN:
     if we are in a training session or chatting (decoding) session.
     """
 
-    def __init__(self, state_size, output_size, embed_size=128, initial_state=None):
+    def __init__(self, state_size, output_size, embed_size=256, initial_state=None):
         self.state_size = state_size
         self.initial_state = initial_state
         self.state_size = state_size

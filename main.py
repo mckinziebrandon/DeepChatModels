@@ -18,17 +18,16 @@ from utils import io_utils
 flags = tf.app.flags
 # String flags -- directories and dataset name(s).
 flags.DEFINE_string("ckpt_dir", "out", "Directory in which checkpoint files will be saved.")
-flags.DEFINE_string("log_dir", "out/logs", "Directory in which checkpoint files will be saved.")
+flags.DEFINE_string("log_dir", "out/logs", "Directory in which graph & summaries will be saved.")
 # Boolean flags.
 flags.DEFINE_boolean("reset_model", False, "wipe output directory; new params")
 flags.DEFINE_boolean("decode", False, "If true, will activate chat session with user.")
 
 # Integer flags.
-flags.DEFINE_integer("max_train_samples", int(3e6), "Limit training data size (0: no limit).")
 flags.DEFINE_integer("steps_per_ckpt", 50, "How many training steps to do per checkpoint.")
 flags.DEFINE_integer("batch_size", 64, "Batch size to use during training.")
-flags.DEFINE_integer("vocab_size", 20000, "English vocabulary size.")
-flags.DEFINE_integer("state_size", 128, "Size of each model layer.")
+flags.DEFINE_integer("vocab_size", 20000, "Number of unique words/tokens to use.")
+flags.DEFINE_integer("state_size", 128, "Number of units in the RNN cell.")
 flags.DEFINE_integer("embed_size", 128, "Size of word embedding dimension.")
 # TODO: maybe default as None would be better here? (chooses the true dataset max sequence length.)
 flags.DEFINE_integer("max_seq_len", 400, "Maximum number of words per sentence.")
@@ -65,7 +64,7 @@ if __name__ == "__main__":
     # Train an epoch on the data. CTRL-C at any time to safely stop training.
     # Model saved in FLAGS.ckpt_dir if specified, else "./out"
     if not FLAGS.decode:
-        print("Training bot. CTRL-C to stop training and start chatting.")
+        print("Training bot. CTRL-C to stop training.")
         bot.train(dataset.train_data, dataset.valid_data,
                   nb_epoch=FLAGS.nb_epoch,
                   steps_per_ckpt=FLAGS.steps_per_ckpt)
