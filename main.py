@@ -53,7 +53,6 @@ if __name__ == "__main__":
                      embed_size=FLAGS.embed_size,
                      learning_rate=FLAGS.learning_rate,
                      lr_decay=FLAGS.lr_decay,
-                     max_seq_len=FLAGS.max_seq_len,
                      is_decoding=FLAGS.decode)
 
 

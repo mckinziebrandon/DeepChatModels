@@ -6,11 +6,11 @@ import sys
 sys.path.append("..")
 from data import Cornell
 from chatbot import DynamicBot
-from utils import batch_concatenate
+from utils import batch_padded
 
 def get_batched_data(data, batch_size, max_seq_len):
     encoder_sentences, decoder_sentences = data
-    encoder_sentences, decoder_sentences = batch_concatenate(
+    encoder_sentences, decoder_sentences = batch_padded(
         encoder_sentences, decoder_sentences,
         batch_size, max_seq_len=max_seq_len
     )

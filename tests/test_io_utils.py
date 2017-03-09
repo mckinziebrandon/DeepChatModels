@@ -23,7 +23,7 @@ class TestIOUtils(unittest.TestCase):
         log = logging.getLogger('TestIOUtils.test_scope')
         self.dataset = TestData()
 
-        log.info("Testing batch_concatenate on TestData.")
+        log.info("Testing batch_padded on TestData.")
         data = self.dataset.train_data
         self.assertIsInstance(data, tuple)
         self.assertTrue(len(data) == 2)

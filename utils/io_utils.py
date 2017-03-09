@@ -46,13 +46,26 @@ def basic_tokenizer(sentence):
     return [w for w in words if w]
 
 
-def _padded(encoder_sentences, decoder_sentences, batch_size):
+def batch_padded(data, batch_size):
+    """Returns reshaped & padded numpy array of sentences.
+    Need encoder & decoder inputs together in case we remove sequences.
 
-    def padded_batch(sentences, max_length):
-        padded = []
-        for sentence in sentences:
-            pad = [PAD_ID] * (max_length - len(sentence))
-            padded.append(sentence + pad)
+    Args:
+        data: Any DataSet.train_data or Dataset.valid_data
+        batch_size:     size of 2nd dimension of returned array.
+
+    Returns:
+        numpy array of shape [num_batches, batch_size, max_enc_seq], where
+        num_batches = len(sentences) // batch_size
+        """
+
+    def padded_batch(sentences, max_length, is_residual=False):
+        padded = np.array([s + [PAD_ID] * (max_length - len(s)) for s in sentences])
+        if not is_residual: expected_shape = (batch_size, max_length)
+        else: expected_shape = (len(sentences), max_length)
+        assert padded.shape == expected_shape, \
+            "Expected padded_batch shape %r but found %r" \
+            % (expected_shape, padded.shape)
         return padded
 
     def longest_sentence(enc_list, dec_list):
@@ -60,79 +73,49 @@ def _padded(encoder_sentences, decoder_sentences, batch_size):
         max_dec_len = max([len(s) for s in dec_list])
         return max(max_enc_len, max_dec_len)
 
-    padded_encoder_sentences = []
-    padded_decoder_sentences = []
+    # Extract entries in the data 2-tuple.
+    encoder_sentences, decoder_sentences = data
+    num_sentences = len(encoder_sentences)
+
+    assert(len(encoder_sentences) == len(decoder_sentences))
+    if num_sentences < batch_size:
+        raise ValueError("Received %d sentences, but need at least %d to batch."
+                         % (len(encoder_sentences), batch_size))
+
+    def get_batch(start, is_residual=False):
+        stop = start + batch_size if not is_residual else num_sentences
+        enc_batch   = encoder_sentences[start:stop]
+        dec_batch   = decoder_sentences[start:stop]
+        max_sent_len = longest_sentence(enc_batch, dec_batch)
+        return enc_batch, dec_batch, max_sent_len
+
+    padded_encoder_batches = []
+    padded_decoder_batches = []
     num_batches  = len(encoder_sentences) // batch_size
     num_residual = len(encoder_sentences) % batch_size
     for b in range(num_batches):
-        start = b * batch_size
-        encoder_batch = encoder_sentences[start:start+batch_size]
-        decoder_batch = decoder_sentences[start:start+batch_size]
-        max_seq_len = longest_sentence(encoder_batch, decoder_batch)
-        padded_encoder_sentences += padded_batch(encoder_batch, max_seq_len)
-        padded_decoder_sentences += padded_batch(decoder_batch, max_seq_len)
+        batch = get_batch(b * batch_size)
+        padded_encoder_batches.append(padded_batch(batch[0], batch[-1]))
+        padded_decoder_batches.append(padded_batch(batch[1], batch[-1]))
+        expected_shape = (batch_size, batch[-1])
+        assert padded_encoder_batches[-1].shape == padded_decoder_batches[-1].shape
+        assert padded_encoder_batches[-1].shape == expected_shape, \
+            "Expected batch number %d to have shape %r but found shape %r" %\
+            (b, expected_shape, padded_encoder_batches[-1].shape)
 
     # Append residual (leftover) sentences.
-    encoder_batch   = encoder_sentences[-num_residual:]
-    decoder_batch   = decoder_sentences[-num_residual:]
-    max_seq_len = longest_sentence(encoder_batch, decoder_batch)
-    padded_encoder_sentences += padded_batch(encoder_batch, max_seq_len)
-    padded_decoder_sentences += padded_batch(decoder_batch, max_seq_len)
-    return np.array(padded_encoder_sentences), np.array(padded_decoder_sentences)
+    batch = get_batch(-num_residual, is_residual=True)
+    padded_encoder_batches.append(padded_batch(batch[0], batch[-1], is_residual=True))
+    padded_decoder_batches.append(padded_batch(batch[1], batch[-1], is_residual=True))
+    return padded_encoder_batches, padded_decoder_batches
 
 
-# TODO: refactor as 'batch_padded' since that's more accurate now.
-def batch_concatenate(data,
-                      batch_size,
-                      max_seq_len=None):
-    """Returns reshaped & padded numpy array of sentences.
-    Need encoder & decoder inputs together in case we remove sequences.
-
-    Args:
-        data: Any DataSet.train_data or Dataset.valid_data
-        batch_size:     size of 2nd dimension of returned array.
-        max_seq_len:    size of 3rd dimension of returned array.
-                        If None, defaults to length of longest sentence.
-    Returns:
-        numpy array of shape [num_batches, batch_size, max_enc_seq], where
-        num_batches = len(sentences) // batch_size
-        """
-
-    # Extract entries in the data 2-tuple.
-    encoder_sentences, decoder_sentences = data
-    if max_seq_len is not None:
-        raise ValueError("Do not pass max_seq_len to batch_concatenate. Soon to be removed.")
-
-    assert(len(encoder_sentences) == len(decoder_sentences))
-    if len(encoder_sentences) < batch_size:
-        raise ValueError("Received %d sentences, but need at least %d to batch concatenate."
-                         % (len(encoder_sentences), batch_size))
-
-    encoder_sentences, decoder_sentences = _padded(encoder_sentences, decoder_sentences, batch_size)
-    return encoder_sentences, decoder_sentences
-
-def batch_generator(encoder_sentences, decoder_sentences, batch_size):
+def batch_generator(padded_encoder_batches, padded_decoder_batches):
     """
-    Yield 2-tuples in the shapes ([batch_size, seq_len], [batch_size, seq_len])
-    Args:
-        encoder_sentences: batch_concatenate(...)[0]
     """
-    assert(len(encoder_sentences) == len(decoder_sentences))
-    num_batches = len(encoder_sentences) // batch_size
-    num_residual = len(encoder_sentences) % batch_size
-
-    for b in range(num_batches):
-        start = b * batch_size
-        encoder_batch = np.array(encoder_sentences[start:start+batch_size])
-        decoder_batch = np.array(decoder_sentences[start:start+batch_size])
-        assert(encoder_batch.shape == decoder_batch.shape)
+    assert(len(padded_encoder_batches) == len(padded_decoder_batches))
+    for encoder_batch, decoder_batch in zip(padded_encoder_batches, padded_decoder_batches):
         yield encoder_batch, decoder_batch
-
-    encoder_batch   = np.array(encoder_sentences[-num_residual:])
-    decoder_batch   = np.array(decoder_sentences[-num_residual:])
-    assert(encoder_batch.shape == decoder_batch.shape)
-    yield encoder_batch, decoder_batch
-
 
 
 def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size, normalize_digits=True):

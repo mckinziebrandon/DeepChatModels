@@ -9,10 +9,10 @@ import time
 import logging
 import numpy as np
 import tensorflow as tf
-from utils import io_utils
-from utils.io_utils import GO_ID
 from chatbot._models import Model
 from chatbot.model_components import *
+from utils import io_utils
+from utils.io_utils import GO_ID, batch_padded, batch_generator
 
 
 def check_shape(tensor, expected_shape, log):
@@ -33,7 +33,6 @@ class DynamicBot(Model):
                  embed_size=32,
                  learning_rate=0.4,
                  lr_decay=0.98,
-                 max_seq_len=500,
                  is_decoding=False):
         """
         Args:
@@ -53,7 +52,8 @@ class DynamicBot(Model):
         self.log = logging.getLogger('DynamicBotLogger')
         self.state_size  = state_size
         self.embed_size  = embed_size
-        self.max_seq_len = max_seq_len
+        # max_seq_len not needed in context of dynamic unrolling.
+        #self.max_seq_len = max_seq_len
         self.vocab_size  = dataset.vocab_size
         # FIXME: Not sure how I feel about dataset as instance attribute.
         # It's quite helpful in the decoding/chat sessions, but it feels even more odd
@@ -128,33 +128,35 @@ class DynamicBot(Model):
         # initialize newly created model.
         super(DynamicBot, self).compile(reset=reset)
 
-    def step(self, encoder_inputs, decoder_inputs=None, forward_only=False):
+    def step(self, encoder_batch, decoder_batch=None, forward_only=False):
         """Run forward and backward pass on single data batch.
 
         Args:
-            encoder_inputs: token ids with shape [batch_size, max_time].
-            decoder_inputs: None, or token ids with shape [batch_size, max_time].
+            encoder_batch: token ids with shape [batch_size, max_time].
+            decoder_batch: None, or token ids with shape [batch_size, max_time].
             forward_only: if True, don't perform backward pass (gradient updates).
 
         Returns:
             step_loss, step_outputs. If forward_only == False, then outputs is None
 
         """
+        assert(encoder_batch.shape == decoder_batch.shape)
+        max_time = decoder_batch.shape[1]
 
         input_feed = {}
-        input_feed[self.encoder_inputs.name] = encoder_inputs
+        input_feed[self.encoder_inputs.name] = encoder_batch
 
-        if forward_only and decoder_inputs is None:
-            decoder_inputs = np.array([[GO_ID]])
+        if forward_only and decoder_batch is None:
+            decoder_batch = np.array([[GO_ID]])
             target_weights = np.array([[1.0]])
         else:
-            decoder_inputs = [np.hstack(([GO_ID], sent)) for sent in decoder_inputs]
-            target_weights = list(np.ones(shape=(self.batch_size, self.max_seq_len)))
+            target_weights = list(np.ones(shape=decoder_batch.shape))
+            decoder_batch = [np.hstack(([GO_ID], sent)) for sent in decoder_batch]
             for b in range(self.batch_size):
-                for m in range(self.max_seq_len):
-                    if decoder_inputs[b][m+1] == io_utils.PAD_ID:
+                for m in range(max_time):
+                    if decoder_batch[b][m+1] == io_utils.PAD_ID:
                         target_weights[b][m] = 0.0
-        input_feed[self.decoder_inputs.name] = decoder_inputs
+        input_feed[self.decoder_inputs.name] = decoder_batch
         input_feed[self.target_weights.name] = target_weights
 
 
@@ -186,21 +188,20 @@ class DynamicBot(Model):
 
         print("Preparing data batches . . . ")
 
-        # Get training data in proper format.
-        encoder_inputs_train, decoder_inputs_train = io_utils.batch_concatenate(
-            train_data, self.batch_size, self.max_seq_len)
-
-        # Get validation data in proper format.
-        encoder_inputs_valid, decoder_inputs_valid = io_utils.batch_concatenate(
-            valid_data, self.batch_size, self.max_seq_len)
+        # Get training data as batch_padded lists.
+        encoder_inputs_train, decoder_inputs_train = batch_padded(train_data, self.batch_size)
+        # Get validation data as batch-padded lists.
+        encoder_inputs_valid, decoder_inputs_valid = batch_padded(valid_data, self.batch_size)
 
         i_step = 0
         avg_loss = avg_step_time = 0.0
         try:
-            while True:
+            # Create data generators.
+            train_gen = batch_generator(encoder_inputs_train, decoder_inputs_train)
+            valid_gen = batch_generator(encoder_inputs_valid, decoder_inputs_valid)
+            for encoder_batch, decoder_batch in train_gen:
                 start_time = time.time()
-                step_loss, _ = self.step(encoder_inputs_train[i_step],
-                                         encoder_inputs_train[i_step])
+                step_loss, _ = self.step(encoder_batch, decoder_batch)
 
                 # Calculate running averages.
                 avg_step_time  += (time.time() - start_time) / steps_per_ckpt
@@ -212,8 +213,8 @@ class DynamicBot(Model):
                     print("Step %d: step time = %.3f;  train loss = %.3f"
                           % (i_step, avg_step_time, avg_loss))
 
-                    eval_loss, _ = self.step(encoder_inputs_train[i_step],
-                                             encoder_inputs_train[i_step])
+                    enc_valid_batch, dec_valid_batch = next(valid_gen)
+                    eval_loss, _ = self.step(enc_valid_batch, dec_valid_batch)
                     eval_ppx = np.exp(float(eval_loss)) if eval_loss < 300 else float("inf")
                     print("\tEval: loss = %.3f;  perplexity = %.3f" % (eval_loss, eval_ppx))
                     # Reset the running averages.
