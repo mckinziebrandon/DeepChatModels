@@ -33,17 +33,8 @@ class Cornell(Dataset):
         self.paths['from_vocab']    = vocab_path[0]
         self.paths['to_vocab']      = vocab_path[1]
 
-        if tf.gfile.Exists(self.paths['from_vocab']):
-            rev_vocab = []
-            with tf.gfile.GFile(self.paths['from_vocab'], mode="rb") as f:
-                rev_vocab.extend(f.readlines())
-            rev_vocab = [tf.compat.as_bytes(line.strip()) for line in rev_vocab]
-            vocab = dict([(x, y) for (y, x) in enumerate(rev_vocab)])
-        else:
-            raise ValueError("Vocabulary file %s not found.", self.paths['from_vocab'])
-
-        self._word_to_idx = vocab
-        self._idx_to_word = rev_vocab
+        self._word_to_idx, _ = io_utils.get_vocab_dicts(self.paths['from_vocab'])
+        _, self._idx_to_word = io_utils.get_vocab_dicts(self.paths['to_vocab'])
 
         self._train_data = self.read_data("train")
         self._valid_data = self.read_data("valid")

@@ -25,12 +25,10 @@ flags.DEFINE_boolean("decode", False, "If true, will activate chat session with 
 
 # Integer flags.
 flags.DEFINE_integer("steps_per_ckpt", 50, "How many training steps to do per checkpoint.")
-flags.DEFINE_integer("batch_size", 64, "Batch size to use during training.")
-flags.DEFINE_integer("vocab_size", 20000, "Number of unique words/tokens to use.")
+flags.DEFINE_integer("batch_size", 32, "Batch size to use during training.")
+flags.DEFINE_integer("vocab_size", 40000, "Number of unique words/tokens to use.")
 flags.DEFINE_integer("state_size", 128, "Number of units in the RNN cell.")
-flags.DEFINE_integer("embed_size", 128, "Size of word embedding dimension.")
-# TODO: maybe default as None would be better here? (chooses the true dataset max sequence length.)
-flags.DEFINE_integer("max_seq_len", 400, "Maximum number of words per sentence.")
+flags.DEFINE_integer("embed_size", 256, "Size of word embedding dimension.")
 flags.DEFINE_integer("nb_epoch", 1, "Number of epochs over full train set to run.")
 
 # Float flags -- hyperparameters.

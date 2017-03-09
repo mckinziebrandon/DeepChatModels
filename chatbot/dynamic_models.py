@@ -140,8 +140,6 @@ class DynamicBot(Model):
             step_loss, step_outputs. If forward_only == False, then outputs is None
 
         """
-        assert encoder_batch.shape == decoder_batch.shape
-        assert len(encoder_batch.shape) == 2
         if decoder_batch is None and not forward_only:
             self.log.error("Can't perform gradient updates without a decoder_batch.")
 
@@ -171,9 +169,8 @@ class DynamicBot(Model):
             return step_loss, None
         else:
             if self.is_decoding:
-                fetches = [self.outputs]
-                step_outputs = self.sess.run(fetches, input_feed)
-                return None, step_outputs[0]
+                step_outputs = self.sess.run(self.outputs, input_feed)
+                return None, step_outputs
             else:
                 fetches = [self.loss, self.outputs]
                 step_loss, step_outputs = self.sess.run(fetches, input_feed)
@@ -256,9 +253,9 @@ class DynamicBot(Model):
         # Get output sentence from the chatbot.
         _, logits = self.step(encoder_inputs, forward_only=True)
 
-        output_tokens  = np.array(logits).argmax(axis=2).flatten()
+        output_tokens  = np.array(logits).argmax(axis=2)[0]
         # If there is an EOS symbol in outputs, cut them at that point.
-        if io_utils.EOS_ID in output_tokens:
-            output_tokens = output_tokens[:output_tokens.index(io_utils.EOS_ID)]
+        #if io_utils.EOS_ID in output_tokens:
+        #    output_tokens = output_tokens[:output_tokens.index(io_utils.EOS_ID)]
 
         return self.dataset.as_words(output_tokens)
