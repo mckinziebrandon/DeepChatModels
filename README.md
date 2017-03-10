@@ -3,7 +3,7 @@
 [NEW MODEL: DynamicBot. More info in next section]
 
 This project is still very much evolving each day, but the core goals are:
-* Create a cleaner user interface for tinkering with sequence-to-sequence models and over multiple datasets. Although the release of TensorFlow 1.0 included great improvements in the API for sequence-to-sequence models, there are plenty of further improvements to be made. This project will explore ways to make constructing such models feel more intuitive/customizeable. The ideal result is a chatbot API with the readability of [Keras](https://keras.io/), but with a degree of flexibility closer to TensorFlow.\* For example, the following code is all that is needed (after imports, etc.) to create and train one of the models on the Cornell movie dialogs:
+* Create a cleaner user interface for tinkering with sequence-to-sequence models and over multiple datasets. Although the release of TensorFlow 1.0 included great improvements in the API for sequence-to-sequence models, there are plenty of further improvements to be made. This project will explore ways to make constructing such models feel more intuitive/customizeable. The ideal result is a chatbot API with the readability of [Keras](https://keras.io/), but with a degree of flexibility closer to TensorFlow. For example, the following code is all that is needed (after imports, etc.) to create and train one of the models on the Cornell movie dialogs:
 ```python
     # (Optional) Number of training samples used per gradient update.
     batch_size = 64
@@ -25,7 +25,7 @@ This project is still very much evolving each day, but the core goals are:
                      is_chatting=FLAGS.decode)
 
 
-    # Don't forget to compile!
+    # Don't forget to compile! Name inspired by Keras method of the same name.
     print("Compiling DynamicBot.")
     bot.compile(max_gradient=FLAGS.max_gradient, reset=FLAGS.reset_model)
 
@@ -46,7 +46,6 @@ This project is still very much evolving each day, but the core goals are:
 * Add support for "teacher mode": an interactive chat session where the user can tell the bot how well they're doing, and suggest better responses that the bot can learn from.
 
 
-\*Any similarities in naming conventions to Keras are just that. No Keras source code was viewed/consulted for this project.
 
 ## Faster Embedding, Encoding, and Chatting
 
