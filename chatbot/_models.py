@@ -46,7 +46,7 @@ class Model(object):
         self.ckpt_dir = ckpt_dir
         self.log_dir = os.path.join(ckpt_dir, "logs")
         # Responsibility of user to determine training operations.
-        self.file_writer    = tf.summary.FileWriter(self.log_dir)
+        self.file_writer    = None
         self.apply_gradients = None
         self.saver = None
 
@@ -64,12 +64,14 @@ class Model(object):
         if not reset and checkpoint_state \
                 and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
             print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
+            self.file_writer    = tf.summary.FileWriter(self.log_dir)
             self.saver = tf.train.Saver(tf.global_variables())
             self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
         else:
             print("Created model with fresh parameters.")
-            # Clear output dir contents.
-            os.popen('rm -rf {0}/* && mkdir -p {0}/logs'.format(self.ckpt_dir))
+            # Recursively delete all files in output but keep directories.
+            os.popen("find {0}".format(self.ckpt_dir)+" -type f -exec rm {} \;")
+            self.file_writer    = tf.summary.FileWriter(self.log_dir)
             # Add operation for calling all variable initializers.
             init_op = tf.global_variables_initializer()
             # Construct saver (adds save/restore ops to all).
