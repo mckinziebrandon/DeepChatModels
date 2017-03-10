@@ -19,7 +19,7 @@ class Embedder:
             Returns:
               Output tensor of shape [batch_size, max_time, embed_size]
         """
-        assert(len(inputs.shape) == 2)
+        assert len(inputs.shape) == 2, "Expected inputs rank 2 but found rank %r" % len(inputs.shape)
         with tf.variable_scope(scope or "embedding_inputs"):
             params = tf.get_variable("embed_tensor", [self.vocab_size, self.embed_size])
             embedded_inputs = tf.nn.embedding_lookup(params, inputs, name=name)
@@ -95,28 +95,33 @@ class Decoder(RNN):
                 # Squeeze removes all dims of dimension-1. Serves as good check here.
                 # Create integer (tensor) list of output ID responses.
                 response = tf.stack([self.sample(outputs)])
+                # Note: This is needed so the while_loop ahead knows the shape of response.
+                response = tf.reshape(response, [1,])
+
+                tf.get_variable_scope().reuse_variables()
+
 
                 def body(response, state):
-                    tf.get_variable_scope().reuse_variables()
-                    decoder_input = loop_embedder(tf.expand_dims(response[-1], 0))
+                    scope.reuse_variables()
+                    decoder_input = loop_embedder(tf.reshape(response[-1], (1, 1)), scope=scope)
                     outputs, state = tf.nn.dynamic_rnn(cell,
                                                  inputs=decoder_input,
                                                  initial_state=state,
                                                  sequence_length=[1],
                                                  dtype=tf.float32)
                     next_id = self.sample(self.output_projection(outputs))
-                    return tf.concat([response, next_id], axis=0), state
+                    return tf.concat([response, tf.stack([next_id])], axis=0), state
 
                 def cond(response, s):
                     return tf.not_equal(response[-1], EOS_ID)
 
                 response, _ = tf.while_loop(
                     cond, body, (response, state),
-                    shape_invariants=[tf.TensorShape([None]), state.get_shape()],
+                    shape_invariants=(tf.TensorShape([None]), state.get_shape()),
                     back_prop=False
                 )
 
-                outputs = tf.expand_dims(outputs, 0)
+                outputs = tf.expand_dims(response, 0)
                 return outputs, None
 
 
