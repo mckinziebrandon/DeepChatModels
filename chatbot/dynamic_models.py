@@ -61,7 +61,7 @@ class DynamicBot(Model):
         # Thanks to variable scoping, only need one object for multiple embeddings.
         embedder     = Embedder(self.vocab_size, embed_size)
         self.encoder = Encoder(state_size, self.embed_size)
-        self.decoder = Decoder(state_size, self.vocab_size)
+        self.decoder = Decoder(state_size, self.vocab_size, self.embed_size)
 
         # The following placeholder shapes correspond with [batch_size, seq_len].
         self.encoder_inputs = tf.placeholder(tf.int32, [None, None], name="encoder_inputs")
@@ -195,6 +195,8 @@ class DynamicBot(Model):
             steps_per_ckpt: (int) Specifies step interval for testing on validation data.
             save_dir: (str) Path to save ckpt files. If None, defaults to self.ckpt_dir.
         """
+
+        tf.logging.set_verbosity(tf.logging.ERROR)
 
         def perplexity(loss):
             """Common alternative to loss in NLP models."""

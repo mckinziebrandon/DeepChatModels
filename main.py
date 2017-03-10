@@ -25,11 +25,11 @@ flags.DEFINE_boolean("reset_model", False, "wipe output directory; new params")
 flags.DEFINE_boolean("decode", False, "If true, will activate chat session with user.")
 
 # Integer flags.
-flags.DEFINE_integer("steps_per_ckpt", 50, "How many training steps to do per checkpoint.")
+flags.DEFINE_integer("steps_per_ckpt", 100, "How many training steps to do per checkpoint.")
 flags.DEFINE_integer("batch_size", 32, "Batch size to use during training.")
 flags.DEFINE_integer("vocab_size", 40000, "Number of unique words/tokens to use.")
-flags.DEFINE_integer("state_size", 128, "Number of units in the RNN cell.")
-flags.DEFINE_integer("embed_size", 64, "Size of word embedding dimension.")
+flags.DEFINE_integer("state_size", 256, "Number of units in the RNN cell.")
+flags.DEFINE_integer("embed_size", 32, "Size of word embedding dimension.")
 flags.DEFINE_integer("nb_epoch", 1, "Number of epochs over full train set to run.")
 
 # Float flags -- hyperparameters.
@@ -47,7 +47,6 @@ if __name__ == "__main__":
     dataset = Cornell(FLAGS.vocab_size)
 
     # Create chat model of choice. Pass in FLAGS values in case you want to change from defaults.
-    FLAGS.ckpt_dir = "/home/brandon/Documents/seq2seq_projects/out"
     print("Creating DynamicBot.")
     bot = DynamicBot(dataset,
                      ckpt_dir=FLAGS.ckpt_dir,
