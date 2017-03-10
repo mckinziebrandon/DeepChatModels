@@ -1,8 +1,7 @@
 # Conversation Models in Tensorflow
 
 This project is still very much evolving each day, but the core goals are:
-* Recreate the results described in the paper, [A Neural Conversation Model](https://arxiv.org/pdf/1506.05869.pdf).
-* Create a cleaner user interface for tinkering with such models and using multiple datasets. Although the release of TensorFlow 1.0 included great improvements in the API for sequence-to-sequence models, there are plenty of further improvements to be made. This project will explore ways to make constructing such models feel more intuitive/customizeable. The ideal result is a chatbot API with the readability of Keras, but with a degree of flexibility closer to TensorFlow. For example, the following code is all that is needed (after imports, etc.) to create and train one of the models on the Cornell movie dialogs:
+* Create a cleaner user interface for tinkering with sequence-to-sequence models and over multiple datasets. Although the release of TensorFlow 1.0 included great improvements in the API for sequence-to-sequence models, there are plenty of further improvements to be made. This project will explore ways to make constructing such models feel more intuitive/customizeable. The ideal result is a chatbot API with the readability of Keras, but with a degree of flexibility closer to TensorFlow. For example, the following code is all that is needed (after imports, etc.) to create and train one of the models on the Cornell movie dialogs:
 ```python
     # (Optional) Number of training samples used per gradient update.
     batch_size = 64
@@ -30,21 +29,10 @@ This project is still very much evolving each day, but the core goals are:
     bot.train(encoder_sentences, decoder_sentences, steps_per_ckpt=FLAGS.steps_per_ckpt)
 ```
 
-
-
 * Explore how [personalities of chatbots](https://arxiv.org/pdf/1603.06155.pdf) change when trained on different datasets, and methods for improving speaker consistency.
 * Add support for "teacher mode": an interactive chat session where the user can tell the bot how well they're doing, and suggest better responses that the bot can learn from.
 
-At present, the following have been (more or less) completed:
 
-* Models:
-    * Rewrite conversation model with faster embedding technique and new TF support for dynamic unrolling.
-    * Implement an attention-based embedding sequence-to-sequence model with the help of the tensorflow.contrib libraries.
-    * Implement a simpler embedding sequence-to-sequence from "scratch" (minimal use of contrib).
-* Datasets:
-    * **WMT'15** : English-to-French translation.
-    * **Ubuntu Dialogue Corpus**: Reformatted as single-turn to single-response pairs.
-    * **Cornell Movie-Dialogs**: Recently (March 5) incorporated [this preprocessed](https://github.com/suriyadeepan/datasets/tree/master/seq2seq/cornell_movie_corpus) version of the Cornell corpus. I'll be processing and reformatting it further.
 
 ## Faster Embedding, Encoding, and Chatting
 
@@ -60,3 +48,16 @@ At present, I'm running longer training/chatting sessions on all models to event
 
 
 
+## Project Overview
+
+(TODO: needs updating)
+The following have been more-or-less completed. 
+
+* Models:
+    * Rewrite conversation model with faster embedding technique and new TF support for dynamic unrolling.
+    * Implement an attention-based embedding sequence-to-sequence model with the help of the tensorflow.contrib libraries.
+    * Implement a simpler embedding sequence-to-sequence from "scratch" (minimal use of contrib).
+* Datasets:
+    * **WMT'15** : English-to-French translation.
+    * **Ubuntu Dialogue Corpus**: Reformatted as single-turn to single-response pairs.
+    * **Cornell Movie-Dialogs**: Recently (March 5) incorporated [this preprocessed](https://github.com/suriyadeepan/datasets/tree/master/seq2seq/cornell_movie_corpus) version of the Cornell corpus. I'll be processing and reformatting it further.
