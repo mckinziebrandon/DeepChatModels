@@ -96,10 +96,11 @@ class Model(object):
 
         if summaries is None:
             self.log.info("Save called without summaries.")
-        elif not isinstance(summaries, list):
-            summaries = [summaries]
-        for summary in summaries:
-            self.file_writer.add_summary(summary, self.global_step.eval(self.sess))
+        else:
+            if not isinstance(summaries, list):
+                summaries = [summaries]
+            for summary in summaries:
+                self.file_writer.add_summary(summary, self.global_step.eval(self.sess))
 
     def close(self, save_dir=None):
         """Call then when training session is terminated."""

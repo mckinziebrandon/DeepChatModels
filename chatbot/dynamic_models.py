@@ -44,7 +44,6 @@ class DynamicBot(Model):
             embed_size: size of embedding dimension that integer IDs get mapped into.
             learning_rate: float, typically in range [0, 1].
             lr_decay: weight decay factor, not strictly necessary since default optimizer is adagrad.
-            max_seq_len: maximum allowed number of words per sentence.
             is_decoding: boolean, should be False when training and True when chatting.
         """
 
@@ -53,8 +52,6 @@ class DynamicBot(Model):
 
         self.state_size  = state_size
         self.embed_size  = embed_size
-        # max_seq_len not needed in context of dynamic unrolling.
-        #self.max_seq_len = max_seq_len
         self.vocab_size  = dataset.vocab_size
         # FIXME: Not sure how I feel about dataset as instance attribute.
         # It's quite helpful in the decoding/chat sessions, but it feels even more odd
