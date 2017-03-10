@@ -118,13 +118,12 @@ class DynamicBot(Model):
                     labels=target_labels, logits=self.outputs[:, :-1, :],
                     weights=self.target_weights[:, :-1])
 
-            # Define the training portion of the graph.
-            # with tf.variable_scope("training"):
+                # Define the training portion of the graph.
                 params = tf.trainable_variables()
                 if optimizer is None:
                     optimizer = tf.train.AdagradOptimizer(self.learning_rate)
                 gradients = tf.gradients(self.loss, params)
-                clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, 10.0)
+                clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, max_gradient)
                 self.apply_gradients = optimizer.apply_gradients(
                     zip(clipped_gradients, params), global_step=self.global_step)
 
@@ -132,7 +131,9 @@ class DynamicBot(Model):
             # It is the responsibility of the bot to save these via file_writer after each step.
             # We can view plots of how they change over training in TensorBoard.
             with tf.variable_scope("summaries"):
-                self.summaries = {"loss": tf.summary.scalar("loss", self.loss)}
+                tf.summary.scalar("loss", self.loss),
+                tf.summary.scalar("learning_rate", self.learning_rate)
+                self.merged = tf.summary.merge_all()
 
         # Next, let superclass load param values from file (if not reset), otherwise
         # initialize newly created model.
@@ -175,7 +176,7 @@ class DynamicBot(Model):
 
         # TODO: Needs refactor.
         if not forward_only:
-            fetches = [self.summaries['loss'], self.loss, self.apply_gradients]
+            fetches = (self.merged, self.loss, self.apply_gradients)
             summaries, step_loss, _ = self.sess.run(fetches, input_feed)
             return summaries, step_loss, None
         else:
@@ -183,7 +184,7 @@ class DynamicBot(Model):
                 step_outputs = self.sess.run(self.outputs, input_feed)
                 return None, None, step_outputs
             else:
-                fetches = [self.summaries['loss'], self.loss, self.outputs]
+                fetches = [self.merged, self.loss, self.outputs]
                 summaries, step_loss, step_outputs = self.sess.run(fetches, input_feed)
                 return summaries, step_loss, step_outputs
 
@@ -220,19 +221,21 @@ class DynamicBot(Model):
                 valid_gen = batch_generator(encoder_inputs_valid, decoder_inputs_valid)
                 for encoder_batch, decoder_batch in train_gen:
                     start_time = time.time()
-                    summary, step_loss, _ = self.step(encoder_batch, decoder_batch)
+                    summaries, step_loss, _ = self.step(encoder_batch, decoder_batch)
                     # Calculate running averages.
                     avg_step_time  += (time.time() - start_time) / steps_per_ckpt
                     avg_loss       += step_loss / steps_per_ckpt
                     # Print updates in desired intervals (steps_per_ckpt).
                     if i_step % steps_per_ckpt == 0:
                         # Save current parameter values in a new checkpoint file.
-                        self.save(summaries=summary, save_dir=save_dir)
+                        self.save(summaries=summaries, save_dir=save_dir)
                         # Report training averages.
                         print("Step %d: step time = %.3f;  perplexity = %.3f"
                               % (i_step, avg_step_time, perplexity(avg_loss)))
                         # Generate & run a batch of validation data.
-                        summary, eval_loss, _ = self.step(*next(valid_gen))
+                        summaries, eval_loss, _ = self.step(*next(valid_gen))
+                        # TODO: Improve on extremely naive learning rate decay here.
+                        self.sess.run(self.lr_decay)
                         print("Validation perplexity: %.3f" % perplexity(eval_loss))
                         # Reset the running averages.
                         avg_loss = avg_step_time = 0.0

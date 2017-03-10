@@ -33,7 +33,7 @@ class Model(object):
 
         with tf.variable_scope("model_vars"):
             self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
-            self.lr_decay    = self.learning_rate.assign(learning_rate * lr_decay)
+            self.lr_decay = self.learning_rate.assign(learning_rate * lr_decay)
             self.global_step    = tf.Variable(initial_value=0, trainable=False)
 
         self.log = logger
@@ -49,7 +49,6 @@ class Model(object):
         self.file_writer    = tf.summary.FileWriter(self.log_dir)
         self.apply_gradients = None
         self.saver = None
-        self.summaries = {}
 
     def compile(self, optimizer=None, max_gradient=None, reset=False):
         """ Configure training process and initialize model. Inspired by Keras.
@@ -70,7 +69,7 @@ class Model(object):
         else:
             print("Created model with fresh parameters.")
             # Clear output dir contents.
-            #os.popen('rm -rf {0}/* && mkdir -p {0}/logs'.format(self.ckpt_dir))
+            os.popen('rm -rf {0}/* && mkdir -p {0}/logs'.format(self.ckpt_dir))
             # Add operation for calling all variable initializers.
             init_op = tf.global_variables_initializer()
             # Construct saver (adds save/restore ops to all).
@@ -83,7 +82,7 @@ class Model(object):
     def save(self, summaries=None, save_dir=None):
         """
         Args:
-            summaries: list of evaluated tf.summar[ies] to save.
+            summaries: merged summary instance returned by session.run.
             save_dir: where to save checkpoints. defaults to self.ckpt_dir.
         """
 
@@ -98,10 +97,7 @@ class Model(object):
         if summaries is None:
             self.log.info("Save called without summaries.")
         else:
-            if not isinstance(summaries, list):
-                summaries = [summaries]
-            for summary in summaries:
-                self.file_writer.add_summary(summary, self.global_step.eval(self.sess))
+            self.file_writer.add_summary(summaries, self.global_step.eval(self.sess))
 
     def close(self, save_dir=None):
         """Call then when training session is terminated."""

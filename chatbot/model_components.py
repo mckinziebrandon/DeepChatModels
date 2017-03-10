@@ -192,7 +192,7 @@ class Decoder(RNN):
         return tf.reshape(projected_state, [-1, m, self.output_size])
 
     @staticmethod
-    def sample(projected_output):
+    def sample(projected_output, temperature=0.8):
         """Return integer ID tensor representing the sampled word.
         TODO: Add support for temperature sampling, as opposed to simple argmax.
         """

@@ -1,3 +1,5 @@
+"""Used by legacy_models for decoding. Not needed by DynamicBot."""
+
 import tensorflow as tf
 import logging
 import os
@@ -6,6 +8,7 @@ import sys
 import utils.io_utils as data_utils
 from utils.io_utils import sentence_to_token_ids, get_vocab_dicts
 import numpy as np
+
 
 def decode(bot, test_config):
     """Runs a chat session between the given chatbot and user."""
