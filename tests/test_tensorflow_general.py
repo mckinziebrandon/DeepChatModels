@@ -179,13 +179,13 @@ class TestTensorboard(unittest.TestCase):
     def setUp(self):
         self.dataset = Cornell()
         self.bot = DynamicBot(self.dataset,
-                     ckpt_dir="out",
-                     batch_size=16,
-                     state_size=128,
-                     embed_size=32,
-                     learning_rate=0.1,
-                     lr_decay=0.8,
-                     is_decoding=False)
+                              ckpt_dir="out",
+                              batch_size=16,
+                              state_size=128,
+                              embed_size=32,
+                              learning_rate=0.1,
+                              lr_decay=0.8,
+                              is_chatting=False)
         print("Compiling DynamicBot.")
         self.bot.compile(max_gradient=5.0, reset=True)
 

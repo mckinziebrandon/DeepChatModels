@@ -31,24 +31,25 @@ class Model(object):
                  lr_decay=0.98,
                  is_decoding=False):
 
-        # This will stop the excessive INFO prints when tensorflow changes GPU pool_size.
-        tf.logging.set_verbosity(tf.logging.ERROR)
+        with tf.variable_scope("model_vars"):
+            self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
+            self.lr_decay    = self.learning_rate.assign(learning_rate * lr_decay)
+            self.global_step    = tf.Variable(initial_value=0, trainable=False)
+
         self.log = logger
         self.data_name = data_name
         self.sess           = tf.Session()
         self.is_decoding    = is_decoding
         self.batch_size     = batch_size
         self.vocab_size = vocab_size
-        self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
-        self.lr_decay    = self.learning_rate.assign(learning_rate * lr_decay)
-        self.global_step    = tf.Variable(initial_value=0, trainable=False)
         # Directory IO management.
         self.ckpt_dir = ckpt_dir
         self.log_dir = os.path.join(ckpt_dir, "logs")
-        self.file_writer    = tf.summary.FileWriter(self.log_dir)
         # Responsibility of user to determine training operations.
+        self.file_writer    = tf.summary.FileWriter(self.log_dir)
         self.apply_gradients = None
         self.saver = None
+        self.summaries = {}
 
     def compile(self, optimizer=None, max_gradient=None, reset=False):
         """ Configure training process and initialize model. Inspired by Keras.
@@ -69,7 +70,7 @@ class Model(object):
         else:
             print("Created model with fresh parameters.")
             # Clear output dir contents.
-            os.popen('rm -rf {0}/* && mkdir -p {0}/logs'.format(self.ckpt_dir))
+            #os.popen('rm -rf {0}/* && mkdir -p {0}/logs'.format(self.ckpt_dir))
             # Add operation for calling all variable initializers.
             init_op = tf.global_variables_initializer()
             # Construct saver (adds save/restore ops to all).

@@ -40,6 +40,9 @@ FLAGS = flags.FLAGS
 
 if __name__ == "__main__":
 
+    # This will stop the excessive INFO prints when tensorflow changes GPU pool_size.
+    tf.logging.set_verbosity(tf.logging.ERROR)
+
     # All datasets follow the same API, found in data/_dataset.py
     dataset = Cornell(FLAGS.vocab_size)
 
@@ -53,7 +56,7 @@ if __name__ == "__main__":
                      embed_size=FLAGS.embed_size,
                      learning_rate=FLAGS.learning_rate,
                      lr_decay=FLAGS.lr_decay,
-                     is_decoding=FLAGS.decode)
+                     is_chatting=FLAGS.decode)
 
 
     # Don't forget to compile!

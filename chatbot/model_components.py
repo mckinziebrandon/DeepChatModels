@@ -12,7 +12,7 @@ class Embedder:
         self.vocab_size = vocab_size
         self.embed_size = embed_size
 
-    def __call__(self, inputs, scope=None):
+    def __call__(self, inputs, name=None, scope=None):
         """Mimicking the tensorflow Layers API.
             Arguments:
               inputs: input tensor of shape [batch_size, max_tgraph & summaries ime].
@@ -21,33 +21,26 @@ class Embedder:
         """
         assert(len(inputs.shape) == 2)
         with tf.variable_scope(scope or "embedding_inputs"):
-            params = tf.get_variable("params", [self.vocab_size, self.embed_size])
-            embedded_inputs = tf.nn.embedding_lookup(params, inputs)
+            params = tf.get_variable("embed_tensor", [self.vocab_size, self.embed_size])
+            embedded_inputs = tf.nn.embedding_lookup(params, inputs, name=name)
             if not isinstance(embedded_inputs, tf.Tensor):
                 raise TypeError("Embedded inputs should be of type Tensor.")
             if len(embedded_inputs.shape) != 3:
                 raise ValueError("Embedded sentence has incorrect shape.")
         return embedded_inputs
 
-
-class DynamicRNN:
-    """Wrapper class for the underling RNN. Customizes the graph operations executed depending on
-    if we are in a training session or chatting (decoding) session.
-    """
-
-    def __init__(self, state_size, output_size, embed_size=256, initial_state=None):
+class RNN(object):
+    """Base class for Encoder/Decoder."""
+    def __init__(self, state_size=512, embed_size=256):
         self.state_size = state_size
-        self.initial_state = initial_state
-        self.state_size = state_size
-        self.output_size = output_size
         self.embed_size = embed_size
-        self.out_to_embed = tf.get_variable("out_to_embed", [self.output_size, embed_size])
-        w = tf.get_variable("w", [state_size, output_size], dtype=tf.float32)
-        b = tf.get_variable("b", [output_size], dtype=tf.float32)
-        self.projection = (w, b)
 
-    def __call__(self, inputs, scope=None,
-                 return_sequence=False, initial_state=None, is_decoding=False):
+
+class Encoder(RNN):
+    def __init__(self, state_size=512, embed_size=256):
+        super(Encoder, self).__init__(state_size=state_size, embed_size=embed_size)
+
+    def __call__(self, inputs, scope=None, return_sequence=False, initial_state=None):
         """Mimicking the tensorflow Layers API.
             Arguments:
               inputs: embedded input tensor of shape [batch_size, max_time, embed_size].
@@ -56,37 +49,76 @@ class DynamicRNN:
                 state:
         """
 
-        if initial_state is not None:
-            self.initial_state = initial_state
-        with tf.variable_scope(scope or "dynamic_rnn_call"):
+        with tf.variable_scope(scope or "encoder_call"):
             cell = tf.contrib.rnn.GRUCell(self.state_size)
             outputs, state = tf.nn.dynamic_rnn(cell, inputs,
-                                               initial_state=self.initial_state,
+                                               initial_state=initial_state,
                                                dtype=tf.float32)
-            # Outputs has shape [batch_size, max_time, output_size].
-            outputs = self.output_projection(outputs)
-
-            # outputs.shape in this case is [1, 1, output_size].
-            output_logits = [outputs[0][0]]
-            assert(output_logits[0].shape == self.output_size)
-            pred = tf.argmax(output_logits[-1])
-            if is_decoding:
-                tf.get_variable_scope().reuse_variables()
-                output_length = 1
-                while output_length <= 20:
-                    with tf.variable_scope("loop_function", reuse=True):
-                        inp = tf.nn.embedding_lookup(self.out_to_embed, tf.argmax(output_logits[-1]))
-                        inp = tf.reshape(inp, [1, -1, self.embed_size])
-                    outputs, state = tf.nn.dynamic_rnn(cell, inp, initial_state=state, dtype=tf.float32)
-                    outputs = self.output_projection(outputs)
-                    output_logits.append(outputs[0][0])
-                    output_length += 1
-                outputs = tf.reshape(tf.stack(output_logits), [1, -1, self.output_size])
-
         if return_sequence:
             return outputs, state
         else:
             return state
+
+
+class Decoder(RNN):
+    def __init__(self, state_size, output_size, embed_size=256):
+        self.output_size = output_size
+        w = tf.get_variable("w", [state_size, output_size], dtype=tf.float32)
+        b = tf.get_variable("b", [output_size], dtype=tf.float32)
+        self.projection = (w, b)
+        super(Decoder, self).__init__(state_size=state_size, embed_size=embed_size)
+
+    def __call__(self, inputs, scope=None, initial_state=None,
+                 is_chatting=False, loop_embedder=None):
+        """
+
+
+        Returns:
+            outputs: if not is_chatting, tensor of shape [batch_size, max_time, output_size].
+                     else, tensor of response IDs with shape [batch_size, max_time].
+            state:   if not is_chatting, tensor of shape [batch_size, state_size].
+                     else, None.
+        """
+
+        with tf.variable_scope(scope or "dynamic_rnn_call"):
+            cell = tf.contrib.rnn.GRUCell(self.state_size)
+
+            outputs, state = tf.nn.dynamic_rnn(cell, inputs, initial_state=initial_state, dtype=tf.float32)
+            # Outputs has shape [batch_size, max_time, output_size].
+            outputs = self.output_projection(outputs)
+
+            if not is_chatting:
+                return outputs, state
+            else:
+                if loop_embedder is None:
+                    raise ValueError("Loop function is required to feed decoder outputs as inputs.")
+                # Squeeze removes all dims of dimension-1. Serves as good check here.
+                # Create integer (tensor) list of output ID responses.
+                response = tf.stack([self.sample(outputs)])
+
+                def body(response, state):
+                    tf.get_variable_scope().reuse_variables()
+                    decoder_input = loop_embedder(tf.expand_dims(response[-1], 0))
+                    outputs, state = tf.nn.dynamic_rnn(cell,
+                                                 inputs=decoder_input,
+                                                 initial_state=state,
+                                                 sequence_length=[1],
+                                                 dtype=tf.float32)
+                    next_id = self.sample(self.output_projection(outputs))
+                    return tf.concat([response, next_id], axis=0), state
+
+                def cond(response, s):
+                    return tf.not_equal(response[-1], EOS_ID)
+
+                response, _ = tf.while_loop(
+                    cond, body, (response, state),
+                    shape_invariants=[tf.TensorShape([None]), state.get_shape()],
+                    back_prop=False
+                )
+
+                outputs = tf.expand_dims(outputs, 0)
+                return outputs, None
+
 
     def output_projection(self, outputs, scope=None):
         """
@@ -101,7 +133,7 @@ class DynamicRNN:
             """
             return tf.matmul(single_batch, self.projection[0]) + self.projection[1]
 
-        with tf.variable_scope(scope or "output_projection_call"):
+        with tf.variable_scope(scope or "proj_scope"):
             # Swap 1st and 2nd indices to match expected input of map_fn.
             m  = tf.shape(outputs)[1]
             s  = tf.shape(outputs)[2]
@@ -110,6 +142,12 @@ class DynamicRNN:
             projected_state = tf.map_fn(single_proj, reshaped_state)
             # Return projected outputs reshaped in same general ordering as input outputs.
         return tf.reshape(projected_state, [-1, m, self.output_size])
+
+    def sample(self, projected_output):
+        """Return integer ID tensor representing the sampled word."""
+        # Protect against extra size-1 dimensions.
+        projected_output = tf.squeeze(projected_output)
+        return tf.argmax(projected_output, axis=0)
 
 
 class OutputProjection:

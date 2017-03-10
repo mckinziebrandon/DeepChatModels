@@ -33,7 +33,7 @@ class DynamicBot(Model):
                  embed_size=32,
                  learning_rate=0.4,
                  lr_decay=0.98,
-                 is_decoding=False):
+                 is_chatting=False):
         """
         Args:
             dataset: 'Dataset' instance. Will likely be removed soon since it's only used
@@ -44,7 +44,7 @@ class DynamicBot(Model):
             embed_size: size of embedding dimension that integer IDs get mapped into.
             learning_rate: float, typically in range [0, 1].
             lr_decay: weight decay factor, not strictly necessary since default optimizer is adagrad.
-            is_decoding: boolean, should be False when training and True when chatting.
+            is_chatting: boolean, should be False when training and True when chatting.
         """
 
         logging.basicConfig(level=logging.INFO)
@@ -58,47 +58,34 @@ class DynamicBot(Model):
         # passing it as an argument there.
         self.dataset = dataset
 
-        # Thanks to variable scoping, only need one object for multiple embeddings/rnns.
-        embedder    = Embedder(self.vocab_size, embed_size)
-        self.dynamic_rnn = DynamicRNN(state_size, self.vocab_size, embed_size=self.embed_size)
+        # Thanks to variable scoping, only need one object for multiple embeddings.
+        embedder     = Embedder(self.vocab_size, embed_size)
+        self.encoder = Encoder(state_size, self.embed_size)
+        self.decoder = Decoder(state_size, self.vocab_size)
 
         # The following placeholder shapes correspond with [batch_size, seq_len].
-        self.encoder_inputs = tf.placeholder(tf.int32, [None, None])
-        self.decoder_inputs = tf.placeholder(tf.int32, [None, None])
-        self.target_weights = tf.placeholder(tf.float32, [None, None])
+        self.encoder_inputs = tf.placeholder(tf.int32, [None, None], name="encoder_inputs")
+        self.decoder_inputs = tf.placeholder(tf.int32, [None, None], name="decoder_inputs")
+        self.target_weights = tf.placeholder(tf.float32, [None, None], name="target_weights")
 
         # Encoder inputs in embedding space. Shape is [None, None, embed_size].
-        embedded_enc_inputs = embedder(self.encoder_inputs, scope="encoder")
-        # Get encoder state after feeding the sequence(s). Shape is [None, state_size].
-        encoder_state = self.dynamic_rnn(embedded_enc_inputs, scope="encoder")
+        with tf.variable_scope("encoder") as encoder_scope:
+            embedded_enc_inputs = embedder(self.encoder_inputs, scope=encoder_scope)
+            # Get encoder state after feeding the sequence(s). Shape is [None, state_size].
+            encoder_state = self.encoder(embedded_enc_inputs, scope=encoder_scope)
 
-        # Decoder inputs in embedding space. Shape is [None, None, embed_size].
-        embedded_dec_inputs = embedder(self.decoder_inputs, scope="decoder")
-        # For decoder, we want the full sequence of output states, not simply the last.
-        decoder_outputs, decoder_state = self.dynamic_rnn(
-            embedded_dec_inputs,
-            initial_state=encoder_state,
-            return_sequence=True,
-            is_decoding=is_decoding,scope="decoder")
+        with tf.variable_scope("decoder") as decoder_scope:
+            # Decoder inputs in embedding space. Shape is [None, None, embed_size].
+            embedded_dec_inputs = embedder(self.decoder_inputs, scope=decoder_scope)
+            # For decoder, we want the full sequence of output states, not simply the last.
+            decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
+                                                          initial_state=encoder_state,
+                                                          is_chatting=is_chatting,
+                                                          loop_embedder=embedder,
+                                                          scope=decoder_scope)
 
         # Projection from state space to vocab space.
         self.outputs = decoder_outputs
-
-        if not is_decoding:
-            check_shape(self.outputs, [None, None, dataset.vocab_size], self.log)
-            # Loss - target is to predict, as output, the next decoder input.
-            target_labels = self.decoder_inputs[:, 1:]
-            check_shape(target_labels, [None, None], self.log)
-            self.loss = tf.losses.sparse_softmax_cross_entropy(labels=target_labels,
-                                                               logits=self.outputs[:, :-1, :],
-                                                               weights=self.target_weights[:, :-1])
-
-            # Creating a summar.scalar tells TF that we want to track the value for visualization.
-            # It is the responsibility of the bot to save these via file_writer after each step.
-            # We can view plots of how they change over training in TensorBoard.
-            with tf.variable_scope("summaries"):
-                self.summaries = {"loss": tf.summary.scalar("loss", self.loss)}
-
 
         # Let superclass handle the boring stuff (dirs/more instance variables).
         super(DynamicBot, self).__init__(self.log,
@@ -108,7 +95,7 @@ class DynamicBot(Model):
                                          batch_size,
                                          learning_rate,
                                          lr_decay,
-                                         is_decoding)
+                                         is_chatting)
 
     def compile(self, optimizer=None, max_gradient=5.0, reset=False):
         """ Configure training process and initialize model. Inspired by Keras.
@@ -121,14 +108,28 @@ class DynamicBot(Model):
         """
 
         if not self.is_decoding:
-            # First, define the training portion of the graph.
-            params = tf.trainable_variables()
-            if optimizer is None:
-                optimizer = tf.train.AdagradOptimizer(self.learning_rate)
-            gradients = tf.gradients(self.loss, params)
-            clipped_gradients, self.gradient_norm = tf.clip_by_global_norm(gradients, 10.0)
-            self.apply_gradients = optimizer.apply_gradients(
-                zip(clipped_gradients, params), global_step=self.global_step)
+            with tf.variable_scope("evaluation"):
+                check_shape(self.outputs, [None, None, self.vocab_size], self.log)
+                # Loss - target is to predict, as output, the next decoder input.
+                target_labels = self.decoder_inputs[:, 1:]
+                check_shape(target_labels, [None, None], self.log)
+                self.loss = tf.losses.sparse_softmax_cross_entropy(
+                    labels=target_labels, logits=self.outputs[:, :-1, :],
+                    weights=self.target_weights[:, :-1])
+                # First, define the training portion of the graph.
+                params = tf.trainable_variables()
+                if optimizer is None:
+                    optimizer = tf.train.AdagradOptimizer(self.learning_rate)
+                gradients = tf.gradients(self.loss, params)
+                clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, 10.0)
+                self.apply_gradients = optimizer.apply_gradients(
+                    zip(clipped_gradients, params), global_step=self.global_step)
+
+            # Creating a summar.scalar tells TF that we want to track the value for visualization.
+            # It is the responsibility of the bot to save these via file_writer after each step.
+            # We can view plots of how they change over training in TensorBoard.
+            with tf.variable_scope("summaries"):
+                self.summaries = {"loss": tf.summary.scalar("loss", self.loss)}
 
         # Next, let superclass load param values from file (if not reset), otherwise
         # initialize newly created model.
