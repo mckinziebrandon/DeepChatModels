@@ -50,6 +50,7 @@ class DynamicBot(Model):
 
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('DynamicBotLogger')
+
         self.state_size  = state_size
         self.embed_size  = embed_size
         # max_seq_len not needed in context of dynamic unrolling.
@@ -103,7 +104,8 @@ class DynamicBot(Model):
 
 
         # Let superclass handle the boring stuff (dirs/more instance variables).
-        super(DynamicBot, self).__init__(dataset.name,
+        super(DynamicBot, self).__init__(self.log,
+                                         dataset.name,
                                          ckpt_dir,
                                          dataset.vocab_size,
                                          batch_size,
@@ -215,27 +217,26 @@ class DynamicBot(Model):
                 valid_gen = batch_generator(encoder_inputs_valid, decoder_inputs_valid)
                 for encoder_batch, decoder_batch in train_gen:
                     start_time = time.time()
-                    _, step_loss, _ = self.step(encoder_batch, decoder_batch)
+                    summary, step_loss, _ = self.step(encoder_batch, decoder_batch)
                     # Calculate running averages.
                     avg_step_time  += (time.time() - start_time) / steps_per_ckpt
                     avg_loss       += step_loss / steps_per_ckpt
                     # Print updates in desired intervals (steps_per_ckpt).
                     if i_step % steps_per_ckpt == 0:
                         # Save current parameter values in a new checkpoint file.
-                        self.save(save_dir)
+                        self.save(summaries=summary, save_dir=save_dir)
                         # Report training averages.
                         print("Step %d: step time = %.3f;  perplexity = %.3f"
                               % (i_step, avg_step_time, perplexity(avg_loss)))
                         # Generate & run a batch of validation data.
                         summary, eval_loss, _ = self.step(*next(valid_gen))
-                        self.file_writer.add_summary(summary, i_step)
                         print("Validation perplexity: %.3f" % perplexity(eval_loss))
                         # Reset the running averages.
                         avg_loss = avg_step_time = 0.0
                     i_step += 1
         except (KeyboardInterrupt, SystemExit):
             print("Training halted. Cleaning up . . . ")
-            self.save(save_dir)
+            self.close()
 
     def decode(self):
         # We decode one sentence at a time.

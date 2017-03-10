@@ -22,6 +22,7 @@ class Model(object):
     """
 
     def __init__(self,
+                 logger,
                  data_name="default_model",
                  ckpt_dir="out",
                  vocab_size=40000,
@@ -30,6 +31,9 @@ class Model(object):
                  lr_decay=0.98,
                  is_decoding=False):
 
+        # This will stop the excessive INFO prints when tensorflow changes GPU pool_size.
+        tf.logging.set_verbosity(tf.logging.ERROR)
+        self.log = logger
         self.data_name = data_name
         self.sess           = tf.Session()
         self.is_decoding    = is_decoding
@@ -39,7 +43,7 @@ class Model(object):
         self.lr_decay    = self.learning_rate.assign(learning_rate * lr_decay)
         self.global_step    = tf.Variable(initial_value=0, trainable=False)
         # Directory IO management.
-        self.ckpt_dir = os.path.join(os.getcwd(), ckpt_dir)
+        self.ckpt_dir = ckpt_dir
         self.log_dir = os.path.join(ckpt_dir, "logs")
         self.file_writer    = tf.summary.FileWriter(self.log_dir)
         # Responsibility of user to determine training operations.
@@ -75,8 +79,13 @@ class Model(object):
             # Initialize all model variables.
             self.sess.run(init_op)
 
-    def save(self, save_dir=None):
-        """TODO"""
+    def save(self, summaries=None, save_dir=None):
+        """
+        Args:
+            summaries: list of evaluated tf.summar[ies] to save.
+            save_dir: where to save checkpoints. defaults to self.ckpt_dir.
+        """
+
         if self.saver is None:
             raise ValueError("Tried saving model before defining a saver.")
         if save_dir is None:
@@ -84,6 +93,18 @@ class Model(object):
         checkpoint_path = os.path.join(save_dir, "{}.ckpt".format(self.data_name))
         # Saves the state of all global variables.
         self.saver.save(self.sess, checkpoint_path, global_step=self.global_step)
+
+        if summaries is None:
+            self.log.info("Save called without summaries.")
+        elif not isinstance(summaries, list):
+            summaries = [summaries]
+        for summary in summaries:
+            self.file_writer.add_summary(summary, self.global_step.eval(self.sess))
+
+    def close(self, save_dir=None):
+        """Call then when training session is terminated."""
+        # First save the checkpoint as usual.
+        self.save()
         # Flush event file to disk.
         self.file_writer.close()
 

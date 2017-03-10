@@ -18,7 +18,6 @@ from utils import io_utils
 flags = tf.app.flags
 # String flags -- directories and dataset name(s).
 flags.DEFINE_string("ckpt_dir", "out", "Directory in which checkpoint files will be saved.")
-flags.DEFINE_string("log_dir", "out/logs", "Directory in which graph & summaries will be saved.")
 
 # Boolean flags.
 flags.DEFINE_boolean("load_flags", False, "If true, use the same FLAGS as previous run.")
@@ -45,6 +44,7 @@ if __name__ == "__main__":
     dataset = Cornell(FLAGS.vocab_size)
 
     # Create chat model of choice. Pass in FLAGS values in case you want to change from defaults.
+    FLAGS.ckpt_dir = "/home/brandon/Documents/seq2seq_projects/out"
     print("Creating DynamicBot.")
     bot = DynamicBot(dataset,
                      ckpt_dir=FLAGS.ckpt_dir,
