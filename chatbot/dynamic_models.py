@@ -108,6 +108,7 @@ class DynamicBot(Model):
         """
 
         if not self.is_decoding:
+            # Define ops/variables related to loss computation.
             with tf.variable_scope("evaluation"):
                 check_shape(self.outputs, [None, None, self.vocab_size], self.log)
                 # Loss - target is to predict, as output, the next decoder input.
@@ -116,7 +117,9 @@ class DynamicBot(Model):
                 self.loss = tf.losses.sparse_softmax_cross_entropy(
                     labels=target_labels, logits=self.outputs[:, :-1, :],
                     weights=self.target_weights[:, :-1])
-                # First, define the training portion of the graph.
+
+            # Define the training portion of the graph.
+            # with tf.variable_scope("training"):
                 params = tf.trainable_variables()
                 if optimizer is None:
                     optimizer = tf.train.AdagradOptimizer(self.learning_rate)

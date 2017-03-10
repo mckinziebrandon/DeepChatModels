@@ -38,12 +38,25 @@ This project is still very much evolving each day, but the core goals are:
 At present, the following have been (more or less) completed:
 
 * Models:
-    * (In progress) Rewriting conversation model with faster embedding technique and new TF support for dynamic unrolling. 
-    * (Unsupported since transitioning to TF r1.0) Implement an attention-based embedding sequence-to-sequence model with the help of the tensorflow.contrib libraries.
-    * (Unsupported since transitioning to TF r1.0) Implement a simpler embedding sequence-to-sequence from "scratch" (minimal use of contrib).
+    * Rewrite conversation model with faster embedding technique and new TF support for dynamic unrolling.
+    * Implement an attention-based embedding sequence-to-sequence model with the help of the tensorflow.contrib libraries.
+    * Implement a simpler embedding sequence-to-sequence from "scratch" (minimal use of contrib).
 * Datasets:
     * **WMT'15** : English-to-French translation.
     * **Ubuntu Dialogue Corpus**: Reformatted as single-turn to single-response pairs.
     * **Cornell Movie-Dialogs**: Recently (March 5) incorporated [this preprocessed](https://github.com/suriyadeepan/datasets/tree/master/seq2seq/cornell_movie_corpus) version of the Cornell corpus. I'll be processing and reformatting it further.
+
+## Faster Embedding, Encoding, and Chatting
+
+The newest model, ```DynamicBot```, is substantially faster than the previous models (bucketed models in legacy_models.py). Here are some of the key design differences for comparison:
+
+|               | BucketModel | DynamicBot |
+| ------------  | ----------    | -----------------------   |
+| Embedding     | Used TensorFlow's ```EmbeddingWrapper```, which computes the embedding on a batch at each timestep. | Uses custom Embedder class to dynamically embed full batch-concatenated inputs of variable sequence length. |
+| Encoding      | Employed the standard 'bucketed' model as described in TensorFlow sequence-to-sequence tutorial. Requires inputs to be padded to the same sequence length, for each bucket, which can result in unnecessarily large matrices of mainly zeros. | Combines the functionality of the new dynamic_rnn method in Tensorflow r1.0, wrapped inside a custom Encoder class. Input sequences are first fed to a custom batch_padded preprocessing utility (see utils/io_utils) that drastically reduces the occurrence of zero-padded sequences and allows for variable-length sequence batches. |
+| Chatting      | Requires output to be assigned to a bucket, which constrains the raw output sequences to be constrained to pre-defined lengths. They then have to be truncated to remove padding. | Responses are generated naturally: once DynamicBot has read your input, it writes its response word by word until it signals that it's done speaking. No awkward post-processing required, and faster response times. |
+
+At present, I'm running longer training/chatting sessions on all models to eventually report quantitative comparisons. They will be reported here after all models have given it their best shot.
+
 
 
