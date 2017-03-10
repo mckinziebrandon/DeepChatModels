@@ -19,7 +19,9 @@ flags = tf.app.flags
 # String flags -- directories and dataset name(s).
 flags.DEFINE_string("ckpt_dir", "out", "Directory in which checkpoint files will be saved.")
 flags.DEFINE_string("log_dir", "out/logs", "Directory in which graph & summaries will be saved.")
+
 # Boolean flags.
+flags.DEFINE_boolean("load_flags", False, "If true, use the same FLAGS as previous run.")
 flags.DEFINE_boolean("reset_model", False, "wipe output directory; new params")
 flags.DEFINE_boolean("decode", False, "If true, will activate chat session with user.")
 
@@ -28,11 +30,11 @@ flags.DEFINE_integer("steps_per_ckpt", 50, "How many training steps to do per ch
 flags.DEFINE_integer("batch_size", 32, "Batch size to use during training.")
 flags.DEFINE_integer("vocab_size", 40000, "Number of unique words/tokens to use.")
 flags.DEFINE_integer("state_size", 128, "Number of units in the RNN cell.")
-flags.DEFINE_integer("embed_size", 256, "Size of word embedding dimension.")
+flags.DEFINE_integer("embed_size", 64, "Size of word embedding dimension.")
 flags.DEFINE_integer("nb_epoch", 1, "Number of epochs over full train set to run.")
 
 # Float flags -- hyperparameters.
-flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
+flags.DEFINE_float("learning_rate", 0.2, "Learning rate.")
 flags.DEFINE_float("lr_decay", 0.95, "Decay factor applied to learning rate.")
 flags.DEFINE_float("max_gradient", 5.0, "Clip gradients to this value.")
 FLAGS = flags.FLAGS

@@ -8,6 +8,8 @@ import numpy as np
 import time
 from utils.io_utils import *
 from utils.config import TrainConfig
+from chatbot import DynamicBot
+from data import Cornell, Ubuntu, TestData
 
 import warnings
 warnings.filterwarnings("ignore", message="numpy.dtype size changed")
@@ -171,47 +173,37 @@ class TestRNN(unittest.TestCase):
                                            dtype=tf.float32)
 
 
-@unittest.skip("Methods used in this test may no longer exist. Revise or delete.")
 class TestTensorboard(unittest.TestCase):
 
     # setUp is called by unittest before any/all test(s).
     def setUp(self):
-        self.config = TrainConfig(FLAGS)
-        buckets = [(5, 10)]
-        self.bot = chatbot.Chatbot(buckets,
-                              layer_size=FLAGS.layer_size,
-                              num_layers=FLAGS.num_layers,
-                              debug_mode=True)
+        self.dataset = Cornell()
+        self.bot = DynamicBot(self.dataset,
+                     ckpt_dir="out",
+                     batch_size=16,
+                     state_size=128,
+                     embed_size=32,
+                     learning_rate=0.1,
+                     lr_decay=0.8,
+                     is_decoding=False)
+        print("Compiling DynamicBot.")
+        self.bot.compile(max_gradient=5.0, reset=True)
 
     def test_train_step(self):
         """Check for expected outputs of chatbot.step."""
-
-        def _get_data_distribution(train_set, buckets):
-            train_bucket_sizes = [len(train_set[b]) for b in range(len(buckets))]
-            train_total_size   = float(sum(train_bucket_sizes))
-            return [sum(train_bucket_sizes[:i + 1]) / train_total_size
-                             for i in range(len(train_bucket_sizes))]
-
-        self.bot.setup_parameters(self.config)
-        dataset = get_dataset(FLAGS.data_name, FLAGS.vocab_size)
-
-        with self.bot.sess as sess:
-            print ("Reading development and training data (limit: %d)." % self.config.max_train_samples)
-            train_set, dev_set = read_data(dataset, self.bot.buckets, max_train_data_size=1e4)
-            train_buckets_scale = _get_data_distribution(train_set, self.bot.buckets)
-            step_time, loss = 0.0, 0.0
-            previous_losses = []
-            for i_step in range(5):
-                rand = np.random.random_sample()
-                bucket_id = min([i for i in range(len(train_buckets_scale)) if train_buckets_scale[i] > rand])
-                start_time = time.time()
-                encoder_inputs, decoder_inputs, target_weights = self.bot.get_batch(train_set, bucket_id)
-                step_returns = self.bot.step(sess, encoder_inputs, decoder_inputs, target_weights, bucket_id,False)
-
-                merged, gradient_norms, losses, _ = step_returns
-                self.bot.file_writer.add_summary(merged, i_step)
-                step_time += (time.time() - start_time) / self.config.steps_per_ckpt
-                loss      += losses / self.config.steps_per_ckpt
+        # Get training data as batch_padded lists.
+        encoder_inputs_train, decoder_inputs_train = batch_padded(self.dataset.train_data, self.bot.batch_size)
+        # Get validation data as batch-padded lists.
+        encoder_inputs_valid, decoder_inputs_valid = batch_padded(self.dataset.valid_data, self.bot.batch_size)
+        train_gen = batch_generator(encoder_inputs_train, decoder_inputs_train)
+        valid_gen = batch_generator(encoder_inputs_valid, decoder_inputs_valid)
+        i_step = 0
+        for encoder_batch, decoder_batch in train_gen:
+            summary, loss, _ = self.bot.step(encoder_batch, decoder_batch)
+            # Confirmed: The following line WILL save the summary to the file, and online.
+            self.bot.file_writer.add_summary(summary, i_step)
+            assert summary is not None, "Returned summary was None."
+            i_step += 1
 
 
 class TestTensorflowSaver(unittest.TestCase):

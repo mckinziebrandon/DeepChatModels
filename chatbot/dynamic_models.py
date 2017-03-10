@@ -91,9 +91,16 @@ class DynamicBot(Model):
             # Loss - target is to predict, as output, the next decoder input.
             target_labels = self.decoder_inputs[:, 1:]
             check_shape(target_labels, [None, None], self.log)
-            self.loss = tf.losses.sparse_softmax_cross_entropy(
-                labels=target_labels, logits=self.outputs[:, :-1, :], weights=self.target_weights[:, :-1]
-            )
+            self.loss = tf.losses.sparse_softmax_cross_entropy(labels=target_labels,
+                                                               logits=self.outputs[:, :-1, :],
+                                                               weights=self.target_weights[:, :-1])
+
+            # Creating a summar.scalar tells TF that we want to track the value for visualization.
+            # It is the responsibility of the bot to save these via file_writer after each step.
+            # We can view plots of how they change over training in TensorBoard.
+            with tf.variable_scope("summaries"):
+                self.summaries = {"loss": tf.summary.scalar("loss", self.loss)}
+
 
         # Let superclass handle the boring stuff (dirs/more instance variables).
         super(DynamicBot, self).__init__(dataset.name,
@@ -163,18 +170,19 @@ class DynamicBot(Model):
         input_feed[self.decoder_inputs.name] = decoder_batch
         input_feed[self.target_weights.name] = target_weights
 
+        # TODO: Needs refactor.
         if not forward_only:
-            fetches = [self.loss, self.apply_gradients]
-            step_loss, _ = self.sess.run(fetches, input_feed)
-            return step_loss, None
+            fetches = [self.summaries['loss'], self.loss, self.apply_gradients]
+            summaries, step_loss, _ = self.sess.run(fetches, input_feed)
+            return summaries, step_loss, None
         else:
             if self.is_decoding:
                 step_outputs = self.sess.run(self.outputs, input_feed)
-                return None, step_outputs
+                return None, None, step_outputs
             else:
-                fetches = [self.loss, self.outputs]
-                step_loss, step_outputs = self.sess.run(fetches, input_feed)
-                return step_loss, step_outputs
+                fetches = [self.summaries['loss'], self.loss, self.outputs]
+                summaries, step_loss, step_outputs = self.sess.run(fetches, input_feed)
+                return summaries, step_loss, step_outputs
 
     def train(self, train_data, valid_data,
               nb_epoch=1, steps_per_ckpt=100, save_dir=None):
@@ -207,7 +215,7 @@ class DynamicBot(Model):
                 valid_gen = batch_generator(encoder_inputs_valid, decoder_inputs_valid)
                 for encoder_batch, decoder_batch in train_gen:
                     start_time = time.time()
-                    step_loss, _ = self.step(encoder_batch, decoder_batch)
+                    _, step_loss, _ = self.step(encoder_batch, decoder_batch)
                     # Calculate running averages.
                     avg_step_time  += (time.time() - start_time) / steps_per_ckpt
                     avg_loss       += step_loss / steps_per_ckpt
@@ -219,7 +227,8 @@ class DynamicBot(Model):
                         print("Step %d: step time = %.3f;  perplexity = %.3f"
                               % (i_step, avg_step_time, perplexity(avg_loss)))
                         # Generate & run a batch of validation data.
-                        eval_loss, _ = self.step(*next(valid_gen))
+                        summary, eval_loss, _ = self.step(*next(valid_gen))
+                        self.file_writer.add_summary(summary, i_step)
                         print("Validation perplexity: %.3f" % perplexity(eval_loss))
                         # Reset the running averages.
                         avg_loss = avg_step_time = 0.0
@@ -251,7 +260,7 @@ class DynamicBot(Model):
 
         encoder_inputs = np.array([encoder_inputs])
         # Get output sentence from the chatbot.
-        _, logits = self.step(encoder_inputs, forward_only=True)
+        _, _, logits = self.step(encoder_inputs, forward_only=True)
 
         output_tokens  = np.array(logits).argmax(axis=2)[0]
         # If there is an EOS symbol in outputs, cut them at that point.

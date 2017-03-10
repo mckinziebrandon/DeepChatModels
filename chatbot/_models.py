@@ -39,7 +39,7 @@ class Model(object):
         self.lr_decay    = self.learning_rate.assign(learning_rate * lr_decay)
         self.global_step    = tf.Variable(initial_value=0, trainable=False)
         # Directory IO management.
-        self.ckpt_dir = ckpt_dir
+        self.ckpt_dir = os.path.join(os.getcwd(), ckpt_dir)
         self.log_dir = os.path.join(ckpt_dir, "logs")
         self.file_writer    = tf.summary.FileWriter(self.log_dir)
         # Responsibility of user to determine training operations.
@@ -65,7 +65,7 @@ class Model(object):
         else:
             print("Created model with fresh parameters.")
             # Clear output dir contents.
-            os.popen('rm -rf out/* && mkdir -p out/logs')
+            os.popen('rm -rf {0}/* && mkdir -p {0}/logs'.format(self.ckpt_dir))
             # Add operation for calling all variable initializers.
             init_op = tf.global_variables_initializer()
             # Construct saver (adds save/restore ops to all).
@@ -84,7 +84,8 @@ class Model(object):
         checkpoint_path = os.path.join(save_dir, "{}.ckpt".format(self.data_name))
         # Saves the state of all global variables.
         self.saver.save(self.sess, checkpoint_path, global_step=self.global_step)
-
+        # Flush event file to disk.
+        self.file_writer.close()
 
 class BucketModel(Model):
     """Abstract class. Any classes that extend BucketModel just need to customize their
