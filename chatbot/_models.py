@@ -32,8 +32,8 @@ class Model(object):
                  is_decoding=False):
 
         with tf.variable_scope("model_vars"):
-            self.learning_rate  = tf.Variable(float(learning_rate), trainable=False, dtype=tf.float32)
-            self.lr_decay = self.learning_rate.assign(learning_rate * lr_decay)
+            self.learning_rate  = tf.Variable(float(learning_rate), trainable=True, dtype=tf.float32)
+            #self.lr_decay = self.learning_rate.assign(learning_rate * lr_decay)
             self.global_step    = tf.Variable(initial_value=0, trainable=False)
 
         self.log = logger

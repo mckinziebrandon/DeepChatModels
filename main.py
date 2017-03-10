@@ -40,8 +40,8 @@ FLAGS = flags.FLAGS
 
 if __name__ == "__main__":
 
-    # This will stop the excessive INFO prints when tensorflow changes GPU pool_size.
-    tf.logging.set_verbosity(tf.logging.ERROR)
+    if FLAGS.decode:
+        assert FLAGS.reset_model == False, "Train the model before initiating chat session."
 
     # All datasets follow the same API, found in data/_dataset.py
     dataset = Cornell(FLAGS.vocab_size)
