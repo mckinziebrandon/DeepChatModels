@@ -84,6 +84,11 @@ class DynamicBot(Model):
                                                           loop_embedder=embedder,
                                                           scope=decoder_scope)
 
+        with tf.variable_scope("summaries"):
+            tf.summary.histogram("embed_tensor", embedder.get_embed_tensor(encoder_scope))
+            tf.summary.histogram("embed_tensor", embedder.get_embed_tensor(decoder_scope))
+            self.merged = tf.summary.merge_all()
+
         # Projection from state space to vocab space.
         self.outputs = decoder_outputs
 
@@ -124,14 +129,13 @@ class DynamicBot(Model):
                     optimizer = tf.train.AdagradOptimizer(self.learning_rate)
 
                 # Trying out the minimize() function instead of defining gradients manually.
-                self.apply_gradients = optimizer.minimize(self.loss, var_list=params,
-                                                          global_step=self.global_step)
-                self.log.info("List of slot names created by your optimizer: %r"
-                              % optimizer.get_slot_names())
-                #gradients = tf.gradients(self.loss, params)
-                #clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, max_gradient)
-                #self.apply_gradients = optimizer.apply_gradients(
-                #    zip(clipped_gradients, params), global_step=self.global_step)
+                #self.apply_gradients = optimizer.minimize(self.loss, var_list=params,
+                #                                          global_step=self.global_step)
+                gradients = tf.gradients(self.loss, params)
+                clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, max_gradient)
+                grads = list(zip(clipped_gradients, params))
+                self.apply_gradients = optimizer.apply_gradients(
+                    zip(clipped_gradients, params), global_step=self.global_step)
 
             # Creating a summar.scalar tells TF that we want to track the value for visualization.
             # It is the responsibility of the bot to save these via file_writer after each step.
@@ -139,7 +143,11 @@ class DynamicBot(Model):
             with tf.variable_scope("summaries"):
                 tf.summary.scalar("loss", self.loss),
                 tf.summary.scalar("learning_rate", self.learning_rate)
+                for grad, var in grads:
+                    if grad is None: continue
+                    tf.summary.histogram(var.name + "/gradient", grad)
                 self.merged = tf.summary.merge_all()
+
 
         # Next, let superclass load param values from file (if not reset), otherwise
         # initialize newly created model.

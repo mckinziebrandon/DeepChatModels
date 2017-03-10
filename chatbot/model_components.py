@@ -28,6 +28,14 @@ class Embedder:
                 raise ValueError("Embedded sentence has incorrect shape.")
         return embedded_inputs
 
+    def get_embed_tensor(self, scope):
+        """Returns the embedding tensor used for the given scope.
+        If none exists, raises NameError.
+        """
+        with tf.variable_scope(scope, reuse=True):
+            return tf.get_variable("embed_tensor")
+
+
 class RNN(object):
     """Base class for Encoder/Decoder."""
 
