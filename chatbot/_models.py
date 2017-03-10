@@ -46,7 +46,8 @@ class Model(object):
         self.ckpt_dir = ckpt_dir
         self.log_dir = os.path.join(ckpt_dir, "logs")
         # Responsibility of user to determine training operations.
-        self.file_writer    = None
+        self.train_writer    = None
+        self.valid_writer    = None
         self.apply_gradients = None
         self.saver = None
 
@@ -64,24 +65,27 @@ class Model(object):
         if not reset and checkpoint_state \
                 and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
             print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
-            self.file_writer    = tf.summary.FileWriter(self.log_dir)
+            self.train_writer    = tf.summary.FileWriter(os.path.join(self.log_dir, "train"))
+            self.valid_writer    = tf.summary.FileWriter(os.path.join(self.log_dir, "valid"))
             self.saver = tf.train.Saver(tf.global_variables())
             self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
         else:
             print("Created model with fresh parameters.")
             # Recursively delete all files in output but keep directories.
             os.popen("find {0}".format(self.ckpt_dir)+" -type f -exec rm {} \;")
-            self.file_writer    = tf.summary.FileWriter(self.log_dir)
+            self.train_writer    = tf.summary.FileWriter(os.path.join(self.log_dir, "train"))
+            self.valid_writer    = tf.summary.FileWriter(os.path.join(self.log_dir, "valid"))
             # Add operation for calling all variable initializers.
             init_op = tf.global_variables_initializer()
             # Construct saver (adds save/restore ops to all).
             self.saver = tf.train.Saver(tf.global_variables())
             # Add the fully-constructed graph to the event file.
-            self.file_writer.add_graph(self.sess.graph)
+            self.train_writer.add_graph(self.sess.graph)
+            self.valid_writer.add_graph(self.sess.graph)
             # Initialize all model variables.
             self.sess.run(init_op)
 
-    def save(self, summaries=None, save_dir=None):
+    def save(self, summaries=None, summaries_type="train", save_dir=None):
         """
         Args:
             summaries: merged summary instance returned by session.run.
@@ -98,15 +102,20 @@ class Model(object):
 
         if summaries is None:
             self.log.info("Save called without summaries.")
-        else:
-            self.file_writer.add_summary(summaries, self.global_step.eval(self.sess))
+            return
+
+        if summaries_type == "train":
+            self.train_writer.add_summary(summaries, self.global_step.eval(self.sess))
+        elif summaries_type == "valid":
+            self.valid_writer.add_summary(summaries, self.global_step.eval(self.sess))
 
     def close(self, save_dir=None):
         """Call then when training session is terminated."""
         # First save the checkpoint as usual.
         self.save()
         # Flush event file to disk.
-        self.file_writer.close()
+        self.train_writer.close()
+        self.valid_writer.close()
 
 class BucketModel(Model):
     """Abstract class. Any classes that extend BucketModel just need to customize their

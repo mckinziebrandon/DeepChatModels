@@ -84,7 +84,8 @@ class DynamicBot(Model):
                                                           loop_embedder=embedder,
                                                           scope=decoder_scope)
 
-        with tf.variable_scope("summaries"):
+        with tf.variable_scope("summaries") as self.summary_scope:
+            self.summary_scope = self.summary_scope  # *sighs audibly*
             tf.summary.histogram("embed_tensor", embedder.get_embed_tensor(encoder_scope))
             tf.summary.histogram("embed_tensor", embedder.get_embed_tensor(decoder_scope))
             self.merged = tf.summary.merge_all()
@@ -128,9 +129,6 @@ class DynamicBot(Model):
                 if optimizer is None:
                     optimizer = tf.train.AdagradOptimizer(self.learning_rate)
 
-                # Trying out the minimize() function instead of defining gradients manually.
-                #self.apply_gradients = optimizer.minimize(self.loss, var_list=params,
-                #                                          global_step=self.global_step)
                 gradients = tf.gradients(self.loss, params)
                 clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, max_gradient)
                 grads = list(zip(clipped_gradients, params))
@@ -138,16 +136,17 @@ class DynamicBot(Model):
                     zip(clipped_gradients, params), global_step=self.global_step)
 
             # Creating a summar.scalar tells TF that we want to track the value for visualization.
-            # It is the responsibility of the bot to save these via file_writer after each step.
+            # It is the responsibility of the bot to save these via train_writer after each step.
             # We can view plots of how they change over training in TensorBoard.
-            with tf.variable_scope("summaries"):
+            with tf.variable_scope(self.summary_scope):
                 tf.summary.scalar("loss", self.loss),
                 tf.summary.scalar("learning_rate", self.learning_rate)
+                for var in tf.trainable_variables():
+                    tf.summary.histogram(var.name, var)
                 for grad, var in grads:
                     if grad is None: continue
                     tf.summary.histogram(var.name + "/gradient", grad)
                 self.merged = tf.summary.merge_all()
-
 
         # Next, let superclass load param values from file (if not reset), otherwise
         # initialize newly created model.
@@ -242,14 +241,13 @@ class DynamicBot(Model):
                     # Print updates in desired intervals (steps_per_ckpt).
                     if i_step % steps_per_ckpt == 0:
                         # Save current parameter values in a new checkpoint file.
-                        self.save(summaries=summaries, save_dir=save_dir)
+                        self.save(summaries=summaries, summaries_type="train", save_dir=save_dir)
                         # Report training averages.
                         print("Step %d: step time = %.3f;  perplexity = %.3f"
                               % (i_step, avg_step_time, perplexity(avg_loss)))
                         # Generate & run a batch of validation data.
                         summaries, eval_loss, _ = self.step(*next(valid_gen))
-                        # TODO: Improve on extremely naive learning rate decay here.
-                        #self.sess.run(self.lr_decay)
+                        self.save(summaries=summaries, summaries_type="valid", save_dir=save_dir)
                         print("Validation perplexity: %.3f" % perplexity(eval_loss))
                         # Reset the running averages.
                         avg_loss = avg_step_time = 0.0

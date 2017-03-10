@@ -201,7 +201,7 @@ class TestTensorboard(unittest.TestCase):
         for encoder_batch, decoder_batch in train_gen:
             summary, loss, _ = self.bot.step(encoder_batch, decoder_batch)
             # Confirmed: The following line WILL save the summary to the file, and online.
-            self.bot.file_writer.add_summary(summary, i_step)
+            self.bot.train_writer.add_summary(summary, i_step)
             assert summary is not None, "Returned summary was None."
             i_step += 1
 
