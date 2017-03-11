@@ -98,8 +98,7 @@ The only takeaway I saw from these two plots (after seeing the learning rate plo
 
 <img alt="learning_rate" src="http://i.imgur.com/CtpX6vr.png" width="600">
 <br/><br/>
-<br/>
-<br/>
+
 
 Hmm, the wild oscillations for the large learning rate of 0.7 were expected, but what is going on with the values lying along the bottom (also with 0.7)? Perhaps we can find out by peering in on the same style of plot for each individual learning rate, as done below.
 
