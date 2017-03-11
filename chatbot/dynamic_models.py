@@ -256,7 +256,7 @@ class DynamicBot(Model):
 
                         # TODO: implement less ugly. For now, having training up and running is priority.
                         hyper_params = {"global_step":[self.global_step.eval(session=self.sess)],
-                                       "loss": [avg_loss],
+                                       "loss": [eval_loss],
                                         "learning_rate":[self.init_learning_rate],
                                         "vocab_size":[self.vocab_size],
                                         "state_size":[self.state_size],

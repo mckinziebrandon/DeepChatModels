@@ -23,14 +23,14 @@ if __name__ == "__main__":
 
     # We eventally want to get samples in range 10^-2 and 10^0.
     log_learning_rates  = np.random.uniform(-2, 0, size=4)
-    # We'll do these log base 2 for computational reasons.
+    # We'll do these base-2 (lg).
     lg_state_sizes     = np.random.uniform(7, 9, size=3)
     lg_embed_sizes      = np.random.uniform(4, 6, size=3)
     hyperparams = []
     for lg_lr in log_learning_rates:
         for lg_state in lg_state_sizes:
             for lg_embed in lg_embed_sizes:
-                hyperparams.append([10**lg_lr, 2**lg_state, 2**lg_embed])
+                hyperparams.append([10**lg_lr, int(2**lg_state), int(2**lg_embed)])
                 print(hyperparams[-1])
 
     print('\n\n')
