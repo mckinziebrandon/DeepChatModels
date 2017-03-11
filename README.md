@@ -3,15 +3,10 @@
 [NEW MODEL: DynamicBot. More info in next section]
 
 This project is still very much evolving each day, but the core goals are:
-* Create a cleaner user interface for tinkering with sequence-to-sequence models and over multiple datasets. This project will explore ways to make constructing such models feel more intuitive/customizeable. The ideal result is a chatbot API with the readability of [Keras](https://keras.io/), but with a degree of flexibility closer to TensorFlow. For example, the following code is all that is needed (after imports, etc.) to create and train one of the models on the Cornell movie dialogs:
+* Create a cleaner user interface for tinkering with sequence-to-sequence models and over multiple datasets. This project will explore ways to make constructing such models feel more intuitive/customizeable. The ideal result is a chatbot API with the readability of [Keras](https://keras.io/), but with a degree of flexibility closer to TensorFlow. For example, the following code is all that is needed (after imports, etc.) to create and train one of the models on the Cornell movie dialogs (All params with '=' are optional) :
 ```python
-    # (Optional) Number of training samples used per gradient update.
-    batch_size = 64
-    # (Optional) Specify the max allowed number of words per sentence.
-    max_seq_len = 500
-    
     # All datasets implement a Dataset interface, found in data/_dataset.py
-    dataset = Cornell(FLAGS.vocab_size)
+    dataset = Cornell(vocab_size=FLAGS.vocab_size)
 
     # Create chat model of choice. Pass in FLAGS values in case you want to change from defaults.
     print("Creating DynamicBot.")
@@ -25,7 +20,7 @@ This project is still very much evolving each day, but the core goals are:
                      is_chatting=FLAGS.decode)
 
 
-    # Don't forget to compile! Name inspired by Keras method of the same name.
+    # Don't forget to compile! Name inspired by similar Keras method.
     print("Compiling DynamicBot.")
     bot.compile(max_gradient=FLAGS.max_gradient, reset=FLAGS.reset_model)
 
