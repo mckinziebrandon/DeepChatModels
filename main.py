@@ -3,7 +3,7 @@
 import time
 import tensorflow as tf
 from chatbot import DynamicBot
-from data import Cornell
+from data import Cornell, Ubuntu
 from utils import io_utils
 
 # ==================================================================================================
@@ -25,15 +25,15 @@ flags.DEFINE_boolean("reset_model", False, "wipe output directory; new params")
 flags.DEFINE_boolean("decode", False, "If true, will activate chat session with user.")
 
 # Integer flags.
-flags.DEFINE_integer("steps_per_ckpt", 100, "How many training steps to do per checkpoint.")
-flags.DEFINE_integer("batch_size", 32, "Batch size to use during training.")
-flags.DEFINE_integer("vocab_size", 40000, "Number of unique words/tokens to use.")
+flags.DEFINE_integer("steps_per_ckpt", 200, "How many training steps to do per checkpoint.")
+flags.DEFINE_integer("batch_size", 64, "Batch size to use during training.")
+flags.DEFINE_integer("vocab_size", 10000, "Number of unique words/tokens to use.")
 flags.DEFINE_integer("state_size", 256, "Number of units in the RNN cell.")
 flags.DEFINE_integer("embed_size", 32, "Size of word embedding dimension.")
-flags.DEFINE_integer("nb_epoch", 1, "Number of epochs over full train set to run.")
+flags.DEFINE_integer("nb_epoch", 2, "Number of epochs over full train set to run.")
 
 # Float flags -- hyperparameters.
-flags.DEFINE_float("learning_rate", 0.2, "Learning rate.")
+flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
 flags.DEFINE_float("lr_decay", 0.95, "Decay factor applied to learning rate.")
 flags.DEFINE_float("max_gradient", 5.0, "Clip gradients to this value.")
 FLAGS = flags.FLAGS
@@ -44,7 +44,9 @@ if __name__ == "__main__":
         assert FLAGS.reset_model == False, "Train the model before initiating chat session."
 
     # All datasets follow the same API, found in data/_dataset.py
-    dataset = Cornell(FLAGS.vocab_size)
+    print("Setting up dataset.")
+    dataset = Ubuntu(FLAGS.vocab_size)
+    #dataset = Cornell(FLAGS.vocab_size)
 
     # Create chat model of choice. Pass in FLAGS values in case you want to change from defaults.
     print("Creating DynamicBot.")
@@ -55,6 +57,7 @@ if __name__ == "__main__":
                      embed_size=FLAGS.embed_size,
                      learning_rate=FLAGS.learning_rate,
                      lr_decay=FLAGS.lr_decay,
+                     steps_per_ckpt=FLAGS.steps_per_ckpt,
                      is_chatting=FLAGS.decode)
 
 
@@ -67,8 +70,7 @@ if __name__ == "__main__":
     if not FLAGS.decode:
         print("Training bot. CTRL-C to stop training.")
         bot.train(dataset.train_data, dataset.valid_data,
-                  nb_epoch=FLAGS.nb_epoch,
-                  steps_per_ckpt=FLAGS.steps_per_ckpt)
+                  nb_epoch=FLAGS.nb_epoch)
 
     else:
         print("Initiating chat session")

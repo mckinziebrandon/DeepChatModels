@@ -14,3 +14,5 @@
 # existed in tf repo but have since been removed. 
 # They will be missed. 
 **/deleted_tensorflow_files/*
+
+**/saved_train_data/**

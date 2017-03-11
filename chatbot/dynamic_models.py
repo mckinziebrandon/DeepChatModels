@@ -33,6 +33,7 @@ class DynamicBot(Model):
                  embed_size=32,
                  learning_rate=0.4,
                  lr_decay=0.98,
+                 steps_per_ckpt=100,
                  is_chatting=False):
         """
         Args:
@@ -44,6 +45,7 @@ class DynamicBot(Model):
             embed_size: size of embedding dimension that integer IDs get mapped into.
             learning_rate: float, typically in range [0, 1].
             lr_decay: weight decay factor, not strictly necessary since default optimizer is adagrad.
+            steps_per_ckpt: (int) Specifies step interval for testing on validation data.
             is_chatting: boolean, should be False when training and True when chatting.
         """
 
@@ -59,10 +61,7 @@ class DynamicBot(Model):
         self.dataset = dataset
 
         # Thanks to variable scoping, only need one object for multiple embeddings.
-        embedder     = Embedder(self.vocab_size, embed_size)
-        self.encoder = Encoder(state_size, self.embed_size)
-        self.decoder = Decoder(state_size, self.vocab_size, self.embed_size)
-
+        embedder = Embedder(self.vocab_size, embed_size)
         # The following placeholder shapes correspond with [batch_size, seq_len].
         self.encoder_inputs = tf.placeholder(tf.int32, [None, None], name="encoder_inputs")
         self.decoder_inputs = tf.placeholder(tf.int32, [None, None], name="decoder_inputs")
@@ -70,11 +69,13 @@ class DynamicBot(Model):
 
         # Encoder inputs in embedding space. Shape is [None, None, embed_size].
         with tf.variable_scope("encoder") as encoder_scope:
+            self.encoder = Encoder(state_size, self.embed_size)
             embedded_enc_inputs = embedder(self.encoder_inputs, scope=encoder_scope)
             # Get encoder state after feeding the sequence(s). Shape is [None, state_size].
             encoder_state = self.encoder(embedded_enc_inputs, scope=encoder_scope)
 
         with tf.variable_scope("decoder") as decoder_scope:
+            self.decoder = Decoder(state_size, self.vocab_size, self.embed_size)
             # Decoder inputs in embedding space. Shape is [None, None, embed_size].
             embedded_dec_inputs = embedder(self.decoder_inputs, scope=decoder_scope)
             # For decoder, we want the full sequence of output states, not simply the last.
@@ -101,13 +102,13 @@ class DynamicBot(Model):
                                          batch_size,
                                          learning_rate,
                                          lr_decay,
+                                         steps_per_ckpt,
                                          is_chatting)
 
     def compile(self, optimizer=None, max_gradient=5.0, reset=False):
         """ Configure training process and initialize model. Inspired by Keras.
 
         Args:
-            optimizer: instance of tf.train.Optimizer. Defaults to AdagradOptimizer.
             max_gradient: float. Gradients will be clipped to be below this value.
             reset: boolean. Tells Model superclass whether or not we wish to compile
                             a model from scratch or load existing parameters from ckpt_dir.
@@ -126,9 +127,7 @@ class DynamicBot(Model):
 
                 # Define the training portion of the graph.
                 params = tf.trainable_variables()
-                if optimizer is None:
-                    optimizer = tf.train.AdagradOptimizer(self.learning_rate)
-
+                optimizer = tf.train.AdagradOptimizer(self.learning_rate)
                 gradients = tf.gradients(self.loss, params)
                 clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, max_gradient)
                 grads = list(zip(clipped_gradients, params))
@@ -202,14 +201,13 @@ class DynamicBot(Model):
                 return summaries, step_loss, step_outputs
 
     def train(self, train_data, valid_data,
-              nb_epoch=1, steps_per_ckpt=100, save_dir=None):
+              nb_epoch=1, save_dir=None):
         """Train bot on inputs for nb_epoch epochs, or until user types CTRL-C.
 
         Args:
             train_data: (2-tuple) property of any 'Dataset' instance.
             valid_data: (2-tuple) property of any 'Dataset' instance.
             nb_epoch: (int) Number of times to train over all entries in inputs.
-            steps_per_ckpt: (int) Specifies step interval for testing on validation data.
             save_dir: (str) Path to save ckpt files. If None, defaults to self.ckpt_dir.
         """
 
@@ -236,10 +234,11 @@ class DynamicBot(Model):
                     start_time = time.time()
                     summaries, step_loss, _ = self.step(encoder_batch, decoder_batch)
                     # Calculate running averages.
-                    avg_step_time  += (time.time() - start_time) / steps_per_ckpt
-                    avg_loss       += step_loss / steps_per_ckpt
+                    avg_step_time  += (time.time() - start_time) / self.steps_per_ckpt
+                    avg_loss       += step_loss / self.steps_per_ckpt
+
                     # Print updates in desired intervals (steps_per_ckpt).
-                    if i_step % steps_per_ckpt == 0:
+                    if i_step % self.steps_per_ckpt == 0:
                         # Save current parameter values in a new checkpoint file.
                         self.save(summaries=summaries, summaries_type="train", save_dir=save_dir)
                         # Report training averages.
@@ -251,6 +250,7 @@ class DynamicBot(Model):
                         print("Validation perplexity: %.3f" % perplexity(eval_loss))
                         # Reset the running averages.
                         avg_loss = avg_step_time = 0.0
+
                     i_step += 1
         except (KeyboardInterrupt, SystemExit):
             print("Training halted. Cleaning up . . . ")

@@ -9,7 +9,7 @@ class Ubuntu(Dataset):
         TODO: Move reformatting functions from 'reformat_ubuntu' notebook to here.
     """
 
-    def __init__(self, vocab_size):
+    def __init__(self, vocab_size=20000):
         self._name = "ubuntu"
         self.vocab_size = vocab_size
         self._data_dir = '/home/brandon/terabyte/Datasets/ubuntu_dialogue_corpus'
@@ -31,11 +31,8 @@ class Ubuntu(Dataset):
         self.paths['from_vocab']    = vocab_path[0]
         self.paths['to_vocab']      = vocab_path[1]
 
-        encoder_dictionaries = io_utils.get_vocab_dicts(self.paths['from_vocab'])
-        decoder_dictionaries = io_utils.get_vocab_dicts(self.paths['to_vocab'])
-
-        self._word_to_idx, _ = encoder_dictionaries
-        _, self._idx_to_word = decoder_dictionaries
+        self._word_to_idx, _ = io_utils.get_vocab_dicts(self.paths['from_vocab'])
+        _, self._idx_to_word = io_utils.get_vocab_dicts(self.paths['to_vocab'])
 
         self._train_data = self.read_data("train")
         self._valid_data = self.read_data("valid")
@@ -46,13 +43,18 @@ class Ubuntu(Dataset):
     # Required 'Dataset' method implementations:
     # ===================================================================
 
+    @property
     def word_to_idx(self):
         """Encoder words to indices. """
         return self._word_to_idx
 
+    @property
     def idx_to_word(self):
         """Decoder words to indices. """
         return self._idx_to_word
+
+    def as_words(self, sentence):
+        return " ".join([tf.compat.as_str(self._idx_to_word[i]) for i in sentence])
 
     @property
     def data_dir(self):
@@ -82,7 +84,7 @@ class Ubuntu(Dataset):
 
     @property
     def max_seq_len(self):
-        return 100
+        raise NotImplemented
 
     # ===================================================================
     # Additional methods:

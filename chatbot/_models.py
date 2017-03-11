@@ -29,12 +29,23 @@ class Model(object):
                  batch_size=64,
                  learning_rate=0.5,
                  lr_decay=0.98,
+                 steps_per_ckpt=100,
                  is_decoding=False):
+        """
+        Args:
+            ckpt_dir: location where training checkpoint files will be saved.
+            batch_size: number of samples per training step.
+            learning_rate: float, typically in range [0, 1].
+            lr_decay: weight decay factor, not strictly necessary since default optimizer is adagrad.
+            steps_per_ckpt: (int) Specifies step interval for testing on validation data.
+        """
 
         with tf.variable_scope("model_vars"):
-            self.learning_rate  = tf.Variable(float(learning_rate), trainable=True, dtype=tf.float32)
-            #self.lr_decay = self.learning_rate.assign(learning_rate * lr_decay)
+            self.steps_per_ckpt = steps_per_ckpt
             self.global_step    = tf.Variable(initial_value=0, trainable=False)
+            self.learning_rate = tf.train.exponential_decay(learning_rate, self.global_step,
+                                                       self.steps_per_ckpt, lr_decay, staircase=True)
+            #self.lr_decay = self.learning_rate.assign(learning_rate * lr_decay)
 
         self.log = logger
         self.data_name = data_name
