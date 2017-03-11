@@ -69,7 +69,7 @@ One particular feature of DynamicBot worth mentioning is that the output generat
 
 ## Sanity checks
 
-Now that the goals for DynamicBot have been met design-wise, I'm digging into the first big testing/debugging stage. At the moment, a random search over hyperparameters is being run, which should take a couple days to finish and plot all the pretty visualizations. Until then, I'm collecting outputs for a variety of sanity checks. 
+Now that the goals for DynamicBot have been met design-wise, I'm digging into the first big testing/debugging stage.
 
 ### Check 1: Ensure a large DynamicBot can overfit a small dataset.
 
@@ -78,4 +78,17 @@ Below is a plot related to one of the debugging strategies recommended in chapte
 ![Ensuring DynamicBot can overfit before optimizing any further](http://i.imgur.com/PwhSmwJ.png)
 
 This plot shows DynamicBot can achieve 0 loss for an extremely small dataset. Great, we can overfit. Now we can begin to explore regularization techniques.
+
+### Check 2: Random & Grid Search Plots
+
+I recently did a small random search and grid search over the following hyperparameters: learning rate, embed size, state size. The plots below show some of the findings. These are simply exploratory, I understand their limitations and I'm not drawing strong conclusions from them. They are meant to give a rough sense of the energy landscape in hyperparameter space. Oh and, plots make me happy. Enjoy. For all below, the y-axis is validation loss and the x-axis is global (training) step. The colors distinguish between model hyperparameters defined in the legends.
+
+<img alt="learning_rate" src="http://i.imgur.com/CtpX6vr.png" width="600" align="middle">
+
+<img alt="state_size" src="http://i.imgur.com/w479tSo.png" width="600">
+
+<img alt="embed_size" src="http://i.imgur.com/2Tj3vmA.png" width="600">
+
+<img alt="learning_subs" src="http://i.imgur.com/bD8MFrV.png" width="900">
+
 
