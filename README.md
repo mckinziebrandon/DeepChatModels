@@ -88,8 +88,7 @@ I recently did a small random search and grid search over the following hyperpar
 
 
 <img alt="state_size" src="http://i.imgur.com/w479tSo.png" width="400" align="left">
-<img alt="embed_size" src="http://i.imgur.com/2Tj3vmA.png" width="400" align="right">
-<br/><br/>
+<img alt="embed_size" src="http://i.imgur.com/2Tj3vmA.png" width="400">
 <br/>
 <br/>
 
