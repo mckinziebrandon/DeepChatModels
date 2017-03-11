@@ -83,12 +83,17 @@ This plot shows DynamicBot can achieve 0 loss for an extremely small dataset. Gr
 
 I recently did a small random search and grid search over the following hyperparameters: learning rate, embed size, state size. The plots below show some of the findings. These are simply exploratory, I understand their limitations and I'm not drawing strong conclusions from them. They are meant to give a rough sense of the energy landscape in hyperparameter space. Oh and, plots make me happy. Enjoy. For all below, the y-axis is validation loss and the x-axis is global (training) step. The colors distinguish between model hyperparameters defined in the legends.
 
+
+
+<img alt="state_size" src="http://i.imgur.com/w479tSo.png" width="500">
+<img alt="embed_size" src="http://i.imgur.com/2Tj3vmA.png" width="500">
+The only takeaway I saw from these two plots (after seeing the learning rate plots below) is that the __learning rate__, not the embed size, is overwhelmingly for responsible for any patterns here. It also looks like models with certain emed sizes (like 30) were underrepresented in the sampling, we see less points for them than others. The plots below illustrate the learning rate dependence.
+
 <img alt="learning_rate" src="http://i.imgur.com/CtpX6vr.png" width="600" align="middle">
-
-<img alt="state_size" src="http://i.imgur.com/w479tSo.png" width="600">
-
-<img alt="embed_size" src="http://i.imgur.com/2Tj3vmA.png" width="600">
+Hmm, the wild oscillations for the large learning rate of 0.7 were expected, but what is going on with the values lying along the bottom (also with 0.7)? Perhaps we can find out by peering in on the same style of plot for each individual learning rate, as done below.
 
 <img alt="learning_subs" src="http://i.imgur.com/bD8MFrV.png" width="900">
+
+**General conclusion: the learning rate influences the validation loss far more than state size or embed size.** This was basically known before making these plots, as it is a well known property of such networks (Ng). It was nice to verify this for myself.
 
 
