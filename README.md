@@ -3,15 +3,10 @@
 [NEW MODEL: DynamicBot. More info in next section]
 
 This project is still very much evolving each day, but the core goals are:
-* Create a cleaner user interface for tinkering with sequence-to-sequence models and over multiple datasets. This project will explore ways to make constructing such models feel more intuitive/customizeable. The ideal result is a chatbot API with the readability of [Keras](https://keras.io/), but with a degree of flexibility closer to TensorFlow. For example, the following code is all that is needed (after imports, etc.) to create and train one of the models on the Cornell movie dialogs:
+* Create a cleaner user interface for tinkering with sequence-to-sequence models. This project will explore ways to make constructing such models feel more intuitive/customizable. The ideal result is a chatbot API with the readability of [Keras](https://keras.io/), but with a degree of flexibility closer to [TensorFlow](https://www.tensorflow.org/). For example, the following code is all that is needed (after imports, etc.) to create and train one of the models on the Cornell movie dialogs (All params with '=' are optional) :
 ```python
-    # (Optional) Number of training samples used per gradient update.
-    batch_size = 64
-    # (Optional) Specify the max allowed number of words per sentence.
-    max_seq_len = 500
-    
     # All datasets implement a Dataset interface, found in data/_dataset.py
-    dataset = Cornell(FLAGS.vocab_size)
+    dataset = Cornell(vocab_size=FLAGS.vocab_size)
 
     # Create chat model of choice. Pass in FLAGS values in case you want to change from defaults.
     print("Creating DynamicBot.")
@@ -24,8 +19,7 @@ This project is still very much evolving each day, but the core goals are:
                      lr_decay=FLAGS.lr_decay,
                      is_chatting=FLAGS.decode)
 
-
-    # Don't forget to compile! Name inspired by Keras method of the same name.
+    # Don't forget to compile! Name inspired by similar Keras method.
     print("Compiling DynamicBot.")
     bot.compile(max_gradient=FLAGS.max_gradient, reset=FLAGS.reset_model)
 
@@ -43,7 +37,7 @@ This project is still very much evolving each day, but the core goals are:
 ```
 
 * Explore how [personalities of chatbots](https://arxiv.org/pdf/1603.06155.pdf) change when trained on different datasets, and methods for improving speaker consistency.
-* Add support for "teacher mode": an interactive chat session where the user can tell the bot how well they're doing, and suggest better responses that the bot can learn from.
+* Implement and improve "teacher mode": an interactive chat session where the user can tell the bot how well they're doing, and suggest better responses that the bot can learn from.
 
 * [Completed] Models:
     * Rewrite conversation model with faster embedding technique and new TF support for dynamic unrolling.
@@ -69,7 +63,7 @@ One particular feature of DynamicBot worth mentioning is that the output generat
 
 ## Sanity checks
 
-Now that the goals for DynamicBot have been met design-wise, I'm digging into the first big testing/debugging stage. At the moment, a random search over hyperparameters is being run, which should take a couple days to finish and plot all the pretty visualizations. Until then, I'm collecting outputs for a variety of sanity checks. 
+Now that the goals for DynamicBot have been met design-wise, I'm digging into the first big testing/debugging stage.
 
 ### Check 1: Ensure a large DynamicBot can overfit a small dataset.
 
@@ -78,4 +72,32 @@ Below is a plot related to one of the debugging strategies recommended in chapte
 ![Ensuring DynamicBot can overfit before optimizing any further](http://i.imgur.com/PwhSmwJ.png)
 
 This plot shows DynamicBot can achieve 0 loss for an extremely small dataset. Great, we can overfit. Now we can begin to explore regularization techniques.
+
+### Check 2: Random & Grid Search Plots
+
+I recently did a small random search and grid search over the following hyperparameters: learning rate, embed size, state size. The plots below show some of the findings. These are simply exploratory, I understand their limitations and I'm not drawing strong conclusions from them. They are meant to give a rough sense of the energy landscape in hyperparameter space. Oh and, plots make me happy. Enjoy. For all below, the y-axis is validation loss and the x-axis is global (training) step. The colors distinguish between model hyperparameters defined in the legends.
+
+
+
+
+
+<img alt="state_size" src="http://i.imgur.com/w479tSo.png" width="400" align="left">
+<img alt="embed_size" src="http://i.imgur.com/2Tj3vmA.png" width="400">
+<br/>
+<br/>
+
+
+The only takeaway I saw from these two plots (after seeing the learning rate plots below) is that the __learning rate__, not the embed size, is overwhelmingly for responsible for any patterns here. It also looks like models with certain emed sizes (like 30) were underrepresented in the sampling, we see less points for them than others. The plots below illustrate the learning rate dependence.
+
+
+<img alt="learning_rate" src="http://i.imgur.com/CtpX6vr.png" width="600">
+<br/><br/>
+
+
+Hmm, the wild oscillations for the large learning rate of 0.7 were expected, but what is going on with the values lying along the bottom (also with 0.7)? Perhaps we can find out by peering in on the same style of plot for each individual learning rate, as done below.
+
+<img alt="learning_subs" src="http://i.imgur.com/bD8MFrV.png" width="900">
+
+**General conclusion: the learning rate influences the validation loss far more than state size or embed size.** This was basically known before making these plots, as it is a well known property of such networks (Ng). It was nice to verify this for myself.
+
 
