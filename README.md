@@ -45,7 +45,17 @@ This project is still very much evolving each day, but the core goals are:
 * Explore how [personalities of chatbots](https://arxiv.org/pdf/1603.06155.pdf) change when trained on different datasets, and methods for improving speaker consistency.
 * Add support for "teacher mode": an interactive chat session where the user can tell the bot how well they're doing, and suggest better responses that the bot can learn from.
 
+(TODO: needs updating)
+The following have been more-or-less completed. 
 
+* Models:
+    * Rewrite conversation model with faster embedding technique and new TF support for dynamic unrolling.
+    * Implement an attention-based embedding sequence-to-sequence model with the help of the tensorflow.contrib libraries.
+    * Implement a simpler embedding sequence-to-sequence from "scratch" (minimal use of contrib).
+* Datasets:
+    * **WMT'15** : English-to-French translation.
+    * **Ubuntu Dialogue Corpus**: Reformatted as single-turn to single-response pairs.
+    * **Cornell Movie-Dialogs**: Recently (March 5) incorporated [this preprocessed](https://github.com/suriyadeepan/datasets/tree/master/seq2seq/cornell_movie_corpus) version of the Cornell corpus. I'll be processing and reformatting it further.
 
 ## Faster Embedding, Encoding, and Chatting
 
@@ -62,17 +72,13 @@ One particular feature of DynamicBot worth mentioning is that the output generat
 At present, I'm running longer training/chatting sessions on all models to eventually report quantitative comparisons. They will be reported here after all models have given it their best shot.
 
 
+## Sanity checks
 
-## Project Overview
+Now that the goals for DynamicBot have been met design-wise, I'm digging into the first big testing/debugging stage. At the moment, a random search over hyperparameters is being run, which should take a couple days to finish and plot all the pretty visualizations. Until then, I'm collecting outputs for a variety of sanity checks. 
 
-(TODO: needs updating)
-The following have been more-or-less completed. 
+Below is a plot related to one of the debugging strategies recommended in chapter 11 of *Deep Learning* by Goodfellow et al. The idea is that any sufficiently large model should be able to perfectly fit (well, overfit) a small training dataset. I wanted to make sure DynamicBot could overfit before I started implementing any regularizing techniques. It is a plot in TensorBoard of cross-entropy loss (y-axis) against global training steps (x-axis). The orange curve is the training loss, while the blue curve is the validation loss. TensorBoard has visually smoothed out the oscillations a bit. 
 
-* Models:
-    * Rewrite conversation model with faster embedding technique and new TF support for dynamic unrolling.
-    * Implement an attention-based embedding sequence-to-sequence model with the help of the tensorflow.contrib libraries.
-    * Implement a simpler embedding sequence-to-sequence from "scratch" (minimal use of contrib).
-* Datasets:
-    * **WMT'15** : English-to-French translation.
-    * **Ubuntu Dialogue Corpus**: Reformatted as single-turn to single-response pairs.
-    * **Cornell Movie-Dialogs**: Recently (March 5) incorporated [this preprocessed](https://github.com/suriyadeepan/datasets/tree/master/seq2seq/cornell_movie_corpus) version of the Cornell corpus. I'll be processing and reformatting it further.
+![Ensuring DynamicBot can overfit before optimizing any further](http://i.imgur.com/PwhSmwJ.png)
+
+This plot shows DynamicBot can achieve 0 loss for an extremely small dataset. Great, we can overfit. Now we can begin to explore regularization techniques.
+
