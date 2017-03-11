@@ -85,13 +85,23 @@ I recently did a small random search and grid search over the following hyperpar
 
 
 
+
+
 <img alt="state_size" src="http://i.imgur.com/w479tSo.png" width="400" align="left">
 <img alt="embed_size" src="http://i.imgur.com/2Tj3vmA.png" width="400" align="right">
+<br/><br/>
+<br/>
+<br/>
 
 
 The only takeaway I saw from these two plots (after seeing the learning rate plots below) is that the __learning rate__, not the embed size, is overwhelmingly for responsible for any patterns here. It also looks like models with certain emed sizes (like 30) were underrepresented in the sampling, we see less points for them than others. The plots below illustrate the learning rate dependence.
 
-<img alt="learning_rate" src="http://i.imgur.com/CtpX6vr.png" width="600" align="middle">
+
+<img alt="learning_rate" src="http://i.imgur.com/CtpX6vr.png" width="600">
+<br/><br/>
+<br/>
+<br/>
+
 Hmm, the wild oscillations for the large learning rate of 0.7 were expected, but what is going on with the values lying along the bottom (also with 0.7)? Perhaps we can find out by peering in on the same style of plot for each individual learning rate, as done below.
 
 <img alt="learning_subs" src="http://i.imgur.com/bD8MFrV.png" width="900">
