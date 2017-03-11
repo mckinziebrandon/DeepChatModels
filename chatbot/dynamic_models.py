@@ -29,10 +29,10 @@ class DynamicBot(Model):
                  dataset,
                  ckpt_dir="out",
                  batch_size=64,
-                 state_size=256,
+                 state_size=128,
                  embed_size=32,
-                 learning_rate=0.4,
-                 lr_decay=0.98,
+                 learning_rate=0.6,
+                 lr_decay=0.995,
                  steps_per_ckpt=100,
                  temperature=0.0,
                  is_chatting=False):
@@ -232,12 +232,13 @@ class DynamicBot(Model):
 
         hyper_params = {}
         try:
-            for _ in range(nb_epoch):
+            for i_epoch in range(nb_epoch):
                 i_step = 0
                 avg_loss = avg_step_time = 0.0
                 # Create data generators.
                 train_gen = batch_generator(encoder_inputs_train, decoder_inputs_train)
                 valid_gen = batch_generator(encoder_inputs_valid, decoder_inputs_valid)
+                print("_______________ NEW EPOCH: %d _______________" % i_epoch)
                 for encoder_batch, decoder_batch in train_gen:
                     start_time = time.time()
                     summaries, step_loss, _ = self.step(encoder_batch, decoder_batch)
@@ -257,18 +258,19 @@ class DynamicBot(Model):
                         self.save(summaries=summaries, summaries_type="valid", save_dir=save_dir)
                         print("Validation loss:%.3f, perplexity:%.3f" % (eval_loss, perplexity(eval_loss)))
 
-                        # TODO: implement less ugly. For now, having training up and running is priority.
-                        hyper_params = {"global_step":[self.global_step.eval(session=self.sess)],
-                                       "loss": [eval_loss],
-                                        "learning_rate":[self.init_learning_rate],
-                                        "vocab_size":[self.vocab_size],
-                                        "state_size":[self.state_size],
-                                        "embed_size":[self.embed_size]}
-                        if i_step == 0:
-                            hyper_params["loss"] = [step_loss]
-                        if self.data_name != "test_data":
-                            io_utils.save_hyper_params(
-                                hyper_params, fname='data/saved_train_data/'+self.data_name+".csv")
+                        # TODO: less ugly. For now, having training up and running is priority.
+                        if False:
+                            hyper_params = {"global_step":[self.global_step.eval(session=self.sess)],
+                                           "loss": [eval_loss],
+                                            "learning_rate":[self.init_learning_rate],
+                                            "vocab_size":[self.vocab_size],
+                                            "state_size":[self.state_size],
+                                            "embed_size":[self.embed_size]}
+                            if i_step == 0:
+                                hyper_params["loss"] = [step_loss]
+                            if self.data_name != "test_data":
+                                io_utils.save_hyper_params(
+                                    hyper_params, fname='data/saved_train_data/'+self.data_name+".csv")
 
                         # Reset the running averages.
                         avg_loss = avg_step_time = 0.0

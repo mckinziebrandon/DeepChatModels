@@ -29,9 +29,7 @@ class Embedder:
         return embedded_inputs
 
     def get_embed_tensor(self, scope):
-        """Returns the embedding tensor used for the given scope.
-        If none exists, raises NameError.
-        """
+        """Returns the embedding tensor used for the given scope. """
         with tf.variable_scope(scope, reuse=True):
             return tf.get_variable("embed_tensor")
 
@@ -47,6 +45,8 @@ class RNN(object):
         """
         self.state_size = state_size
         self.embed_size = embed_size
+        # TODO: Allow for cell to be passed in as parameter.
+        self.cell = tf.contrib.rnn.GRUCell(self.state_size)
 
 
 class Encoder(RNN):
@@ -59,7 +59,7 @@ class Encoder(RNN):
         """
         super(Encoder, self).__init__(state_size=state_size, embed_size=embed_size)
 
-    def __call__(self, inputs, return_sequence=False, initial_state=None, scope=None,):
+    def __call__(self, inputs, return_sequence=False, initial_state=None, scope=None):
         """Run the inputs on the encoder and return the output(s).
 
         Args:
@@ -74,13 +74,12 @@ class Encoder(RNN):
             state:   The final encoder state. Tensor of shape [batch_size, state_size].
         """
 
-        with tf.variable_scope(scope or "encoder_call"):
-
+        with tf.variable_scope(scope or "encoder_call") as enc_call_scope:
             #return tf.contrib.rnn.MultiRNNCell([single_cell() for _ in range(num_layers)])
-            cell = tf.contrib.rnn.GRUCell(self.state_size)
-            outputs, state = tf.nn.dynamic_rnn(cell, inputs,
+            outputs, state = tf.nn.dynamic_rnn(self.cell, inputs,
                                                initial_state=initial_state,
-                                               dtype=tf.float32)
+                                               dtype=tf.float32,
+                                               scope=enc_call_scope)
         if return_sequence:
             return outputs, state
         else:
@@ -126,14 +125,16 @@ class Decoder(RNN):
                      else, None.
         """
 
-        with tf.variable_scope(scope or "dynamic_rnn_call"):
-            cell = tf.contrib.rnn.GRUCell(self.state_size)
-
-            outputs, state = tf.nn.dynamic_rnn(cell, inputs, initial_state=initial_state, dtype=tf.float32)
+        with tf.variable_scope(scope or "dynamic_rnn_call") as dec_call_scope:
+            outputs, state = tf.nn.dynamic_rnn(self.cell, inputs,
+                                               initial_state=initial_state,
+                                               dtype=tf.float32,
+                                               scope=dec_call_scope)
             # Outputs has shape [batch_size, max_time, output_size].
             outputs = self.output_projection(outputs)
 
-            if not is_chatting:  # then dynamic sampling is not needed and we are done.
+            if not is_chatting:
+                # Dynamic sampling is not needed unless in interactive chat session, so we're done.
                 return outputs, state
 
             if loop_embedder is None:
@@ -141,9 +142,10 @@ class Decoder(RNN):
 
             def body(response, state):
                 """Input callable for tf.while_loop. See below."""
-                scope.reuse_variables()
-                decoder_input = loop_embedder(tf.reshape(response[-1], (1, 1)), scope=scope)
-                outputs, state = tf.nn.dynamic_rnn(cell,
+                dec_call_scope.reuse_variables()
+                decoder_input = loop_embedder(tf.reshape(response[-1], (1, 1)),
+                                              scope=dec_call_scope)
+                outputs, state = tf.nn.dynamic_rnn(self.cell,
                                              inputs=decoder_input,
                                              initial_state=state,
                                              sequence_length=[1],
