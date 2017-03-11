@@ -6,6 +6,7 @@ from __future__ import print_function
 import os
 import re
 import sys
+import pandas as pd
 
 import numpy as np
 import tensorflow as tf
@@ -27,6 +28,12 @@ UNK_ID  = 3
 # Regular expressions used to tokenize.
 _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
 _DIGIT_RE   = re.compile(br"\d")
+
+def save_hyper_params(hyper_params: dict, fname):
+    # Append to file if exists, else create.
+    df = pd.DataFrame(hyper_params)
+    with open(fname, 'a+') as f:
+        df.to_csv(f, header=False)
 
 
 def get_sentence():

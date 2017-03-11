@@ -75,6 +75,8 @@ class Encoder(RNN):
         """
 
         with tf.variable_scope(scope or "encoder_call"):
+
+            #return tf.contrib.rnn.MultiRNNCell([single_cell() for _ in range(num_layers)])
             cell = tf.contrib.rnn.GRUCell(self.state_size)
             outputs, state = tf.nn.dynamic_rnn(cell, inputs,
                                                initial_state=initial_state,

@@ -59,13 +59,17 @@ class DynamicBot(Model):
         # It's quite helpful in the decoding/chat sessions, but it feels even more odd
         # passing it as an argument there.
         self.dataset = dataset
+        self.init_learning_rate = learning_rate
 
-        # Thanks to variable scoping, only need one object for multiple embeddings.
-        embedder = Embedder(self.vocab_size, embed_size)
         # The following placeholder shapes correspond with [batch_size, seq_len].
         self.encoder_inputs = tf.placeholder(tf.int32, [None, None], name="encoder_inputs")
         self.decoder_inputs = tf.placeholder(tf.int32, [None, None], name="decoder_inputs")
         self.target_weights = tf.placeholder(tf.float32, [None, None], name="target_weights")
+
+        # Thanks to variable scoping, only need one object for multiple embeddings.
+        embedder = Embedder(self.vocab_size, embed_size)
+        #cell = tf.contrib.rnn.MultiRNNCell([tf.contrib.rnn.GRUCell(self.state_size)
+        #                                    for _ in range(self.num_layers)])
 
         # Encoder inputs in embedding space. Shape is [None, None, embed_size].
         with tf.variable_scope("encoder") as encoder_scope:
@@ -223,6 +227,7 @@ class DynamicBot(Model):
         # Get validation data as batch-padded lists.
         encoder_inputs_valid, decoder_inputs_valid = batch_padded(valid_data, self.batch_size)
 
+        hyper_params = {}
         try:
             for _ in range(nb_epoch):
                 i_step = 0
@@ -248,9 +253,21 @@ class DynamicBot(Model):
                         summaries, eval_loss, _ = self.step(*next(valid_gen))
                         self.save(summaries=summaries, summaries_type="valid", save_dir=save_dir)
                         print("Validation perplexity: %.3f" % perplexity(eval_loss))
+
+                        # TODO: implement less ugly. For now, having training up and running is priority.
+                        hyper_params = {"global_step":[self.global_step.eval(session=self.sess)],
+                                       "loss": [avg_loss],
+                                        "learning_rate":[self.init_learning_rate],
+                                        "vocab_size":[self.vocab_size],
+                                        "state_size":[self.state_size],
+                                        "embed_size":[self.embed_size]}
+                        if i_step == 0:
+                            hyper_params["loss"] = [step_loss]
+                        io_utils.save_hyper_params(
+                            hyper_params, fname='data/saved_train_data/'+self.data_name+".csv")
+
                         # Reset the running averages.
                         avg_loss = avg_step_time = 0.0
-
                     i_step += 1
         except (KeyboardInterrupt, SystemExit):
             print("Training halted. Cleaning up . . . ")
