@@ -1,5 +1,5 @@
 import tensorflow as tf
-from utils.io_utils import EOS_ID
+from utils.io_utils import EOS_ID, UNK_ID
 
 
 class Embedder:
@@ -149,7 +149,8 @@ class Decoder(RNN):
 
             def cond(response, s):
                 """Input callable for tf.while_loop. See below."""
-                return tf.not_equal(response[-1], EOS_ID)
+                return tf.logical_and(tf.not_equal(response[-1], EOS_ID),
+                                      tf.not_equal(response[-1], UNK_ID))
 
             # Create integer (tensor) list of output ID responses.
             response = tf.stack([self.sample(outputs)])

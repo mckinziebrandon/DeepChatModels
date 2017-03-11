@@ -50,7 +50,7 @@ class Model(object):
         self.log = logger
         self.data_name = data_name
         self.sess           = tf.Session()
-        self.is_decoding    = is_decoding
+        self.is_chatting    = is_decoding
         self.batch_size     = batch_size
         self.vocab_size = vocab_size
         # Directory IO management.

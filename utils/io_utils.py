@@ -29,7 +29,7 @@ UNK_ID  = 3
 _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
 _DIGIT_RE   = re.compile(br"\d")
 
-def save_hyper_params(hyper_params: dict, fname):
+def save_hyper_params(hyper_params, fname):
     # Append to file if exists, else create.
     df = pd.DataFrame(hyper_params)
     with open(fname, 'a+') as f:
@@ -115,7 +115,7 @@ def batch_padded(data, batch_size):
 
     # Append residual (leftover) sentences.
     batch = get_batch(-num_residual, is_residual=True)
-    padded_encoder_batches.append(padded_batch(batch[0], batch[-1], is_residual=True))
+    padded_encoder_batches.append(padded_batch(batch[0], batch[-1], is_residual=True)[:, ::-1])
     padded_decoder_batches.append(padded_batch(batch[1], batch[-1], is_residual=True))
     return padded_encoder_batches, padded_decoder_batches
 

@@ -1,7 +1,6 @@
 import logging
-
 import tensorflow as tf
-
+import os
 from data._dataset import Dataset
 from utils import io_utils
 
@@ -9,18 +8,19 @@ from utils import io_utils
 class TestData(Dataset):
     """Mock dataset with a handful of sentences."""
 
-    def __init__(self, vocab_size=100):
+    def __init__(self):
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('TestDataLogger')
         self._name = "test_data"
-        self.vocab_size = vocab_size
         self._data_dir = '/home/brandon/terabyte/Datasets/test_data'
+
+
         paths_triplet = io_utils.prepare_data(self._data_dir,
                                               self._data_dir + "/train_from.txt",
                                               self._data_dir + "/train_to.txt",
                                               self._data_dir + "/valid_from.txt",
                                               self._data_dir + "/valid_to.txt",
-                                              vocab_size, vocab_size)
+                                              100, 100)
         train_path, valid_path, vocab_path = paths_triplet
         self.paths = {}
         self.paths['from_train']    = train_path[0]
@@ -30,17 +30,14 @@ class TestData(Dataset):
         self.paths['from_vocab']    = vocab_path[0]
         self.paths['to_vocab']      = vocab_path[1]
 
-        if tf.gfile.Exists(self.paths['from_vocab']):
-            rev_vocab = []
-            with tf.gfile.GFile(self.paths['from_vocab'], mode="rb") as f:
-                rev_vocab.extend(f.readlines())
-            rev_vocab = [tf.compat.as_bytes(line.strip()) for line in rev_vocab]
-            vocab = dict([(x, y) for (y, x) in enumerate(rev_vocab)])
-        else:
-            raise ValueError("Vocabulary file %s not found.", self.paths['from_vocab'])
+        from_vocab_size = len(open(os.path.join(self._data_dir, "vocab100.from")).readlines())
+        to_vocab_size = len(open(os.path.join(self._data_dir, "vocab100.to")).readlines())
+        self.vocab_size = max(from_vocab_size, to_vocab_size)
 
-        self._word_to_idx = vocab
-        self._idx_to_word = rev_vocab
+        self._word_to_idx, _ = io_utils.get_vocab_dicts(self.paths['from_vocab'])
+        _, self._idx_to_word = io_utils.get_vocab_dicts(self.paths['to_vocab'])
+        assert len(self._word_to_idx) <= self.vocab_size
+        assert len(self._idx_to_word) <= self.vocab_size
 
         self._train_data = self.read_data("train")
         self._valid_data = self.read_data("valid")
@@ -65,8 +62,14 @@ class TestData(Dataset):
         """Return dictionary map from int -> str. """
         return self._idx_to_word
 
-    def as_english(self, token_ids):
-        return " ".join([tf.compat.as_str(self._idx_to_word[i]) for i in token_ids]) + "."
+    def as_words(self, token_ids):
+        try:
+            return " ".join([tf.compat.as_str(self._idx_to_word[i]) for i in token_ids])
+        except IndexError:
+            print("IndexError encountered for following sentence:\n", token_ids)
+            print("\nVocab size is :", self.vocab_size)
+            print("idx to word is:\n%r" % self._idx_to_word)
+            print("With length %d" % len(self._idx_to_word))
 
     @property
     def data_dir(self):

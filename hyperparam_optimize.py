@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """Run random search over a set of hyperparameters. """
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 import time
 import tensorflow as tf
 import numpy as np

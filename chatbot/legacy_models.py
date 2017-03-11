@@ -175,7 +175,7 @@ class ChatBot(BucketModel):
             return None, None, outputs[0], outputs[1:]
 
     @staticmethod
-    def _sampled_softmax_loss(num_samples: int, hidden_size: int, vocab_size: int):
+    def _sampled_softmax_loss(num_samples, hidden_size, vocab_size):
         """Defines the samples softmax loss op and the associated output projection.
         Args:
             num_samples:     (context: importance sampling) size of subset of outputs for softmax.
@@ -310,7 +310,7 @@ class SimpleBot(BucketModel):
 
                     for i, dec_inp in enumerate(decoder_inputs):
 
-                        #if is_decoding and prev is not None:
+                        #if is_chatting and prev is not None:
                         #    dec_inp = loop_function(prev)
 
                         if i == 0:

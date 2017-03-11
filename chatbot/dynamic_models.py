@@ -118,7 +118,7 @@ class DynamicBot(Model):
                             a model from scratch or load existing parameters from ckpt_dir.
         """
 
-        if not self.is_decoding:
+        if not self.is_chatting:
             # Define ops/variables related to loss computation.
             with tf.variable_scope("evaluation"):
                 check_shape(self.outputs, [None, None, self.vocab_size], self.log)
@@ -196,7 +196,7 @@ class DynamicBot(Model):
             summaries, step_loss, _ = self.sess.run(fetches, input_feed)
             return summaries, step_loss, None
         else:
-            if self.is_decoding:
+            if self.is_chatting:
                 step_outputs = self.sess.run(self.outputs, input_feed)
                 return None, None, step_outputs
             else:
@@ -263,8 +263,9 @@ class DynamicBot(Model):
                                         "embed_size":[self.embed_size]}
                         if i_step == 0:
                             hyper_params["loss"] = [step_loss]
-                        io_utils.save_hyper_params(
-                            hyper_params, fname='data/saved_train_data/'+self.data_name+".csv")
+                        if self.data_name != "test_data":
+                            io_utils.save_hyper_params(
+                                hyper_params, fname='data/saved_train_data/'+self.data_name+".csv")
 
                         # Reset the running averages.
                         avg_loss = avg_step_time = 0.0
@@ -276,6 +277,7 @@ class DynamicBot(Model):
     def decode(self):
         # We decode one sentence at a time.
         self.batch_size = 1
+        assert self.is_chatting
         # Decode from standard input.
         print("Type \"exit\" to exit.")
         print("Write stuff after the \">\" below and I, your robot friend, will respond.")
@@ -294,8 +296,10 @@ class DynamicBot(Model):
         encoder_inputs = io_utils.sentence_to_token_ids(
             tf.compat.as_bytes(sentence),self.dataset.word_to_idx)
 
-        encoder_inputs = np.array([encoder_inputs])
+        encoder_inputs = np.array([encoder_inputs[::-1]])
         # Get output sentence from the chatbot.
-        _, _, response = self.step(encoder_inputs, forward_only=True)
+        a, b, response = self.step(encoder_inputs, forward_only=True)
+        assert a is None
+        assert b is None
         # response has shape [1, response_length] and it's last element is EOS_ID. :)
         return self.dataset.as_words(response[0][:-1])
