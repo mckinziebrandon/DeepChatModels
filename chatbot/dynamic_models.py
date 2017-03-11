@@ -252,7 +252,7 @@ class DynamicBot(Model):
                         # Generate & run a batch of validation data.
                         summaries, eval_loss, _ = self.step(*next(valid_gen))
                         self.save(summaries=summaries, summaries_type="valid", save_dir=save_dir)
-                        print("Validation perplexity: %.3f" % perplexity(eval_loss))
+                        print("Validation loss:%.3f, perplexity:%.3f" % (eval_loss, perplexity(eval_loss)))
 
                         # TODO: implement less ugly. For now, having training up and running is priority.
                         hyper_params = {"global_step":[self.global_step.eval(session=self.sess)],

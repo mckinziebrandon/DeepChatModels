@@ -4,7 +4,7 @@ import time
 import tensorflow as tf
 import numpy as np
 from chatbot import DynamicBot
-from data import Cornell, Ubuntu
+from data import Cornell, Ubuntu, TestData
 from utils import io_utils
 
 flags = tf.app.flags
@@ -59,6 +59,7 @@ if __name__ == "__main__":
         print("Training bot. CTRL-C to stop training.")
         bot.train(dataset.train_data, dataset.valid_data, nb_epoch=FLAGS.nb_epoch)
 
+        tf.reset_default_graph()
 
 
 

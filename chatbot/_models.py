@@ -127,6 +127,7 @@ class Model(object):
         # Flush event file to disk.
         self.train_writer.close()
         self.valid_writer.close()
+        self.sess.close()
 
 class BucketModel(Model):
     """Abstract class. Any classes that extend BucketModel just need to customize their
