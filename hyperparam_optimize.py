@@ -24,18 +24,24 @@ if __name__ == "__main__":
     print("Setting up dataset.")
     dataset = Cornell(FLAGS.vocab_size)
 
+    # ____ SWITCHING TO GRID SEARCH because I'm tired of getting triplets like (244, 344, 377).___
     # We eventally want to get samples in range 10^-2 and 10^0.
-    log_learning_rates  = np.random.uniform(-2, 0, size=4)
+    # log_learning_rates  = np.random.uniform(-2, 0, size=4)
     # We'll do these base-2 (lg).
-    lg_state_sizes     = np.random.uniform(7, 9, size=3)
-    #lg_embed_sizes      = np.random.uniform(4, 6, size=3)
-    lg_embed_sizes      = [5, 6]
+    # lg_state_sizes     = np.random.uniform(7, 9, size=3)
+    # lg_embed_sizes      = np.random.uniform(4, 6, size=3)
+    # lg_embed_sizes      = [5, 6]
     hyperparams = []
-    for lg_lr in log_learning_rates:
-        for lg_state in lg_state_sizes:
-            for lg_embed in lg_embed_sizes:
-                hyperparams.append([10**lg_lr, int(2**lg_state), int(2**lg_embed)])
-                print(hyperparams[-1])
+    for lr in [0.06, 0.2, 0.7]:
+        for state in [128, 256, 512]:
+            for embed in [32, 64]:
+                hyperparams.append([lr, state, embed])
+
+    #for lg_lr in log_learning_rates:
+    #    for lg_state in lg_state_sizes:
+    #        for lg_embed in lg_embed_sizes:
+    #            hyperparams.append([10**lg_lr, int(2**lg_state), int(2**lg_embed)])
+    #            print(hyperparams[-1])
 
     print('\n\n')
 
