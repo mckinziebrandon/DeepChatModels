@@ -34,7 +34,7 @@ class DynamicBot(Model):
                  learning_rate=0.4,
                  lr_decay=0.98,
                  steps_per_ckpt=100,
-                 temperature=1.0,
+                 temperature=0.0,
                  is_chatting=False):
         """
         Args:
@@ -47,6 +47,8 @@ class DynamicBot(Model):
             learning_rate: float, typically in range [0, 1].
             lr_decay: weight decay factor, not strictly necessary since default optimizer is adagrad.
             steps_per_ckpt: (int) Specifies step interval for testing on validation data.
+            temperature: determines how varied the bot responses will be when chatting.
+                         The default (0.0) just results in deterministic argmax.
             is_chatting: boolean, should be False when training and True when chatting.
         """
 

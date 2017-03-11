@@ -36,6 +36,7 @@ flags.DEFINE_integer("nb_epoch", 2, "Number of epochs over full train set to run
 flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
 flags.DEFINE_float("lr_decay", 0.95, "Decay factor applied to learning rate.")
 flags.DEFINE_float("max_gradient", 5.0, "Clip gradients to this value.")
+flags.DEFINE_float("temperature", 0.1, "Sampling temperature.")
 FLAGS = flags.FLAGS
 
 if __name__ == "__main__":
@@ -58,6 +59,7 @@ if __name__ == "__main__":
                      learning_rate=FLAGS.learning_rate,
                      lr_decay=FLAGS.lr_decay,
                      steps_per_ckpt=FLAGS.steps_per_ckpt,
+                     temperature=FLAGS.temperature,
                      is_chatting=FLAGS.decode)
 
 

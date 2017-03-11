@@ -28,7 +28,8 @@ if __name__ == "__main__":
     log_learning_rates  = np.random.uniform(-2, 0, size=4)
     # We'll do these base-2 (lg).
     lg_state_sizes     = np.random.uniform(7, 9, size=3)
-    lg_embed_sizes      = np.random.uniform(4, 6, size=3)
+    #lg_embed_sizes      = np.random.uniform(4, 6, size=3)
+    lg_embed_sizes      = [5, 6]
     hyperparams = []
     for lg_lr in log_learning_rates:
         for lg_state in lg_state_sizes:
