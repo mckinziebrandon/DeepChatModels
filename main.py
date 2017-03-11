@@ -34,7 +34,7 @@ flags.DEFINE_integer("nb_epoch", 10, "Number of epochs over full train set to ru
 
 # Float flags -- hyperparameters.
 flags.DEFINE_float("learning_rate", 0.6, "Learning rate.")
-flags.DEFINE_float("lr_decay", 0.995, "Decay factor applied to learning rate.")
+flags.DEFINE_float("lr_decay", 0.95, "Decay factor applied to learning rate.")
 flags.DEFINE_float("max_gradient", 5.0, "Clip gradients to this value.")
 flags.DEFINE_float("temperature", 0.1, "Sampling temperature.")
 FLAGS = flags.FLAGS
