@@ -23,6 +23,7 @@ if __name__ == "__main__":
     embed_size = 64
     learning_rate = 0.02
     batch_size = 4
+    temperature = 0.2
 
     # All datasets follow the same API, found in data/_dataset.py
     print("Setting up dataset.")
@@ -38,6 +39,7 @@ if __name__ == "__main__":
                      learning_rate=learning_rate,
                      lr_decay=0.999,
                      steps_per_ckpt=12,
+                     temperature=temperature,
                      is_chatting=chat_session)
 
     # Don't forget to compile!

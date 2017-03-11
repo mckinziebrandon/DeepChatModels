@@ -88,13 +88,17 @@ class Encoder(RNN):
 
 
 class Decoder(RNN):
-    def __init__(self, state_size, output_size, embed_size):
+    """TODO
+    """
+
+    def __init__(self, state_size, output_size, embed_size, temperature=1.0):
         """
         Args:
             state_size: number of units in underlying rnn cell.
             output_size: dimension of output space for projections.
             embed_size: dimension size of word-embedding space.
         """
+        self.temperature = temperature
         self.output_size = output_size
         w = tf.get_variable("w", [state_size, output_size], dtype=tf.float32)
         b = tf.get_variable("b", [output_size], dtype=tf.float32)
@@ -144,13 +148,12 @@ class Decoder(RNN):
                                              initial_state=state,
                                              sequence_length=[1],
                                              dtype=tf.float32)
-                next_id = Decoder.sample(self.output_projection(outputs))
+                next_id = self.sample(self.output_projection(outputs))
                 return tf.concat([response, tf.stack([next_id])], axis=0), state
 
             def cond(response, s):
                 """Input callable for tf.while_loop. See below."""
-                return tf.logical_and(tf.not_equal(response[-1], EOS_ID),
-                                      tf.not_equal(response[-1], UNK_ID))
+                return tf.not_equal(response[-1], EOS_ID)
 
             # Create integer (tensor) list of output ID responses.
             response = tf.stack([self.sample(outputs)])
@@ -202,14 +205,18 @@ class Decoder(RNN):
             # Return projected outputs reshaped in same general ordering as input outputs.
         return tf.reshape(projected_state, [-1, m, self.output_size])
 
-    @staticmethod
-    def sample(projected_output, temperature=0.8):
+    def sample(self, projected_output):
         """Return integer ID tensor representing the sampled word.
-        TODO: Add support for temperature sampling, as opposed to simple argmax.
         """
         # Protect against extra size-1 dimensions.
         projected_output = tf.squeeze(projected_output)
-        return tf.argmax(projected_output, axis=0)
+        if self.temperature < 0.1:
+            return tf.argmax(projected_output, axis=0)
+        projected_output = tf.div(projected_output, self.temperature)
+        projected_output = tf.div(tf.exp(projected_output),
+                                  tf.reduce_sum(tf.exp(projected_output), axis=0))
+        sample_ID = tf.squeeze(tf.multinomial(tf.expand_dims(projected_output, 0), 1))
+        return sample_ID
 
 
 class OutputProjection:

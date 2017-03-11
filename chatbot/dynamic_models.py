@@ -34,6 +34,7 @@ class DynamicBot(Model):
                  learning_rate=0.4,
                  lr_decay=0.98,
                  steps_per_ckpt=100,
+                 temperature=1.0,
                  is_chatting=False):
         """
         Args:
@@ -79,7 +80,7 @@ class DynamicBot(Model):
             encoder_state = self.encoder(embedded_enc_inputs, scope=encoder_scope)
 
         with tf.variable_scope("decoder") as decoder_scope:
-            self.decoder = Decoder(state_size, self.vocab_size, self.embed_size)
+            self.decoder = Decoder(state_size, self.vocab_size, self.embed_size, temperature)
             # Decoder inputs in embedding space. Shape is [None, None, embed_size].
             embedded_dec_inputs = embedder(self.decoder_inputs, scope=decoder_scope)
             # For decoder, we want the full sequence of output states, not simply the last.
@@ -275,6 +276,9 @@ class DynamicBot(Model):
             self.close()
 
     def decode(self):
+        """
+        The higher the temperature, the more varied will be the bot's responses.
+        """
         # We decode one sentence at a time.
         self.batch_size = 1
         assert self.is_chatting
