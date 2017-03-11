@@ -3,7 +3,7 @@
 [NEW MODEL: DynamicBot. More info in next section]
 
 This project is still very much evolving each day, but the core goals are:
-* Create a cleaner user interface for tinkering with sequence-to-sequence models and over multiple datasets. This project will explore ways to make constructing such models feel more intuitive/customizeable. The ideal result is a chatbot API with the readability of [Keras](https://keras.io/), but with a degree of flexibility closer to TensorFlow. For example, the following code is all that is needed (after imports, etc.) to create and train one of the models on the Cornell movie dialogs (All params with '=' are optional) :
+* Create a cleaner user interface for tinkering with sequence-to-sequence models. This project will explore ways to make constructing such models feel more intuitive/customizable. The ideal result is a chatbot API with the readability of [Keras](https://keras.io/), but with a degree of flexibility closer to [TensorFlow](https://www.tensorflow.org/). For example, the following code is all that is needed (after imports, etc.) to create and train one of the models on the Cornell movie dialogs (All params with '=' are optional) :
 ```python
     # All datasets implement a Dataset interface, found in data/_dataset.py
     dataset = Cornell(vocab_size=FLAGS.vocab_size)
@@ -18,7 +18,6 @@ This project is still very much evolving each day, but the core goals are:
                      learning_rate=FLAGS.learning_rate,
                      lr_decay=FLAGS.lr_decay,
                      is_chatting=FLAGS.decode)
-
 
     # Don't forget to compile! Name inspired by similar Keras method.
     print("Compiling DynamicBot.")
@@ -38,7 +37,7 @@ This project is still very much evolving each day, but the core goals are:
 ```
 
 * Explore how [personalities of chatbots](https://arxiv.org/pdf/1603.06155.pdf) change when trained on different datasets, and methods for improving speaker consistency.
-* Add support for "teacher mode": an interactive chat session where the user can tell the bot how well they're doing, and suggest better responses that the bot can learn from.
+* Implement and improve "teacher mode": an interactive chat session where the user can tell the bot how well they're doing, and suggest better responses that the bot can learn from.
 
 * [Completed] Models:
     * Rewrite conversation model with faster embedding technique and new TF support for dynamic unrolling.
