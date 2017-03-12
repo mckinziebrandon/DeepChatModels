@@ -1,6 +1,6 @@
 from data._dataset import Dataset
 from utils import io_utils
-import pandas as pd
+import logging
 import tensorflow as tf
 import os
 
@@ -8,6 +8,9 @@ import os
 class WMT(Dataset):
 
     def __init__(self, from_vocab_size, to_vocab_size=None):
+
+        logging.basicConfig(level=logging.INFO)
+        self.log = logging.getLogger('WMTLogger')
 
         self._name = "wmt"
         self.vocab_size = from_vocab_size
@@ -39,23 +42,15 @@ class WMT(Dataset):
         self._word_to_idx, _ = io_utils.get_vocab_dicts(self.paths['from_vocab'])
         _, self._idx_to_word = io_utils.get_vocab_dicts(self.paths['to_vocab'])
 
-        self._train_data = self.read_data("train")
-        self._valid_data = self.read_data("valid")
-        self._train_size = len(self._train_data[0])
-        self._valid_size = len(self._valid_data[0])
+    def train_generator(self, batch_size):
+        """Returns a generator function. Each call to next() yields a batch
+            of size batch_size data as numpy array of shape [batch_size, max_seq_len],
+            where max_seq_len is the longest sentence in the returned batch.
+        """
+        return self._generator(self.paths['from_train'], self.paths['to_train'], batch_size)
 
-        # TODO: implemented this ridiculous fix for max_seq_len for time reasons,
-        # BUT IT MUST GO IT IS GROSS
-        enc, dec = self._train_data
-        max_enc = max([len(s) for s in enc])
-        max_dec = max([len(s) for s in dec])
-        self._df_lengths = pd.DataFrame({'EncoderLengths': [len(s) for s in enc],
-                                         'DecoderLengths': [len(s) for s in dec]})
-        self._max_seq_len = max(max_enc, max_dec)
-
-    # ===================================================================
-    # Required 'Dataset' method implementations.
-    # ===================================================================
+    def valid_generator(self, batch_size):
+        return self._generator(self.paths['from_valid'], self.paths['to_valid'], batch_size)
 
     def word_to_idx(self):
         raise NotImplemented
@@ -100,51 +95,30 @@ class WMT(Dataset):
         """Returns name of the dataset as a string."""
         return self._name
 
-    def read_data(self, suffix="train"):
-        source_data = []
-        target_data = []
-        # Counter for the number of source/target pairs that couldn't fit in _buckets.
-        with tf.gfile.GFile(self.paths['from_%s' % suffix], mode="r") as source_file:
-            with tf.gfile.GFile(self.paths['to_%s' % suffix], mode="r") as target_file:
-                source, target = source_file.readline(), target_file.readline()
-                while source and target:
-                    # Get source/target as list of word IDs.
-                    source_ids = [int(x) for x in source.split()]
-                    target_ids = [int(x) for x in target.split()]
-                    target_ids.append(io_utils.EOS_ID)
-                    # Add to data_set and retrieve next id list.
-                    source_data.append(source_ids)
-                    target_data.append(target_ids)
-                    source, target = source_file.readline(), target_file.readline()
-        return (source_data, target_data)
-
     @property
     def train_size(self):
-        return self._train_size
+        raise NotImplemented
 
     @property
     def valid_size(self):
-        return self._valid_size
-
+        raise NotImplemented
 
     @property
     def train_data(self):
-        """NEW FORMAT: returns a 2-tuple: (source_data, target_data) """
-        return self._train_data
+        """Removed. Use generator instead."""
+        self.log.error("Tried getting full training data. Use train_generator instead.")
+        raise NotImplemented
 
     @property
     def valid_data(self):
-        """NEW FORMAT: returns a 2-tuple: (source_data, target_data) """
-        return self._valid_data
+        """Removed. Use generator instead."""
+        self.log.error("Tried getting full validation data. Use valid_generator instead.")
+        raise NotImplemented
 
     @property
     def max_seq_len(self):
-        return self._max_seq_len
+        self.log.error("Tried getting max_seq_len. Unsupported since DynamicBot.")
+        raise NotImplemented
 
-    def describe(self):
-        print("------------------ Description: Cornell Movie Dialogues -------------------")
-        print("Training data has %d samples." % self._train_size)
-        print("Validation data has %d samples." % self._valid_size)
-        print("Longest sequence is %d words long." % self._max_seq_len)
-
-
+    def read_data(self, suffix="train"):
+        return self._read_data(self.paths['from_%s' % suffix], self.paths['to_%s' % suffix])

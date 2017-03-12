@@ -229,7 +229,7 @@ class DynamicBot(Model):
                 summaries, step_loss, step_outputs = self.sess.run(fetches, input_feed)
                 return summaries, step_loss, step_outputs
 
-    def train(self, train_data, valid_data,
+    def train(self, dataset,
               nb_epoch=1, save_dir=None):
         """Train bot on inputs for nb_epoch epochs, or until user types CTRL-C.
 
@@ -248,9 +248,9 @@ class DynamicBot(Model):
 
         print("Preparing data batches . . . ")
         # Get training data as batch_padded lists.
-        encoder_inputs_train, decoder_inputs_train = batch_padded(train_data, self.batch_size)
+        #encoder_inputs_train, decoder_inputs_train = batch_padded(train_data, self.batch_size)
         # Get validation data as batch-padded lists.
-        encoder_inputs_valid, decoder_inputs_valid = batch_padded(valid_data, self.batch_size)
+        #encoder_inputs_valid, decoder_inputs_valid = batch_padded(valid_data, self.batch_size)
 
         hyper_params = {}
         try:
@@ -258,8 +258,8 @@ class DynamicBot(Model):
                 i_step = 0
                 avg_loss = avg_step_time = 0.0
                 # Create data generators.
-                train_gen = batch_generator(encoder_inputs_train, decoder_inputs_train)
-                valid_gen = batch_generator(encoder_inputs_valid, decoder_inputs_valid)
+                train_gen = dataset.train_generator(self.batch_size)
+                valid_gen = dataset.valid_generator(self.batch_size)
                 print("_______________ NEW EPOCH: %d _______________" % i_epoch)
                 for encoder_batch, decoder_batch in train_gen:
                     start_time = time.time()

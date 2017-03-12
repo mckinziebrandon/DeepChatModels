@@ -2,10 +2,8 @@ import logging
 
 import tensorflow as tf
 import pandas as pd
-import numpy as np
 from data._dataset import Dataset
 from utils import io_utils
-from utils.io_utils import EOS_ID, PAD_ID
 
 
 class Cornell(Dataset):
@@ -38,20 +36,6 @@ class Cornell(Dataset):
 
         self._word_to_idx, _ = io_utils.get_vocab_dicts(self.paths['from_vocab'])
         _, self._idx_to_word = io_utils.get_vocab_dicts(self.paths['to_vocab'])
-
-        self._train_data = self.read_data("train")
-        self._valid_data = self.read_data("valid")
-        self._train_size = len(self._train_data[0])
-        self._valid_size = len(self._valid_data[0])
-
-        # TODO: implemented this ridiculous fix for max_seq_len for time reasons,
-        # BUT IT MUST GO IT IS GROSS
-        enc, dec = self._train_data
-        max_enc = max([len(s) for s in enc])
-        max_dec = max([len(s) for s in dec])
-        self._df_lengths = pd.DataFrame({'EncoderLengths': [len(s) for s in enc],
-                                         'DecoderLengths': [len(s) for s in dec]})
-        self._max_seq_len = max(max_enc, max_dec)
 
 
     @property
@@ -91,16 +75,6 @@ class Cornell(Dataset):
             print("\nVocab size is :", self.vocab_size)
             print("Words:", words)
 
-    @property
-    def data_dir(self):
-        """Return path to directory that contains the data."""
-        return self._data_dir
-
-    @property
-    def name(self):
-        """Returns name of the dataset as a string."""
-        return self._name
-
     def train_generator(self, batch_size):
         """Returns a generator function. Each call to next() yields a batch
             of size batch_size data as numpy array of shape [batch_size, max_seq_len],
@@ -111,68 +85,40 @@ class Cornell(Dataset):
     def valid_generator(self, batch_size):
         return self._generator(self.paths['from_valid'], self.paths['to_valid'], batch_size)
 
-    def _generator(self, from_path, to_path, batch_size):
+    @property
+    def data_dir(self):
+        """Return path to directory that contains the data."""
+        return self._data_dir
 
-        def padded_batch(sentences, max_length):
-            padded = np.array([s + [PAD_ID] * (max_length - len(s)) for s in sentences])
-            return padded
-
-        encoder_tokens = []
-        decoder_tokens = []
-        with tf.gfile.GFile(self.paths['from_train'], mode="r") as source_file:
-            with tf.gfile.GFile(self.paths['to_train'], mode="r") as target_file:
-                source, target = source_file.readline(), target_file.readline()
-                while source and target:
-                    # Get the next sentence as integer token IDs.
-                    encoder_tokens.append([int(x) for x in source.split()])
-                    decoder_tokens.append([int(x) for x in target.split()] + [EOS_ID])
-                    # Have we collected batch_size number of sentences? If so, pad & yield.
-                    assert len(encoder_tokens) == len(decoder_tokens)
-                    if len(encoder_tokens) == batch_size:
-                        max_enc_len = max([len(s) for s in encoder_tokens])
-                        max_dec_len = max([len(s) for s in decoder_tokens])
-                        max_sent_len = max(max_enc_len, max_dec_len)
-                        batch = padded_batch(encoder_tokens, max_sent_len)
-                        yield batch
-                        encoder_tokens = []
-                        decoder_tokens = []
-                    source, target = source_file.readline(), target_file.readline()
-                # Don't forget to yield the 'leftovers'!
-                assert len(encoder_tokens) == len(decoder_tokens)
-                assert len(encoder_tokens) <= batch_size
-                if len(encoder_tokens) > 0:
-                    max_sent_len = max([len(s) for s in encoder_tokens])
-                    batch = padded_batch(encoder_tokens, max_sent_len)
-                    yield batch
+    @property
+    def name(self):
+        """Returns name of the dataset as a string."""
+        return self._name
 
     @property
     def train_size(self):
-        return self._train_size
+        raise NotImplemented
 
     @property
     def valid_size(self):
-        return self._valid_size
+        raise NotImplemented
 
     @property
     def train_data(self):
-        """NEW FORMAT: returns a 2-tuple: (source_data, target_data) """
-        return self._train_data
+        """Removed. Use generator instead."""
+        self.log.error("Tried getting full training data. Use train_generator instead.")
+        raise NotImplemented
 
     @property
     def valid_data(self):
-        """NEW FORMAT: returns a 2-tuple: (source_data, target_data) """
-        return self._valid_data
+        """Removed. Use generator instead."""
+        self.log.error("Tried getting full validation data. Use valid_generator instead.")
+        raise NotImplemented
 
     @property
     def max_seq_len(self):
-        return self._max_seq_len
-
-    def describe(self):
-        print("------------------ Description: Cornell Movie Dialogues -------------------")
-        print("Training data has %d samples." % self._train_size)
-        print("Validation data has %d samples." % self._valid_size)
-        print("Longest sequence is %d words long." % self._max_seq_len)
-        print("%r" % self._df_lengths.describe())
+        self.log.error("Tried getting max_seq_len. Unsupported since DynamicBot.")
+        raise NotImplemented
 
     # =========================================================================================
     # Deprecated methods that have been replaced by better/more efficent ones.
@@ -180,30 +126,5 @@ class Cornell(Dataset):
     # =========================================================================================
 
     def read_data(self, suffix="train"):
-        """(Deprecated, use train_generator or valid_generator instead).
-        Read entire dataset into memory. Can be prohibitively memory intensive for large
-        datasets.
-        Args:
-            suffix: (str) either "train" or "valid"
-
-        Returns:
-            2-tuple (source_data, target_data) of sentence-token lists.
-        """
-
-        source_data = []
-        target_data = []
-        # Counter for the number of source/target pairs that couldn't fit in _buckets.
-        with tf.gfile.GFile(self.paths['from_%s' % suffix], mode="r") as source_file:
-            with tf.gfile.GFile(self.paths['to_%s' % suffix], mode="r") as target_file:
-                source, target = source_file.readline(), target_file.readline()
-                while source and target:
-                    # Get source/target as list of word IDs.
-                    source_ids = [int(x) for x in source.split()]
-                    target_ids = [int(x) for x in target.split()]
-                    target_ids.append(io_utils.EOS_ID)
-                    # Add to data_set and retrieve next id list.
-                    source_data.append(source_ids)
-                    target_data.append(target_ids)
-                    source, target = source_file.readline(), target_file.readline()
-        return source_data, target_data
+        return self._read_data(self.paths['from_%s' % suffix], self.paths['to_%s' % suffix])
 

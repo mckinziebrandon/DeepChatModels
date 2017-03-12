@@ -73,8 +73,7 @@ if __name__ == "__main__":
     # Model saved in FLAGS.ckpt_dir if specified, else "./out"
     if not FLAGS.decode:
         print("Training bot. CTRL-C to stop training.")
-        bot.train(dataset.train_data, dataset.valid_data,
-                  nb_epoch=FLAGS.nb_epoch)
+        bot.train(dataset, nb_epoch=FLAGS.nb_epoch)
 
     else:
         print("Initiating chat session.")
