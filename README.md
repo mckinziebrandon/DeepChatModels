@@ -46,7 +46,7 @@ This project is still very much evolving each day, but the core goals are:
     * **Ubuntu Dialogue Corpus**: Reformatted as single-turn to single-response pairs.
     * **Cornell Movie-Dialogs**: Recently (March 5) incorporated [this preprocessed](https://github.com/suriyadeepan/datasets/tree/master/seq2seq/cornell_movie_corpus) version of the Cornell corpus. I'll be processing and reformatting it further.
 * Reference Material:
-    * A lot of research has gone into these models, and I've been documenting my notes on the most "important" papers for this project in the last section of [my deep learning notes here](http://mckinziebrandon.me/assets/pdf/CondensedSummaries.pdf). I'll be updating that as the ideas from more papers make their way into this project.
+    * A lot of research has gone into these models, and I've been documenting my notes on the most "important" papers here in the last section of [my deep learning notes here](http://mckinziebrandon.me/assets/pdf/CondensedSummaries.pdf). I'll be updating that as the ideas from more papers make their way into this project.
 
 ## Faster Embedding, Encoding, and Chatting
 
@@ -88,13 +88,6 @@ I recently did a small random search and grid search over the following hyperpar
 
 
 The only takeaway I saw from these two plots (after seeing the learning rate plots below) is that the __learning rate__, not the embed size, is overwhelmingly for responsible for any patterns here. It also looks like models with certain emed sizes (like 30) were underrepresented in the sampling, we see less points for them than others. The plots below illustrate the learning rate dependence.
-
-
-<img alt="learning_rate" src="http://i.imgur.com/CtpX6vr.png" width="600">
-<br/><br/>
-
-
-Hmm, the wild oscillations for the large learning rate of 0.7 were expected, but what is going on with the values lying along the bottom (also with 0.7)? Perhaps we can find out by peering in on the same style of plot for each individual learning rate, as done below.
 
 <img alt="learning_subs" src="http://i.imgur.com/bD8MFrV.png" width="900">
 
