@@ -98,7 +98,8 @@ class DynamicBot(Model):
             tf.summary.histogram("embed_tensor", embedder.get_embed_tensor(decoder_scope))
             self.merged = tf.summary.merge_all()
 
-        # Projection from state space to vocab space.
+        # If in chat session, need projection from state space to vocab space.
+        # Note: The decoder handles this for us (as it should).
         self.outputs = decoder_outputs
 
         # Let superclass handle the boring stuff (dirs/more instance variables).
@@ -134,21 +135,22 @@ class DynamicBot(Model):
 
                 #_______  Sampled Softmax Construction status: stalled because ambiguity of
                 # 'inputs' for sampled softmax is 'outputs' for reality.
-                w, b = self.decoder.get_output_projection()
-                w_t = tf.transpose(w)
-                losses = []
+                #w, b = self.decoder.get_output_projection()
+                #w_t = tf.transpose(w)
+                #losses = []
                 #for i, label in enumerate(tf.unstack(target_labels, axis=1)):
-                for i in range(tf.shape(target_labels[0])):
-                    losses.append(tf.nn.sampled_softmax_loss(
-                        weights=w_t,
-                        biases=b,
-                        labels=target_labels[:, i],
-                        inputs=self.outputs[:, i],
-                        num_sampled=512,
-                        num_classes=self.vocab_size
-                    ))
-                # Welp, that should do it. Right? Yeah, probably.
-                self.loss = tf.stack(losses)
+                # Such a hack.  In the bad way.
+                #for i, _ in enumerate(tf.unstack(target_labels[0])):
+                #    losses.append(tf.nn.sampled_softmax_loss(
+                #        weights=w_t,
+                #        biases=b,
+                #        labels=target_labels[:, i],
+                #        inputs=self.outputs[:, i],
+                #        num_sampled=512,
+                #        num_classes=self.vocab_size
+                #    ))
+                ## Welp, that should do it. Right? Yeah, probably.
+                #self.loss = tf.stack(losses)
 
                 # Define the training portion of the graph.
                 params = tf.trainable_variables()

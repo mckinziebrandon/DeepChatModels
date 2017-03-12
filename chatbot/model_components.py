@@ -137,7 +137,7 @@ class Decoder(RNN):
                                                dtype=tf.float32,
                                                scope=dec_call_scope)
             # Outputs has shape [batch_size, max_time, output_size].
-            #outputs = self.output_projection(outputs)
+            outputs = self.output_projection(outputs)
 
             if not is_chatting:
                 # Dynamic sampling is not needed unless in interactive chat session, so we're done.
