@@ -37,6 +37,15 @@ class Cornell(Dataset):
         self._word_to_idx, _ = io_utils.get_vocab_dicts(self.paths['from_vocab'])
         _, self._idx_to_word = io_utils.get_vocab_dicts(self.paths['to_vocab'])
 
+    def train_generator(self, batch_size):
+        """Returns a generator function. Each call to next() yields a batch
+            of size batch_size data as numpy array of shape [batch_size, max_seq_len],
+            where max_seq_len is the longest sentence in the returned batch.
+        """
+        return self._generator(self.paths['from_train'], self.paths['to_train'], batch_size)
+
+    def valid_generator(self, batch_size):
+        return self._generator(self.paths['from_valid'], self.paths['to_valid'], batch_size)
 
     @property
     def word_to_idx(self):
@@ -74,16 +83,6 @@ class Cornell(Dataset):
             print("\n\nIndexError encountered for following sentence:\n", sentence)
             print("\nVocab size is :", self.vocab_size)
             print("Words:", words)
-
-    def train_generator(self, batch_size):
-        """Returns a generator function. Each call to next() yields a batch
-            of size batch_size data as numpy array of shape [batch_size, max_seq_len],
-            where max_seq_len is the longest sentence in the returned batch.
-        """
-        return self._generator(self.paths['from_train'], self.paths['to_train'], batch_size)
-
-    def valid_generator(self, batch_size):
-        return self._generator(self.paths['from_valid'], self.paths['to_valid'], batch_size)
 
     @property
     def data_dir(self):

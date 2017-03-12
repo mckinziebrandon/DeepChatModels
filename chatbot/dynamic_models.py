@@ -12,7 +12,7 @@ import tensorflow as tf
 from chatbot._models import Model
 from chatbot.model_components import *
 from utils import io_utils
-from utils.io_utils import GO_ID, batch_padded, batch_generator
+from utils.io_utils import GO_ID
 
 
 def check_shape(tensor, expected_shape, log):
