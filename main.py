@@ -36,13 +36,16 @@ flags.DEFINE_integer("nb_epoch", 10, "Number of epochs over full train set to ru
 flags.DEFINE_float("learning_rate", 0.6, "Learning rate.")
 flags.DEFINE_float("lr_decay", 0.95, "Decay factor applied to learning rate.")
 flags.DEFINE_float("max_gradient", 5.0, "Clip gradients to this value.")
-flags.DEFINE_float("temperature", 0.1, "Sampling temperature.")
+flags.DEFINE_float("temperature", 0.5, "Sampling temperature.")
 FLAGS = flags.FLAGS
 
 if __name__ == "__main__":
 
     if FLAGS.decode:
-        assert FLAGS.reset_model == False, "Train the model before initiating chat session."
+        if FLAGS.reset_model:
+            print("WARNING: To chat, should pass --reset_model=False, but found True."
+                  "Resetting to False.")
+            FLAGS.reset_model = False
 
     # All datasets follow the same API, found in data/_dataset.py
     print("Setting up dataset.")
@@ -74,7 +77,14 @@ if __name__ == "__main__":
                   nb_epoch=FLAGS.nb_epoch)
 
     else:
-        print("Initiating chat session")
+        print("Initiating chat session.")
+        print("Your bot has a temperature of %.2f." % FLAGS.temperature, end=" ")
+        if FLAGS.temperature < 0.1:
+            print("Not very adventurous, are we?")
+        elif FLAGS.temperature < 0.7:
+            print("This should be interesting . . . ")
+        else:
+            print("Enjoy your gibberish!")
         bot.decode()
 
 

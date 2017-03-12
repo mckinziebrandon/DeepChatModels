@@ -102,6 +102,12 @@ class Decoder(RNN):
         w = tf.get_variable("w", [state_size, output_size], dtype=tf.float32)
         b = tf.get_variable("b", [output_size], dtype=tf.float32)
         self.projection = (w, b)
+        if temperature < 0.1:
+            self.max_seq_len = 1000
+        elif temperature < 0.8:
+            self.max_seq_len = 40
+        else:
+            self.max_seq_len = 20
         super(Decoder, self).__init__(state_size=state_size, embed_size=embed_size)
 
     def __call__(self, inputs, initial_state=None, is_chatting=False,
@@ -149,19 +155,22 @@ class Decoder(RNN):
                                              inputs=decoder_input,
                                              initial_state=state,
                                              sequence_length=[1],
-                                             dtype=tf.float32)
+                                             dtype=tf.float32,
+                                                   scope=dec_call_scope)
                 next_id = self.sample(self.output_projection(outputs))
                 return tf.concat([response, tf.stack([next_id])], axis=0), state
 
             def cond(response, s):
                 """Input callable for tf.while_loop. See below."""
-                return tf.not_equal(response[-1], EOS_ID)
+                return tf.logical_and(
+                    tf.not_equal(response[-1], EOS_ID), tf.less(tf.size(response), self.max_seq_len))
 
             # Create integer (tensor) list of output ID responses.
             response = tf.stack([self.sample(outputs)])
             # Note: This is needed so the while_loop ahead knows the shape of response.
             response = tf.reshape(response, [1,])
-            tf.get_variable_scope().reuse_variables()
+            #tf.get_variable_scope().reuse_variables()
+            dec_call_scope.reuse_variables()
 
             # ================== BEHOLD: The tensorflow while loop. =======================
             # This allows us to sample dynamically. It also makes me happy!

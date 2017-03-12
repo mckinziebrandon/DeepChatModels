@@ -62,7 +62,23 @@ class Cornell(Dataset):
         return self._idx_to_word
 
     def as_words(self, sentence):
-        return " ".join([tf.compat.as_str(self._idx_to_word[i]) for i in sentence])
+        import sys
+        words = []
+        try:
+            for idx, i in enumerate(sentence):
+                w = self._idx_to_word[i]
+                w_str = tf.compat.as_str(w)
+                words.append(w_str)
+            return " ".join(words)
+            #return " ".join([tf.compat.as_str(self._idx_to_word[i]) for i in sentence])
+        except UnicodeDecodeError  as e:
+            print("Error: ", e)
+            print("Final index:", idx, "and token:", i)
+            print("Final word: ", self._idx_to_word[i])
+            print("Sentence length:", len(sentence))
+            print("\n\nIndexError encountered for following sentence:\n", sentence)
+            print("\nVocab size is :", self.vocab_size)
+            print("Words:", words)
 
     @property
     def data_dir(self):
