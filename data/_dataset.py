@@ -65,7 +65,7 @@ class DatasetABC(metaclass=ABCMeta):
 class Dataset(DatasetABC):
     """Implements the most general of subset of operations that all classes can use."""
 
-    def _generator(self, from_path, to_path, batch_size):
+    def _generator(self, from_path, to_path, batch_size, max_seq_len=100):
 
         def padded_batch(sentences, max_length):
             padded = np.array([s + [PAD_ID] * (max_length - len(s)) for s in sentences])
@@ -78,11 +78,16 @@ class Dataset(DatasetABC):
 
         encoder_tokens = []
         decoder_tokens = []
+        num_skipped = 0
         with tf.gfile.GFile(from_path, mode="r") as source_file:
             with tf.gfile.GFile(to_path, mode="r") as target_file:
                 source, target = source_file.readline(), target_file.readline()
                 while source and target:
                     # Get the next sentence as integer token IDs.
+                    if len(source.split()) > max_seq_len or len(target.split()) > max_seq_len:
+                        source, target = source_file.readline(), target_file.readline()
+                        num_skipped += 1
+                        continue
                     encoder_tokens.append([int(x) for x in source.split()])
                     decoder_tokens.append([int(x) for x in target.split()] + [EOS_ID])
                     # Have we collected batch_size number of sentences? If so, pad & yield.
@@ -92,10 +97,13 @@ class Dataset(DatasetABC):
                         # Encoder sentences are fed in reverse intentionally.
                         encoder_batch = padded_batch(encoder_tokens, max_sent_len)[:, ::-1]
                         decoder_batch = padded_batch(decoder_tokens, max_sent_len)
+                        if num_skipped > 0:
+                            print("Skipped %d sentences making batch." % num_skipped)
                         yield encoder_batch, decoder_batch
                         # Clear token containers for next batch.
                         encoder_tokens = []
                         decoder_tokens = []
+                        num_skipped = 0
                     source, target = source_file.readline(), target_file.readline()
                 # Don't forget to yield the 'leftovers'!
                 assert len(encoder_tokens) == len(decoder_tokens)

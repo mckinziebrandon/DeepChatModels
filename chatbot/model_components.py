@@ -46,7 +46,9 @@ class RNN(object):
         self.state_size = state_size
         self.embed_size = embed_size
         # TODO: Allow for cell to be passed in as parameter.
-        self.cell = tf.contrib.rnn.GRUCell(self.state_size)
+        # self.cell = tf.contrib.rnn.GRUCell(self.state_size)
+        self.cell = tf.contrib.rnn.MultiRNNCell(
+            [tf.contrib.rnn.GRUCell(self.state_size) for _ in range(2)])
 
 
 class Encoder(RNN):

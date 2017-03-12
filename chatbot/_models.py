@@ -56,6 +56,8 @@ class Model(object):
         # Directory IO management.
         self.ckpt_dir = ckpt_dir
         self.log_dir = os.path.join(ckpt_dir, "logs")
+        os.popen('mkdir -p %s' % self.ckpt_dir)  # Just in case :)
+        os.popen('mkdir -p %s' % self.log_dir)  # Just in case :)
         # Responsibility of user to determine training operations.
         self.train_writer    = None
         self.valid_writer    = None

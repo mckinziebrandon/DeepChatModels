@@ -25,14 +25,14 @@ flags.DEFINE_boolean("reset_model", False, "wipe output directory; new params")
 flags.DEFINE_boolean("decode", False, "If true, initiates chat session.")
 # Integer flags.
 flags.DEFINE_integer("steps_per_ckpt", 200, "How many training steps to do per checkpoint.")
-flags.DEFINE_integer("batch_size", 32, "Batch size to use during training.")
+flags.DEFINE_integer("batch_size", 64, "Batch size to use during training.")
 flags.DEFINE_integer("vocab_size", 40000, "Number of unique words/tokens to use.")
 flags.DEFINE_integer("state_size", 256, "Number of units in the RNN cell.")
-flags.DEFINE_integer("embed_size", 64, "Size of word embedding dimension.")
+flags.DEFINE_integer("embed_size", 32, "Size of word embedding dimension.")
 flags.DEFINE_integer("nb_epoch", 10, "Number of epochs over full train set to run.")
 # Float flags -- hyperparameters.
-flags.DEFINE_float("learning_rate", 0.6, "Learning rate.")
-flags.DEFINE_float("lr_decay", 0.95, "Decay factor applied to learning rate.")
+flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
+flags.DEFINE_float("lr_decay", 0.99, "Decay factor applied to learning rate.")
 flags.DEFINE_float("max_gradient", 5.0, "Clip gradients to this value.")
 flags.DEFINE_float("temperature", 0.01, "Sampling temperature.")
 FLAGS = flags.FLAGS

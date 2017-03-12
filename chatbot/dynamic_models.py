@@ -71,8 +71,6 @@ class DynamicBot(Model):
 
         # Thanks to variable scoping, only need one object for multiple embeddings.
         embedder = Embedder(self.vocab_size, embed_size)
-        #cell = tf.contrib.rnn.MultiRNNCell([tf.contrib.rnn.GRUCell(self.state_size)
-        #                                    for _ in range(self.num_layers)])
 
         # Encoder inputs in embedding space. Shape is [None, None, embed_size].
         with tf.variable_scope("encoder") as encoder_scope:
@@ -240,17 +238,9 @@ class DynamicBot(Model):
             save_dir: (str) Path to save ckpt files. If None, defaults to self.ckpt_dir.
         """
 
-        tf.logging.set_verbosity(tf.logging.ERROR)
-
         def perplexity(loss):
             """Common alternative to loss in NLP models."""
             return np.exp(float(loss)) if loss < 300 else float("inf")
-
-        print("Preparing data batches . . . ")
-        # Get training data as batch_padded lists.
-        #encoder_inputs_train, decoder_inputs_train = batch_padded(train_data, self.batch_size)
-        # Get validation data as batch-padded lists.
-        #encoder_inputs_valid, decoder_inputs_valid = batch_padded(valid_data, self.batch_size)
 
         hyper_params = {}
         try:
