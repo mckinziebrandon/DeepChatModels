@@ -37,15 +37,17 @@ This project is still very much evolving each day, but the core goals are:
 * Explore how [personalities of chatbots](https://arxiv.org/pdf/1603.06155.pdf) change when trained on different datasets, and methods for improving speaker consistency.
 * Implement and improve "teacher mode": an interactive chat session where the user can tell the bot how well they're doing, and suggest better responses that the bot can learn from.
 
-* [Completed] Models:
+### Completed Goals
+
+* Models:
     * Rewrite conversation model with faster embedding technique and new TF support for dynamic unrolling.
     * Implement an attention-based embedding sequence-to-sequence model with the help of the tensorflow.contrib libraries.
     * Implement a simpler embedding sequence-to-sequence from "scratch" (minimal use of contrib).
-* [Completed] Datasets:
+* Datasets:
     * **WMT'15** : English-to-French translation.
     * **Ubuntu Dialogue Corpus**: Reformatted as single-turn to single-response pairs.
     * **Cornell Movie-Dialogs**: Recently (March 5) incorporated [this preprocessed](https://github.com/suriyadeepan/datasets/tree/master/seq2seq/cornell_movie_corpus) version of the Cornell corpus. I'll be processing and reformatting it further.
-* Reference Material:
+* [Ongoing] Reference Material:
     * A lot of research has gone into these models, and I've been documenting my notes on the most "important" papers here in the last section of [my deep learning notes here](http://mckinziebrandon.me/assets/pdf/CondensedSummaries.pdf). I'll be updating that as the ideas from more papers make their way into this project.
 
 ## Faster Embedding, Encoding, and Chatting
@@ -61,7 +63,7 @@ The newest model, ```DynamicBot```, is substantially faster than the previous mo
 One particular feature of DynamicBot worth mentioning is that the output generation and sampling process is _fully contained within the graph_ structure itself. This is in contrast with methods of outputting large arrays representing the logits (unnormalized log probabilities) and then sampling/argmax-ing over these. DynamicBot, however, directly returns its generated responses as a sequence of word-tokens.
 
 
-## Sanity checks
+## Preliminary Testing
 
 Now that the goals for DynamicBot have been met design-wise, I'm digging into the first big testing/debugging stage.
 
