@@ -1,6 +1,7 @@
 import logging
 import tensorflow as tf
 import os
+import pandas as pd
 from data._dataset import Dataset
 from utils import io_utils
 
@@ -49,6 +50,8 @@ class TestData(Dataset):
         enc, dec = self._train_data
         max_enc = max([len(s) for s in enc])
         max_dec = max([len(s) for s in dec])
+        self._df_lengths = pd.DataFrame({'EncoderLengths': [len(s) for s in enc],
+                                         'DecoderLengths': [len(s) for s in dec]})
         self._max_seq_len = max(max_enc, max_dec)
 
 
@@ -121,3 +124,10 @@ class TestData(Dataset):
     @property
     def max_seq_len(self):
         return self._max_seq_len
+
+    def describe(self):
+        print("------------------ Description: Cornell Movie Dialogues -------------------")
+        print("Training data has %d samples." % self._train_size)
+        print("Validation data has %d samples." % self._valid_size)
+        print("Longest sequence is %d words long." % self._max_seq_len)
+        print("%r" % self._df_lengths.describe())

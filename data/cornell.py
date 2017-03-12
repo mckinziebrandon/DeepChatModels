@@ -2,7 +2,7 @@ import logging
 
 import tensorflow as tf
 import pandas as pd
-
+import numpy as np
 from data._dataset import Dataset
 from utils import io_utils
 
@@ -13,10 +13,12 @@ class Cornell(Dataset):
 
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('CornellLogger')
-        self._name = "cornell"
 
+        self._name = "cornell"
         self.vocab_size = vocab_size
         self._data_dir = '/home/brandon/terabyte/Datasets/cornell_movie_corpus'
+        # We query io_utils to ensure all data files are organized properly,
+        # and io_utils returns the paths to files of interest.
         paths_triplet = io_utils.prepare_data(self._data_dir,
                                               self._data_dir + "/train_from.txt",
                                               self._data_dir + "/train_to.txt",
@@ -62,7 +64,15 @@ class Cornell(Dataset):
         return self._idx_to_word
 
     def as_words(self, sentence):
-        import sys
+        """Initially, this function was just the one-liner below:
+
+            return " ".join([tf.compat.as_str(self._idx_to_word[i]) for i in sentence])
+
+            Since then, it has become apparent that some character aren't converted properly,
+            and tf has issues decoding. In (rare) cases that this occurs, I've setup the
+            try-catch block to help inspect the root causes. It will remain here until the
+            problem has been adequately diagnosed.
+        """
         words = []
         try:
             for idx, i in enumerate(sentence):
@@ -106,7 +116,7 @@ class Cornell(Dataset):
                     source_data.append(source_ids)
                     target_data.append(target_ids)
                     source, target = source_file.readline(), target_file.readline()
-        return (source_data, target_data)
+        return source_data, target_data
 
     @property
     def train_size(self):
