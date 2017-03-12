@@ -299,10 +299,8 @@ def prepare_data(data_dir, from_train_path, to_train_path,
 
 
 def read_data(dataset, _buckets, max_train_data_size=None):
-    """This is the main, and perhaps only, method that other files should use to access data.
-    :param dataset:
-    :param _buckets:
-    :param max_train_data_size:
+    """(NOT USED BY DYNAMIC MODELS) This is the main, and perhaps only,
+    method that other files should use to access data.
     :return: train and validation sets of word IDS.
     """
     # Setup the data in appropriate directories and return desired PATHS.
@@ -318,7 +316,8 @@ def read_data(dataset, _buckets, max_train_data_size=None):
 
 
 def _read_data(source_path, target_path, _buckets, max_size=None):
-    """Read data from source and target files and put into buckets.
+    """(NOT USED BY DYNAMIC MODELS). Read data from source and target files,
+        and put into buckets.
 
     Args:
     source_path: path to the files with token-ids for the source language.

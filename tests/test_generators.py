@@ -15,7 +15,7 @@ from data import Cornell, Ubuntu, TestData
 import warnings
 warnings.filterwarnings("ignore", message="numpy.dtype size changed")
 
-# Testing on WMT since it is the currentl largest dataset (22M lines).
+# Testing on WMT since it is the currently largest dataset (22M lines).
 # This is useful because it will be obvious, for memory reasons, how much the
 # batch generating is really working.
 WMT_DIR = '/home/brandon/terabyte/Datasets/wmt'

@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 from data._dataset import Dataset
 from utils import io_utils
+from utils.io_utils import EOS_ID, PAD_ID
 
 
 class Cornell(Dataset):
@@ -100,23 +101,49 @@ class Cornell(Dataset):
         """Returns name of the dataset as a string."""
         return self._name
 
-    def read_data(self, suffix="train"):
-        source_data = []
-        target_data = []
-        # Counter for the number of source/target pairs that couldn't fit in _buckets.
-        with tf.gfile.GFile(self.paths['from_%s' % suffix], mode="r") as source_file:
-            with tf.gfile.GFile(self.paths['to_%s' % suffix], mode="r") as target_file:
+    def train_generator(self, batch_size):
+        """Returns a generator function. Each call to next() yields a batch
+            of size batch_size data as numpy array of shape [batch_size, max_seq_len],
+            where max_seq_len is the longest sentence in the returned batch.
+        """
+        return self._generator(self.paths['from_train'], self.paths['to_train'], batch_size)
+
+    def valid_generator(self, batch_size):
+        return self._generator(self.paths['from_valid'], self.paths['to_valid'], batch_size)
+
+    def _generator(self, from_path, to_path, batch_size):
+
+        def padded_batch(sentences, max_length):
+            padded = np.array([s + [PAD_ID] * (max_length - len(s)) for s in sentences])
+            return padded
+
+        encoder_tokens = []
+        decoder_tokens = []
+        with tf.gfile.GFile(self.paths['from_train'], mode="r") as source_file:
+            with tf.gfile.GFile(self.paths['to_train'], mode="r") as target_file:
                 source, target = source_file.readline(), target_file.readline()
                 while source and target:
-                    # Get source/target as list of word IDs.
-                    source_ids = [int(x) for x in source.split()]
-                    target_ids = [int(x) for x in target.split()]
-                    target_ids.append(io_utils.EOS_ID)
-                    # Add to data_set and retrieve next id list.
-                    source_data.append(source_ids)
-                    target_data.append(target_ids)
+                    # Get the next sentence as integer token IDs.
+                    encoder_tokens.append([int(x) for x in source.split()])
+                    decoder_tokens.append([int(x) for x in target.split()] + [EOS_ID])
+                    # Have we collected batch_size number of sentences? If so, pad & yield.
+                    assert len(encoder_tokens) == len(decoder_tokens)
+                    if len(encoder_tokens) == batch_size:
+                        max_enc_len = max([len(s) for s in encoder_tokens])
+                        max_dec_len = max([len(s) for s in decoder_tokens])
+                        max_sent_len = max(max_enc_len, max_dec_len)
+                        batch = padded_batch(encoder_tokens, max_sent_len)
+                        yield batch
+                        encoder_tokens = []
+                        decoder_tokens = []
                     source, target = source_file.readline(), target_file.readline()
-        return source_data, target_data
+                # Don't forget to yield the 'leftovers'!
+                assert len(encoder_tokens) == len(decoder_tokens)
+                assert len(encoder_tokens) <= batch_size
+                if len(encoder_tokens) > 0:
+                    max_sent_len = max([len(s) for s in encoder_tokens])
+                    batch = padded_batch(encoder_tokens, max_sent_len)
+                    yield batch
 
     @property
     def train_size(self):
@@ -125,7 +152,6 @@ class Cornell(Dataset):
     @property
     def valid_size(self):
         return self._valid_size
-
 
     @property
     def train_data(self):
@@ -147,3 +173,37 @@ class Cornell(Dataset):
         print("Validation data has %d samples." % self._valid_size)
         print("Longest sequence is %d words long." % self._max_seq_len)
         print("%r" % self._df_lengths.describe())
+
+    # =========================================================================================
+    # Deprecated methods that have been replaced by better/more efficent ones.
+    # Keeping in case users want to load full dataset at once/don't care about memory usage.
+    # =========================================================================================
+
+    def read_data(self, suffix="train"):
+        """(Deprecated, use train_generator or valid_generator instead).
+        Read entire dataset into memory. Can be prohibitively memory intensive for large
+        datasets.
+        Args:
+            suffix: (str) either "train" or "valid"
+
+        Returns:
+            2-tuple (source_data, target_data) of sentence-token lists.
+        """
+
+        source_data = []
+        target_data = []
+        # Counter for the number of source/target pairs that couldn't fit in _buckets.
+        with tf.gfile.GFile(self.paths['from_%s' % suffix], mode="r") as source_file:
+            with tf.gfile.GFile(self.paths['to_%s' % suffix], mode="r") as target_file:
+                source, target = source_file.readline(), target_file.readline()
+                while source and target:
+                    # Get source/target as list of word IDs.
+                    source_ids = [int(x) for x in source.split()]
+                    target_ids = [int(x) for x in target.split()]
+                    target_ids.append(io_utils.EOS_ID)
+                    # Add to data_set and retrieve next id list.
+                    source_data.append(source_ids)
+                    target_data.append(target_ids)
+                    source, target = source_file.readline(), target_file.readline()
+        return source_data, target_data
+

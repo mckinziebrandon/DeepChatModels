@@ -3,6 +3,16 @@ from abc import ABCMeta, abstractmethod, abstractproperty
 
 class Dataset(metaclass=ABCMeta):
 
+    @abstractmethod
+    def train_generator(self, batch_size):
+        """Returns a generator function for batches of batch_size train data."""
+        pass
+
+    @abstractmethod
+    def valid_generator(self, batch_size):
+        """Returns a generator function for batches of batch_size validation data."""
+        pass
+
     @abstractproperty
     def word_to_idx(self):
         """Return dictionary map from str -> int. """
