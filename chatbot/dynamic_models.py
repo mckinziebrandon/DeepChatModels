@@ -132,6 +132,25 @@ class DynamicBot(Model):
                     labels=target_labels, logits=self.outputs[:, :-1, :],
                     weights=self.target_weights[:, :-1])
 
+                #_______  Sampled Softmax Construction status: stalled because ambiguity of
+                # 'inputs' for sampled softmax documentation. What an odd implementation.
+                #w, b = self.decoder.get_output_projection()
+                #w_t = tf.transpose(w)
+                #losses = []
+                ##for i, label in enumerate(tf.unstack(target_labels, axis=1)):
+                #for i in range(tf.shape(target_labels[0])):
+                #    losses.append(tf.nn.sampled_softmax_loss(
+                #        weights=w_t,
+                #        biases=b,
+                #        labels=target_labels[:, i],
+                #        inputs=self.outputs[:, i],
+                #        num_sampled=512,
+                #        num_classes=self.vocab_size
+                #    ))
+                ## Welp, that should do it. Right?
+                #self.loss = tf.stack(losses)
+
+
                 # Define the training portion of the graph.
                 params = tf.trainable_variables()
                 optimizer = tf.train.AdagradOptimizer(self.learning_rate)
@@ -187,6 +206,8 @@ class DynamicBot(Model):
             pad_indices = np.where(decoder_batch == io_utils.PAD_ID)
             for b, m in np.stack(pad_indices, axis=1):
                 target_weights[b, m-1] = 0.0
+            # Last element should never be accessed anyway, but better be safe.
+            target_weights[:, -1] = 0.0
 
         input_feed = {}
         input_feed[self.encoder_inputs.name] = encoder_batch

@@ -200,10 +200,7 @@ class Decoder(RNN):
         """
 
         def single_proj(single_batch):
-            """
-            :param single_batch: [batch_size, state_size]
-            :return: tensor shape [batch_size, output_size]
-            """
+            """Function passed to tf.map_fn below. PEP8 discourages lambda functions, so use def."""
             return tf.matmul(single_batch, self.projection[0]) + self.projection[1]
 
         with tf.variable_scope(scope or "proj_scope"):
@@ -228,6 +225,12 @@ class Decoder(RNN):
                                   tf.reduce_sum(tf.exp(projected_output), axis=0))
         sample_ID = tf.squeeze(tf.multinomial(tf.expand_dims(projected_output, 0), 1))
         return sample_ID
+
+    def get_output_projection(self):
+        """Returns the tuple (w, b) that decoder uses for projecting.
+        Required as argument to the sampled softmax loss.
+        """
+        return self.projection
 
 
 class OutputProjection:
