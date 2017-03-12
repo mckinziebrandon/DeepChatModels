@@ -39,7 +39,6 @@ This project is still very much evolving each day, but the core goals are:
 
 ### Brief Overview of Completed Work
 
-For a more comprehensive description, please scroll to the last section.
 
 __Encoder/Decoder-Based Models__:
 * DynamicBot: uses a more object-oriented approach offered by custom classes in model_components.py. The result is faster online batch-concatenated embedding and a more natural approach to chatting. It makes use of the (fantastic) new python API in the TensorFlow 1.0 release, notably the dynamic_rnn. It also adheres to good variable scoping practice and common tensorflow conventions I've observed in the documentation and source code, which has nice side effects such as clean graph visualizations in TensorBoard.
