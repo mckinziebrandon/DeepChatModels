@@ -1,7 +1,5 @@
 # Conversation Models in Tensorflow
 
-[NEW MODEL: DynamicBot. More info in next section]
-
 This project is still very much evolving each day, but the core goals are:
 * Create a cleaner user interface for tinkering with sequence-to-sequence models. This project will explore ways to make constructing such models feel more intuitive/customizable. The ideal result is a chatbot API with the readability of [Keras](https://keras.io/), but with a degree of flexibility closer to [TensorFlow](https://www.tensorflow.org/). For example, the following code is all that is needed (after imports, etc.) to create and train one of the models on the Cornell movie dialogs (All params with '=' are optional) :
 ```python
@@ -47,6 +45,8 @@ This project is still very much evolving each day, but the core goals are:
     * **WMT'15** : English-to-French translation.
     * **Ubuntu Dialogue Corpus**: Reformatted as single-turn to single-response pairs.
     * **Cornell Movie-Dialogs**: Recently (March 5) incorporated [this preprocessed](https://github.com/suriyadeepan/datasets/tree/master/seq2seq/cornell_movie_corpus) version of the Cornell corpus. I'll be processing and reformatting it further.
+* Reference Material:
+    * A lot of research has gone into these models, and I've been documenting my notes on the most "important" papers for this project in the last section of [my deep learning notes here](http://mckinziebrandon.me/assets/pdf/CondensedSummaries.pdf). I'll be updating that as the ideas from more papers make their way into this project.
 
 ## Faster Embedding, Encoding, and Chatting
 
