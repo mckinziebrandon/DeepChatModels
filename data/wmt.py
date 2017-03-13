@@ -7,7 +7,7 @@ import os
 
 class WMT(Dataset):
 
-    def __init__(self, from_vocab_size, to_vocab_size=None):
+    def __init__(self, data_dir, from_vocab_size, to_vocab_size=None):
 
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('WMTLogger')
@@ -16,7 +16,8 @@ class WMT(Dataset):
         self.vocab_size = from_vocab_size
         if to_vocab_size == None:
             to_vocab_size = from_vocab_size
-        self._data_dir = '/home/brandon/terabyte/Datasets/wmt'
+        #self._data_dir = '/home/brandon/terabyte/Datasets/wmt'
+        self._data_dir = data_dir
 
         # Get wmt data to the specified directory.
         train_path = os.path.join(self._data_dir, "giga-fren.release2.fixed")

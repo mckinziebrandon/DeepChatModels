@@ -9,11 +9,12 @@ from utils import io_utils
 class TestData(Dataset):
     """Mock dataset with a handful of sentences."""
 
-    def __init__(self):
+    def __init__(self, data_dir):
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('TestDataLogger')
         self._name = "test_data"
-        self._data_dir = '/home/brandon/terabyte/Datasets/test_data'
+        #self._data_dir = '/home/brandon/terabyte/Datasets/test_data'
+        self._data_dir = data_dir
 
 
         paths_triplet = io_utils.prepare_data(self._data_dir,
