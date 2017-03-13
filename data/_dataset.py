@@ -2,7 +2,9 @@
 import numpy as np
 import tensorflow as tf
 from abc import ABCMeta, abstractmethod, abstractproperty
+from utils import io_utils
 from utils.io_utils import EOS_ID, PAD_ID
+import logging
 
 class DatasetABC(metaclass=ABCMeta):
 
@@ -63,9 +65,33 @@ class DatasetABC(metaclass=ABCMeta):
 
 
 class Dataset(DatasetABC):
-    """Implements the most general of subset of operations that all classes can use."""
 
-    def _generator(self, from_path, to_path, batch_size, max_seq_len=50):
+    def __init__(self, data_dir, vocab_size=20000, max_seq_len=80):
+        """Implements the most general of subset of operations that all classes can use."""
+        self.vocab_size = vocab_size
+        self._data_dir = data_dir
+        # We query io_utils to ensure all data files are organized properly,
+        # and io_utils returns the paths to files of interest.
+        paths_triplet = io_utils.prepare_data(self._data_dir,
+                                              self._data_dir + "/train_from.txt",
+                                              self._data_dir + "/train_to.txt",
+                                              self._data_dir + "/valid_from.txt",
+                                              self._data_dir + "/valid_to.txt",
+                                              vocab_size, vocab_size)
+
+        train_path, valid_path, vocab_path = paths_triplet
+        self.paths = {}
+        self.paths['from_train']    = train_path[0]
+        self.paths['to_train']      = train_path[1]
+        self.paths['from_valid']    = valid_path[0]
+        self.paths['to_valid']      = valid_path[1]
+        self.paths['from_vocab']    = vocab_path[0]
+        self.paths['to_vocab']      = vocab_path[1]
+
+        self._word_to_idx, _ = io_utils.get_vocab_dicts(self.paths['from_vocab'])
+        _, self._idx_to_word = io_utils.get_vocab_dicts(self.paths['to_vocab'])
+
+    def _generator(self, from_path, to_path, batch_size, max_seq_len=80):
 
         def padded_batch(sentences, max_length):
             padded = np.array([s + [PAD_ID] * (max_length - len(s)) for s in sentences])
@@ -146,45 +172,93 @@ class Dataset(DatasetABC):
         return source_data, target_data
 
     def train_generator(self, batch_size):
-        """Returns a generator function for batches of batch_size train data."""
-        raise NotImplemented
+        """Returns a generator function. Each call to next() yields a batch
+            of size batch_size data as numpy array of shape [batch_size, max_seq_len],
+            where max_seq_len is the longest sentence in the returned batch.
+        """
+        return self._generator(self.paths['from_train'], self.paths['to_train'],
+                               batch_size)
 
     def valid_generator(self, batch_size):
-        """Returns a generator function for batches of batch_size validation data."""
-        raise NotImplemented
+        return self._generator(self.paths['from_valid'], self.paths['to_valid'], batch_size)
 
+    @property
     def word_to_idx(self):
         """Return dictionary map from str -> int. """
-        raise NotImplemented
+        return self._word_to_idx
 
+    @property
     def idx_to_word(self):
         """Return dictionary map from int -> str. """
-        raise NotImplemented
+        return self._idx_to_word
 
+    def as_words(self, sentence):
+        """Initially, this function was just the one-liner below:
+
+            return " ".join([tf.compat.as_str(self._idx_to_word[i]) for i in sentence])
+
+            Since then, it has become apparent that some character aren't converted properly,
+            and tf has issues decoding. In (rare) cases that this occurs, I've setup the
+            try-catch block to help inspect the root causes. It will remain here until the
+            problem has been adequately diagnosed.
+        """
+        words = []
+        try:
+            for idx, i in enumerate(sentence):
+                w = self._idx_to_word[i]
+                w_str = tf.compat.as_str(w)
+                words.append(w_str)
+            return " ".join(words)
+            #return " ".join([tf.compat.as_str(self._idx_to_word[i]) for i in sentence])
+        except UnicodeDecodeError  as e:
+            print("Error: ", e)
+            print("Final index:", idx, "and token:", i)
+            print("Final word: ", self._idx_to_word[i])
+            print("Sentence length:", len(sentence))
+            print("\n\nIndexError encountered for following sentence:\n", sentence)
+            print("\nVocab size is :", self.vocab_size)
+            print("Words:", words)
+
+    @property
     def data_dir(self):
         """Return path to directory that contains the data."""
-        raise NotImplemented
+        return self._data_dir
 
+    @property
     def name(self):
         """Returns name of the dataset as a string."""
-        raise NotImplemented
+        return self._name
 
+    @property
     def train_size(self):
-        """Returns number of samples (sentences) in this dataset."""
         raise NotImplemented
 
+    @property
     def valid_size(self):
-        """Returns number of samples (sentences) in this dataset."""
         raise NotImplemented
 
+    @property
     def train_data(self):
-        """List of training samples (token IDs)."""
+        """Removed. Use generator instead."""
+        self.log.error("Tried getting full training data. Use train_generator instead.")
         raise NotImplemented
 
+    @property
     def valid_data(self):
-        """List of validation samples (token IDs)."""
+        """Removed. Use generator instead."""
+        self.log.error("Tried getting full validation data. Use valid_generator instead.")
         raise NotImplemented
 
+    @property
     def max_seq_len(self):
-        """Return the number of tokens in the longest example"""
+        self.log.error("Tried getting max_seq_len. Unsupported since DynamicBot.")
         raise NotImplemented
+
+    # =========================================================================================
+    # Deprecated methods that have been replaced by better/more efficent ones.
+    # Keeping in case users want to load full dataset at once/don't care about memory usage.
+    # =========================================================================================
+
+    def read_data(self, suffix="train"):
+        return self._read_data(self.paths['from_%s' % suffix], self.paths['to_%s' % suffix])
+

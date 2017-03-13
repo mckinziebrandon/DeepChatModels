@@ -1,6 +1,4 @@
 from data._dataset import Dataset
-from data.ubuntu import Ubuntu
-from data.wmt import WMT
+from data.dataset_wrappers import Cornell, Ubuntu, WMT
 from data.test_data import TestData
-from data.cornell import Cornell
 

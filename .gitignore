@@ -1,3 +1,6 @@
+flags.txt
+run.sh
+
 # Note: Any leading '**' need to be followed by a '/'. 
 # Seems like '**/thing_to_ignore_always[/*]' covers all bases.
 **/.*.swp
@@ -15,5 +18,4 @@
 # existed in tf repo but have since been removed. 
 # They will be missed. 
 **/reference/*
-
 **/saved_train_data/**

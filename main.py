@@ -18,6 +18,7 @@ from utils import io_utils
 flags = tf.app.flags
 # String flags -- directories and dataset name(s).
 flags.DEFINE_string("ckpt_dir", "out", "Directory in which checkpoint files will be saved.")
+flags.DEFINE_string("data_dir", None, "Directory containing the data files.")
 flags.DEFINE_string("dataset", "cornell", "Dataset to use. 'ubuntu', 'cornell', or 'wmt'.")
 # Boolean flags.
 flags.DEFINE_boolean("reset_model", False, "wipe output directory; new params")
@@ -30,6 +31,7 @@ flags.DEFINE_integer("state_size", 512, "Number of units in the RNN cell.")
 flags.DEFINE_integer("embed_size", 64, "Size of word embedding dimension.")
 flags.DEFINE_integer("nb_epoch", 10, "Number of epochs over full train set to run.")
 flags.DEFINE_integer("num_layers", 3, "Num layers in underlying MultiRNNCell.")
+flags.DEFINE_integer("max_seq_len", 80, "Num layers in underlying MultiRNNCell.")
 # Float flags -- hyperparameters.
 flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
 flags.DEFINE_float("lr_decay", 0.98, "Decay factor applied to learning rate.")
@@ -49,10 +51,11 @@ if __name__ == "__main__":
             print("WARNING: To chat, should pass --reset_model=False, but found True."
                   "Resetting to False.")
             FLAGS.reset_model = False
+    assert FLAGS.data_dir is not None, "You must specify --data_dir [path] as an argument."
 
     # All datasets follow the same API, found in data/_dataset.py
-    print("Setting up dataset.")
-    dataset = DATASET[FLAGS.dataset](FLAGS.vocab_size)
+    print("Setting up %s dataset." % FLAGS.dataset)
+    dataset = DATASET[FLAGS.dataset](FLAGS.data_dir, FLAGS.vocab_size)
 
     # Create chat model of choice. Pass in FLAGS values in case you want to change from defaults.
     print("Creating DynamicBot.")
