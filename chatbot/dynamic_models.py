@@ -144,17 +144,17 @@ class DynamicBot(Model):
 
                 #_______  Sampled Softmax Construction status: stalled because ambiguity of
                 # 'inputs' for sampled softmax is 'outputs' for reality.
-                #w, b = self.decoder.get_output_projection()
-                #w_t = tf.transpose(w)
-                #losses = []
+                # w, b = self.decoder.get_output_projection()
+                # w_t = tf.transpose(w)
+                losses = []
                 #for i, label in enumerate(tf.unstack(target_labels, axis=1)):
                 # Such a hack.  In the bad way.
-                #for i, _ in enumerate(tf.unstack(target_labels[0])):
+                #for i in range(self.batch_size):
                 #    losses.append(tf.nn.sampled_softmax_loss(
                 #        weights=w_t,
                 #        biases=b,
-                #        labels=target_labels[:, i],
-                #        inputs=self.outputs[:, i],
+                #        labels=tf.expand_dims(target_labels[i, :], -1),
+                #        inputs=self.outputs[i, :-1],
                 #        num_sampled=512,
                 #        num_classes=self.vocab_size
                 #    ))

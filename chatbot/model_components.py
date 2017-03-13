@@ -41,12 +41,12 @@ class Cell(tf.contrib.rnn.RNNCell):
 
     def __init__(self, state_size, dropout_prob=1.0):
         self._state_size = state_size
-        self._base_cell = tf.contrib.rnn.GRUCell(state_size)
+        self._base_cell = tf.contrib.rnn.LSTMBlockCell(state_size)
         self._dropout_prob = dropout_prob
 
     @property
     def state_size(self):
-        return self._state_size
+        return self._base_cell.state_size
 
     @property
     def output_size(self):
