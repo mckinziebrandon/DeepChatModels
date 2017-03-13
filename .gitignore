@@ -14,6 +14,6 @@
 # Ignore collection of useful tf files that once 
 # existed in tf repo but have since been removed. 
 # They will be missed. 
-**/deleted_tensorflow_files/*
+**/reference/*
 
 **/saved_train_data/**
