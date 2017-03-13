@@ -107,7 +107,7 @@ class DynamicBot(Model):
             tf.summary.histogram("embed_tensor", embedder.get_embed_tensor(decoder_scope))
             self.merged = tf.summary.merge_all()
 
-        # If in chat session, need projection from state space to vocab space.
+        # If in chat session, need _projection from state space to vocab space.
         # Note: The decoder handles this for us (as it should).
         self.outputs = decoder_outputs
 
@@ -144,7 +144,7 @@ class DynamicBot(Model):
 
                 #_______  Sampled Softmax Construction status: stalled because ambiguity of
                 # 'inputs' for sampled softmax is 'outputs' for reality.
-                # w, b = self.decoder.get_output_projection()
+                # w, b = self.decoder.get_projection_tensors()
                 # w_t = tf.transpose(w)
                 losses = []
                 #for i, label in enumerate(tf.unstack(target_labels, axis=1)):

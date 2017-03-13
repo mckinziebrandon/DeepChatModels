@@ -20,7 +20,6 @@ flags = tf.app.flags
 flags.DEFINE_string("ckpt_dir", "out", "Directory in which checkpoint files will be saved.")
 flags.DEFINE_string("dataset", "cornell", "Dataset to use. 'ubuntu', 'cornell', or 'wmt'.")
 # Boolean flags.
-#flags.DEFINE_boolean("load_flags", False, "If true, use the same FLAGS as previous run.")
 flags.DEFINE_boolean("reset_model", False, "wipe output directory; new params")
 flags.DEFINE_boolean("decode", False, "If true, initiates chat session.")
 # Integer flags.

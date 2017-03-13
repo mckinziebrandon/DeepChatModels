@@ -140,25 +140,30 @@ class BucketModel(Model):
 
     def __init__(self,
                  buckets,
-                 data_name="default_model",
-                 ckpt_dir="out",
-                 vocab_size=40000,
-                 batch_size=64,
-                 learning_rate=0.5,
-                 lr_decay=0.98,
-                 is_decoding=False):
+                 log,
+                 data_name,
+                 ckpt_dir,
+                 vocab_size,
+                 batch_size,
+                 learning_rate,
+                 lr_decay,
+                 steps_per_ckpt,
+                 is_chatting=False):
 
         self.buckets = buckets
         # TODO: Deal with issue of subclasses creating loss,
         # while BucketModel needs it for other methods.
         self.losses = None
-        super(BucketModel, self).__init__(data_name,
-                                          ckpt_dir,
-                                          vocab_size,
-                                          batch_size,
-                                          learning_rate,
-                                          lr_decay,
-                                          is_decoding)
+        super(BucketModel, self).__init__(log,
+                                         data_name=data_name,
+                                         ckpt_dir=ckpt_dir,
+                                         vocab_size=vocab_size,
+                                         batch_size=batch_size,
+                                         learning_rate=learning_rate,
+                                         lr_decay=lr_decay,
+                                         steps_per_ckpt=steps_per_ckpt,
+                                         is_decoding=is_chatting)
+
 
     def compile(self, optimizer=None, max_gradient=5.0, reset=False):
         """ Configure training process. Name was inspired by Keras. <3 """
