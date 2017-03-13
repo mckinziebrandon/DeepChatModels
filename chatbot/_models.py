@@ -249,15 +249,15 @@ class BucketModel(Model):
 
         return batch_encoder_inputs, batch_decoder_inputs, batch_weights
 
-    def train(self, dataset, train_config):
+    def train(self, dataset):
         """ Train chatbot. """
         from chatbot._train import train
-        train(self, dataset, train_config)
+        train(self, dataset)
 
-    def decode(self, test_config):
+    def decode(self):
         """ Create chat session between user & chatbot. """
         from chatbot._decode import decode
-        decode(self, test_config)
+        decode(self)
 
     def step(self, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only=False):
         """Run a step of the model.

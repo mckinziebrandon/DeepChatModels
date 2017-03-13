@@ -7,52 +7,46 @@ import time
 from utils import *
 
 
-def train(bot, dataset, train_config):
-    """ Train chatbot using dataset given by train_config.dataset.
+def train(bot, dataset):
+    """ Train chatbot using dataset given by dataset.
         chatbot: instance of ChatBot or SimpleBot.
     """
 
-    with bot.sess as sess:
-        # Get data as token-ids.
-        train_set, dev_set = io_utils.read_data(dataset,
-                                                bot.buckets)
+    # Get data as token-ids.
+    train_set, dev_set = io_utils.read_data(dataset,
+                                            bot.buckets)
 
-        # Interpret train_buckets_scale[i] as [cumulative] frac of samples in bucket i or below.
-        train_buckets_scale = _get_data_distribution(train_set, bot.buckets)
+    # Interpret train_buckets_scale[i] as [cumulative] frac of samples in bucket i or below.
+    train_buckets_scale = _get_data_distribution(train_set, bot.buckets)
 
-        # This is the training loop.
-        i_step = 0
-        step_time, loss = 0.0, 0.0
-        previous_losses = []
-        try:
-            while True:
-                # Sample a random bucket index according to the data distribution,
-                # then get a batch of data from that bucket by calling chatbot.get_batch.
-                rand = np.random.random_sample()
-                bucket_id = min([i for i in range(len(train_buckets_scale)) if train_buckets_scale[i] > rand])
+    # This is the training loop.
+    i_step = 0
+    step_time, loss = 0.0, 0.0
+    previous_losses = []
+    try:
+        while True:
+            # Sample a random bucket index according to the data distribution,
+            # then get a batch of data from that bucket by calling chatbot.get_batch.
+            rand = np.random.random_sample()
+            bucket_id = min([i for i in range(len(train_buckets_scale)) if train_buckets_scale[i] > rand])
 
-                # Get a batch and make a step.
-                start_time = time.time()
-                step_loss = run_train_step(bot, train_set, bucket_id, False)
-                step_time += (time.time() - start_time) / train_config.steps_per_ckpt
-                loss      += step_loss / train_config.steps_per_ckpt
+            # Get a batch and make a step.
+            start_time = time.time()
+            step_loss = run_train_step(bot, train_set, bucket_id, False)
+            step_time += (time.time() - start_time) / bot.steps_per_ckpt
+            loss      += step_loss / bot.steps_per_ckpt
 
-                # Once in a while, we save checkpoint, print statistics, and run evals.
-                if i_step % train_config.steps_per_ckpt == 0:
-                    run_checkpoint(bot, train_config, step_time, loss, previous_losses, dev_set)
-                    step_time, loss = 0.0, 0.0
-                i_step += 1
-        except (KeyboardInterrupt, SystemExit):
-            print("Training halted. Cleaning up . . . ")
-            # Save checkpoint and zero timer and loss.
-            checkpoint_path = os.path.join(train_config.ckpt_dir, "{}.ckpt".format(train_config.data_name))
-            # Saves the state of all global variables.
-            bot.saver.save(sess, checkpoint_path, global_step=bot.global_step.eval())
-            # Store the model's graph in ckpt directory.
-            bot.saver.export_meta_graph(train_config.ckpt_dir + dataset.name + '.meta')
-            # Flush event file to disk.
-            bot.train_writer.close()
-            print("Done.")
+            # Once in a while, we save checkpoint, print statistics, and run evals.
+            if i_step % bot.steps_per_ckpt == 0:
+                run_checkpoint(bot, step_time, loss, previous_losses, dev_set)
+                step_time, loss = 0.0, 0.0
+            i_step += 1
+    except (KeyboardInterrupt, SystemExit):
+        print("Training halted. Cleaning up . . . ")
+        # Store the model's graph in ckpt directory.
+        bot.saver.export_meta_graph(bot.ckpt_dir + dataset.name + '.meta')
+        bot.close()
+        print("Done.")
 
 
 def run_train_step(model, train_set, bucket_id, forward_only=False):
@@ -65,7 +59,7 @@ def run_train_step(model, train_set, bucket_id, forward_only=False):
     return losses
 
 
-def run_checkpoint(model, config, step_time, loss, previous_losses, dev_set):
+def run_checkpoint(model, step_time, loss, previous_losses, dev_set):
     # Print statistics for the previous epoch.
     perplexity = np.exp(float(loss)) if loss < 300 else float("inf")
     print("\nglobal step:", model.global_step.eval(), end="  ")

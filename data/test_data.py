@@ -31,8 +31,10 @@ class TestData(Dataset):
         self.paths['from_vocab']    = vocab_path[0]
         self.paths['to_vocab']      = vocab_path[1]
 
-        from_vocab_size = len(open(os.path.join(self._data_dir, "vocab100.from")).readlines())
-        to_vocab_size = len(open(os.path.join(self._data_dir, "vocab100.to")).readlines())
+        with open(os.path.join(self._data_dir, "vocab100.from")) as f:
+            from_vocab_size = len(f.readlines())
+        with open(os.path.join(self._data_dir, "vocab100.to")) as f:
+            to_vocab_size = len(f.readlines())
         self.vocab_size = max(from_vocab_size, to_vocab_size)
 
         self._word_to_idx, _ = io_utils.get_vocab_dicts(self.paths['from_vocab'])

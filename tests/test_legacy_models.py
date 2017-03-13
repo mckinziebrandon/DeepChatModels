@@ -1,11 +1,12 @@
 import os
+import tensorflow as tf
+import unittest
+import logging
+
 import sys
 sys.path.append("..")
-import tensorflow as tf
-import logging
-import chatbot
-from utils import *
-from data import Cornell
+from chatbot import ChatBot, SimpleBot
+from data import Cornell, Ubuntu, WMT, TestData
 
 TEMP="/home/brandon/terabyte/Datasets/ubuntu_dialogue_corpus"
 
@@ -20,7 +21,6 @@ flags.DEFINE_boolean("decode", False, "If true, initiates chat session.")
 # Integer flags.
 flags.DEFINE_integer("steps_per_ckpt", 100, "How many training steps to do per checkpoint.")
 flags.DEFINE_integer("batch_size", 64, "Batch size to use during training.")
-flags.DEFINE_integer("vocab_size", 40000, "Number of unique words/tokens to use.")
 flags.DEFINE_integer("state_size", 512, "Number of units in the RNN cell.")
 flags.DEFINE_integer("embed_size", 64, "Size of word embedding dimension.")
 flags.DEFINE_integer("nb_epoch", 10, "Number of epochs over full train set to run.")
@@ -33,21 +33,23 @@ flags.DEFINE_float("temperature", 0.01, "Sampling temperature.")
 flags.DEFINE_float("dropout_prob", 0.5, "Dropout rate before each layer.")
 FLAGS = flags.FLAGS
 
-if __name__ == "__main__":
-    #unittest.main()
+class TestLegacyModels(unittest.TestCase):
+    """Test behavior of tf.contrib.rnn after migrating to r1.0."""
 
-    vocab_size = 40000
-    batch_size = 32
+    def setUp(self):
+        self.seq_len = 20
+        self.dataset = TestData()
+        self.batch_size = 2
+        logging.basicConfig(level=logging.INFO)
+        self.log = logging.getLogger('TestLegacyModels')
 
-    dataset = Cornell(vocab_size=vocab_size)
-
-    bot = chatbot.SimpleBot(dataset.name,
-                            batch_size=batch_size)
-
-    bot.compile(max_gradient=FLAGS.max_gradient, reset=FLAGS.reset_model)
-
-    config = TrainConfig(FLAGS)
-    print("IT'S TRAINING TIME.")
-    bot.train(dataset, config)
+    def test_simple_bot(self):
+        """Test basic functionality of SimpleBot remains up-to-date with _models."""
+        bot = SimpleBot(self.dataset.name, batch_size=self.batch_size)
+        bot.compile(max_gradient=FLAGS.max_gradient, reset=FLAGS.reset_model)
+        print("IT'S TRAINING TIME.")
+        bot.train(self.dataset)
 
 
+if __name__ == '__main__':
+    unittest.main()

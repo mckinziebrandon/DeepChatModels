@@ -36,13 +36,14 @@ class ChatBot(BucketModel):
 
     def __init__(self,
                  buckets,
-                 data_name="default_chatbot",
+                 data_name,
                  ckpt_dir="out",
+                 steps_per_ckpt=100,
                  vocab_size=40000,
                  state_size=512,
                  num_layers=3,
                  max_gradient=5.0,
-                 batch_size=64,  # TODO: shouldn't be here -- training specific.
+                 batch_size=64,
                  learning_rate=0.5,
                  lr_decay=0.98,
                  num_softmax_samp=512,
@@ -119,16 +120,17 @@ class ChatBot(BucketModel):
                 name = "loss{}".format(i)
                 self.summaries[name] = tf.summary.scalar("loss{}".format(i), loss)
 
-        super(ChatBot, self).__init__(buckets,
-                                      data_name=data_name,
-                                      ckpt_dir=ckpt_dir,
-                                      vocab_size=vocab_size,
-                                      batch_size=batch_size,
-                                      learning_rate=learning_rate,
-                                      lr_decay=lr_decay,
-                                      is_decoding=is_chatting)
-
-        super(ChatBot, self).compile(self.losses, max_gradient)
+        super(SimpleBot, self).__init__(buckets,
+                                        self.losses,
+                                        self.log,
+                                        data_name=data_name,
+                                        ckpt_dir=ckpt_dir,
+                                        vocab_size=vocab_size,
+                                        batch_size=batch_size,
+                                        learning_rate=learning_rate,
+                                        lr_decay=lr_decay,
+                                        steps_per_ckpt=steps_per_ckpt,
+                                        is_chatting=is_chatting)
 
     def step(self, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only=False):
         """Run a step of the model.
@@ -242,8 +244,8 @@ class SimpleBot(BucketModel):
 
     def __init__(self,
                  data_name,
-                 vocab_size=40000,
                  ckpt_dir="out",
+                 vocab_size=40000,
                  batch_size=64,
                  state_size=128,
                  learning_rate=0.6,
