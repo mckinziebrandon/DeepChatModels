@@ -34,6 +34,8 @@ class DynamicBot(Model):
                  learning_rate=0.6,
                  lr_decay=0.995,
                  steps_per_ckpt=100,
+                 dropout_prob=1.0,
+                 num_layers=2,
                  temperature=0.0,
                  is_chatting=False):
         """
@@ -47,6 +49,10 @@ class DynamicBot(Model):
             learning_rate: float, typically in range [0, 1].
             lr_decay: weight decay factor, not strictly necessary since default optimizer is adagrad.
             steps_per_ckpt: (int) Specifies step interval for testing on validation data.
+            dropout_prob: (float) in range [0., 1.]. probability of inputs being dropped,
+                            applied before each layer in the model.
+            num_layers: in the underlying MultiRNNCell. Total layers in model, not counting
+                        recurrence/loop unrolliwng is then 2 * num_layers (encoder + decoder).
             temperature: determines how varied the bot responses will be when chatting.
                          The default (0.0) just results in deterministic argmax.
             is_chatting: boolean, should be False when training and True when chatting.
@@ -63,6 +69,8 @@ class DynamicBot(Model):
         # passing it as an argument there.
         self.dataset = dataset
         self.init_learning_rate = learning_rate
+        self.dropout_prob = dropout_prob
+        self.num_layers = num_layers
 
         # The following placeholder shapes correspond with [batch_size, seq_len].
         self.encoder_inputs = tf.placeholder(tf.int32, [None, None], name="encoder_inputs")
@@ -74,13 +82,16 @@ class DynamicBot(Model):
 
         # Encoder inputs in embedding space. Shape is [None, None, embed_size].
         with tf.variable_scope("encoder") as encoder_scope:
-            self.encoder = Encoder(state_size, self.embed_size)
+            self.encoder = Encoder(state_size, self.embed_size,
+                                   dropout_prob=dropout_prob, num_layers=num_layers)
             embedded_enc_inputs = embedder(self.encoder_inputs, scope=encoder_scope)
             # Get encoder state after feeding the sequence(s). Shape is [None, state_size].
             encoder_state = self.encoder(embedded_enc_inputs, scope=encoder_scope)
 
         with tf.variable_scope("decoder") as decoder_scope:
-            self.decoder = Decoder(state_size, self.vocab_size, self.embed_size, temperature)
+            self.decoder = Decoder(state_size, self.vocab_size, self.embed_size,
+                                   dropout_prob=dropout_prob, num_layers=num_layers,
+                                   temperature=temperature)
             # Decoder inputs in embedding space. Shape is [None, None, embed_size].
             embedded_dec_inputs = embedder(self.decoder_inputs, scope=decoder_scope)
             # For decoder, we want the full sequence of output states, not simply the last.
@@ -165,8 +176,9 @@ class DynamicBot(Model):
             with tf.variable_scope(self.summary_scope):
                 tf.summary.scalar("loss", self.loss),
                 tf.summary.scalar("learning_rate", self.learning_rate)
-                for var in tf.trainable_variables():
-                    tf.summary.histogram(var.name, var)
+                # Not finding these very informative. May use in the future.
+                #for var in tf.trainable_variables():
+                #    tf.summary.histogram(var.name, var)
                 for grad, var in grads:
                     if grad is None: continue
                     tf.summary.histogram(var.name + "/gradient", grad)
@@ -228,7 +240,7 @@ class DynamicBot(Model):
                 return summaries, step_loss, step_outputs
 
     def train(self, dataset,
-              nb_epoch=1, save_dir=None):
+              nb_epoch=1, save_dir=None, save_params=False):
         """Train bot on inputs for nb_epoch epochs, or until user types CTRL-C.
 
         Args:
@@ -271,13 +283,15 @@ class DynamicBot(Model):
                         print("Validation loss:%.3f, perplexity:%.3f" % (eval_loss, perplexity(eval_loss)))
 
                         # TODO: less ugly. For now, having training up and running is priority.
-                        if False:
+                        if save_params:
                             hyper_params = {"global_step":[self.global_step.eval(session=self.sess)],
                                            "loss": [eval_loss],
                                             "learning_rate":[self.init_learning_rate],
                                             "vocab_size":[self.vocab_size],
                                             "state_size":[self.state_size],
-                                            "embed_size":[self.embed_size]}
+                                            "embed_size":[self.embed_size],
+                                            "dropout_prob":[self.dropout_prob],
+                                            "num_layers":[self.num_layers]}
                             if i_step == 0:
                                 hyper_params["loss"] = [step_loss]
                             if self.data_name != "test_data":

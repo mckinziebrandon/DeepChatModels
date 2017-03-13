@@ -37,16 +37,30 @@ This project is still very much evolving each day, but the core goals are:
 * Explore how [personalities of chatbots](https://arxiv.org/pdf/1603.06155.pdf) change when trained on different datasets, and methods for improving speaker consistency.
 * Implement and improve "teacher mode": an interactive chat session where the user can tell the bot how well they're doing, and suggest better responses that the bot can learn from.
 
-* [Completed] Models:
-    * Rewrite conversation model with faster embedding technique and new TF support for dynamic unrolling.
-    * Implement an attention-based embedding sequence-to-sequence model with the help of the tensorflow.contrib libraries.
-    * Implement a simpler embedding sequence-to-sequence from "scratch" (minimal use of contrib).
-* [Completed] Datasets:
-    * **WMT'15** : English-to-French translation.
-    * **Ubuntu Dialogue Corpus**: Reformatted as single-turn to single-response pairs.
-    * **Cornell Movie-Dialogs**: Recently (March 5) incorporated [this preprocessed](https://github.com/suriyadeepan/datasets/tree/master/seq2seq/cornell_movie_corpus) version of the Cornell corpus. I'll be processing and reformatting it further.
-* Reference Material:
-    * A lot of research has gone into these models, and I've been documenting my notes on the most "important" papers for this project in the last section of [my deep learning notes here](http://mckinziebrandon.me/assets/pdf/CondensedSummaries.pdf). I'll be updating that as the ideas from more papers make their way into this project.
+### Brief Overview of Completed Work
+
+
+__Encoder/Decoder-Based Models__:
+* DynamicBot: uses a more object-oriented approach offered by custom classes in model_components.py. The result is faster online batch-concatenated embedding and a more natural approach to chatting. It makes use of the (fantastic) new python API in the TensorFlow 1.0 release, notably the dynamic_rnn. It also adheres to good variable scoping practice and common tensorflow conventions I've observed in the documentation and source code, which has nice side effects such as clean graph visualizations in TensorBoard.
+
+* SimpleBot: Simplified bucketed model based on the more complicated 'ChatBot' model below. Although it is less flexible in customizing bucket partitions and uses a sparse softmax over the full vocabulary instead of sampling, it is far more transparent in its implementation. It makes minimal use of tf.contrib, as opposed to ChatBot, and more or less is implemented from "scratch," in the sense of primarily relying on the basic tensorflow methods. If you're new to TensorFlow, it may be useful to read through its implementation to get a feel for common conventions in tensorflow programming, as it was the result of me reading the source code of all methods in ChatBot and writing my own more compact interpretation.
+
+* ChatBot: Extended version of the model described in [this TensorFlow tutorial](https://www.tensorflow.org/tutorials/seq2seq). Architecture characteristics: bucketed inputs, decoder uses an attention mechanism (see page 52 of my [notes](http://mckinziebrandon.me/assets/pdf/CondensedSummaries.pdf), and inputs are embedded with the simple functions provided in the tf.contrib library. Also employs a sampled softmax loss function to allow for larger vocabulary sizes (page 54 of [notes](http://mckinziebrandon.me/assets/pdf/CondensedSummaries.pdf)). Additional comments: due to the nature of bucketed models, it takes much longer to create the model compared to others. The main bottleneck appears to be the size of the largest bucket and how the gradient ops are created based on the bucket sizes.
+
+
+__Datasets__:
+* [WMT'15](http://www.statmt.org/wmt15/translation-task.html): 22M sentences examples of english-to-french translation.
+
+* [Ubuntu Dialogue Corpus](https://arxiv.org/pdf/1506.08909.pdf): pre-processing approach can be seen in the ubuntu\_reformat.ipynb in the notebooks folder. The intended use for the dataset is response ranking for multi-turn dialogues, but I've taken the rather simple approach of extracting utterance-pairs and interpreting them as single-sentence to single-response, which correspond with inputs for the encoder and decoder, respectively, in the models.
+
+* [Cornell Movie-Dialogs](https://www.cs.cornell.edu/~cristian/Cornell_Movie-Dialogs_Corpus.html): I began with [this preprocessed](https://github.com/suriyadeepan/datasets/tree/master/seq2seq/cornell_movie_corpus) version of the Cornell corpus, and made minor modifications to reduce noise.
+
+__[Ongoing] Reference Material__: A lot of research has gone into these models, and I've been documenting my notes on the most "important" papers here in the last section of [my deep learning notes here](http://mckinziebrandon.me/assets/pdf/CondensedSummaries.pdf). I'll be updating that as the ideas from more papers make their way into this project. The following is a list of the most influential papers for the architecture approaches in no particular order.
+* [Sequence to Sequence Learning with Neural Networks. Sutskever et al., 2014.](https://papers.nips.cc/paper/5346-sequence-to-sequence-learning-with-neural-networks.pdf)
+* [On Using Very Large Target Vocabulary for Neural Machine Translation. Jean et al., 2014.](https://arxiv.org/pdf/1412.2007.pdf)
+* [Neural Machine Translation by Jointly Learning to Align and Translate. Bahdanau et al., 2016](https://arxiv.org/pdf/1409.0473.pdf)
+* [Effective Approaches to Attention-based Neural Machine Translation. Luong et al., 2015](https://arxiv.org/pdf/1508.04025.pdf)
+
 
 ## Faster Embedding, Encoding, and Chatting
 
@@ -61,7 +75,7 @@ The newest model, ```DynamicBot```, is substantially faster than the previous mo
 One particular feature of DynamicBot worth mentioning is that the output generation and sampling process is _fully contained within the graph_ structure itself. This is in contrast with methods of outputting large arrays representing the logits (unnormalized log probabilities) and then sampling/argmax-ing over these. DynamicBot, however, directly returns its generated responses as a sequence of word-tokens.
 
 
-## Sanity checks
+## Preliminary Testing
 
 Now that the goals for DynamicBot have been met design-wise, I'm digging into the first big testing/debugging stage.
 
@@ -88,13 +102,6 @@ I recently did a small random search and grid search over the following hyperpar
 
 
 The only takeaway I saw from these two plots (after seeing the learning rate plots below) is that the __learning rate__, not the embed size, is overwhelmingly for responsible for any patterns here. It also looks like models with certain emed sizes (like 30) were underrepresented in the sampling, we see less points for them than others. The plots below illustrate the learning rate dependence.
-
-
-<img alt="learning_rate" src="http://i.imgur.com/CtpX6vr.png" width="600">
-<br/><br/>
-
-
-Hmm, the wild oscillations for the large learning rate of 0.7 were expected, but what is going on with the values lying along the bottom (also with 0.7)? Perhaps we can find out by peering in on the same style of plot for each individual learning rate, as done below.
 
 <img alt="learning_subs" src="http://i.imgur.com/bD8MFrV.png" width="900">
 

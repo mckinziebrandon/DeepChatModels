@@ -1,4 +1,5 @@
 import tensorflow as tf
+import pdb
 from utils.io_utils import EOS_ID, UNK_ID
 
 
@@ -34,10 +35,34 @@ class Embedder:
             return tf.get_variable("embed_tensor")
 
 
+class Cell(tf.contrib.rnn.RNNCell):
+    """Simple wrapper class for any extensions I want to make to the
+    encoder/decoder rnn cells. For now, just Dropout+GRU."""
+
+    def __init__(self, state_size, dropout_prob=1.0):
+        self._state_size = state_size
+        self._base_cell = tf.contrib.rnn.GRUCell(state_size)
+        self._dropout_prob = dropout_prob
+
+    @property
+    def state_size(self):
+        return self._state_size
+
+    @property
+    def output_size(self):
+        return self._base_cell.output_size
+
+
+    def __call__(self, inputs, state, scope=None):
+        inputs = tf.layers.dropout(inputs, rate=self._dropout_prob, name="dropout")
+        output, new_state = self._base_cell(inputs, state, scope)
+        return output, new_state
+
+
 class RNN(object):
     """Base class for Encoder/Decoder."""
 
-    def __init__(self, state_size=512, embed_size=256):
+    def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2):
         """
         Args:
             state_size: number of units in underlying rnn cell.
@@ -48,18 +73,19 @@ class RNN(object):
         # TODO: Allow for cell to be passed in as parameter.
         # self.cell = tf.contrib.rnn.GRUCell(self.state_size)
         self.cell = tf.contrib.rnn.MultiRNNCell(
-            [tf.contrib.rnn.GRUCell(self.state_size) for _ in range(2)])
+            [Cell(self.state_size, dropout_prob) for _ in range(num_layers)])
 
 
 class Encoder(RNN):
-    def __init__(self, state_size=512, embed_size=256):
+    def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2):
         """
         Args:
             state_size: number of units in underlying rnn cell.
             output_size: dimension of output space for projections.
             embed_size: dimension size of word-embedding space.
         """
-        super(Encoder, self).__init__(state_size=state_size, embed_size=embed_size)
+        super(Encoder, self).__init__(state_size=state_size, embed_size=embed_size,
+                                      dropout_prob=dropout_prob, num_layers=num_layers)
 
     def __call__(self, inputs, return_sequence=False, initial_state=None, scope=None):
         """Run the inputs on the encoder and return the output(s).
@@ -77,7 +103,6 @@ class Encoder(RNN):
         """
 
         with tf.variable_scope(scope or "encoder_call") as enc_call_scope:
-            #return tf.contrib.rnn.MultiRNNCell([single_cell() for _ in range(num_layers)])
             outputs, state = tf.nn.dynamic_rnn(self.cell, inputs,
                                                initial_state=initial_state,
                                                dtype=tf.float32,
@@ -92,7 +117,8 @@ class Decoder(RNN):
     """TODO
     """
 
-    def __init__(self, state_size, output_size, embed_size, temperature=1.0):
+    def __init__(self, state_size, output_size, embed_size,
+                 dropout_prob=1.0, num_layers=2, temperature=1.0):
         """
         Args:
             state_size: number of units in underlying rnn cell.
@@ -110,7 +136,8 @@ class Decoder(RNN):
             self.max_seq_len = 40
         else:
             self.max_seq_len = 20
-        super(Decoder, self).__init__(state_size=state_size, embed_size=embed_size)
+        super(Decoder, self).__init__(state_size=state_size, embed_size=embed_size,
+                                      dropout_prob=dropout_prob, num_layers=num_layers)
 
     def __call__(self, inputs, initial_state=None, is_chatting=False,
                  loop_embedder=None, scope=None):
