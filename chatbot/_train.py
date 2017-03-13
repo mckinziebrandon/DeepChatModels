@@ -1,4 +1,8 @@
-"""Train seq2seq attention chatbot."""
+"""Train seq2seq attention chatbot.
+Note: Only used for legacy_models.
+For (better) DynamicBot implementation, please see dynamic_models.py and, for saving/restoring ops,
+the base class of all models in _models.py.
+"""
 import time
 from utils import *
 
@@ -69,14 +73,7 @@ def run_checkpoint(model, config, step_time, loss, previous_losses, dev_set):
     print("step time: %.2f" % step_time, end="  ")
     print("perplexity: %.2f" % perplexity)
 
-    # Decrease learning rate more aggressively.
-    if len(previous_losses) > 1 and loss > min(previous_losses):
-        model.sess.run(model.lr_decay_op)
-    previous_losses.append(loss)
-
-    # Save a checkpoint file.
     model.save()
-
     # Run evals on development set and print their perplexity.
     for bucket_id in range(len(model.buckets)):
         if len(dev_set[bucket_id]) == 0:
