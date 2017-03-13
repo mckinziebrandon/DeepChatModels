@@ -6,7 +6,6 @@ the base class of all models in _models.py.
 import time
 from utils import *
 
-
 def train(bot, dataset):
     """ Train chatbot using dataset given by dataset.
         chatbot: instance of ChatBot or SimpleBot.

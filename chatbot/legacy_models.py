@@ -47,6 +47,7 @@ class ChatBot(BucketModel):
                  learning_rate=0.5,
                  lr_decay=0.98,
                  num_softmax_samp=512,
+                 temperature=0.0,
                  is_chatting=False):
         """Create the model.
 
@@ -64,12 +65,23 @@ class ChatBot(BucketModel):
             is_chatting: if True, don't build backward pass.
         """
 
+        logging.basicConfig(level=logging.INFO)
+        self.log = logging.getLogger('ChatBotLogger')
+
+        if len(buckets) > 1:
+            self.log.error("ChatBot requires len(buckets) be 1 since tensorflow's"
+                           " model_with_buckets function is now deprecated and BROKEN. The only"
+                           "workaround is ensuring len(buckets) == 1. ChatBot apologizes."
+                           "ChatBot also wishes it didn't have to be this way. "
+                           "ChatBot is jealous that DynamicBot does not have these issues.")
+            raise ValueError("Not allowed to pass buckets with len(buckets) > 1.")
+
         # ==========================================================================================
         # Define basic components: cell(s) state, encoder, decoder.
         # ==========================================================================================
 
-        cell =  tf.contrib.rnn.MultiRNNCell([tf.contrib.rnn.GRUCell(state_size)
-                                             for _ in range(num_layers)])
+        #cell =  tf.contrib.rnn.MultiRNNCell([tf.contrib.rnn.GRUCell(state_size)for _ in range(num_layers)])
+        cell = tf.contrib.rnn.GRUCell(state_size)
         self.encoder_inputs = ChatBot._get_placeholder_list("encoder", buckets[-1][0])
         self.decoder_inputs = ChatBot._get_placeholder_list("decoder", buckets[-1][1] + 1)
         self.target_weights = ChatBot._get_placeholder_list("weight", buckets[-1][1] + 1, tf.float32)
@@ -93,22 +105,23 @@ class ChatBot(BucketModel):
             # Question: the outputs are projected to vocab_size NO MATTER WHAT.
             #           i.e. if output_proj is None, it uses its own OutputProjectionWrapper instead
             #           --> How does this affect our model?? A bit misleading imo.
-            with tf.variable_scope("seq2seq2_f"):
-                return embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
-                                                   num_encoder_symbols=vocab_size,
-                                                   num_decoder_symbols=vocab_size,
-                                                   embedding_size=state_size,
-                                                   output_projection=output_proj,
-                                                   feed_previous=is_chatting,
-                                                   dtype=tf.float32)
+            #with tf.variable_scope(scope or "seq2seq2_f") as seq_scope:
+            return embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
+                                               num_encoder_symbols=vocab_size,
+                                               num_decoder_symbols=vocab_size,
+                                               embedding_size=state_size,
+                                               output_projection=output_proj,
+                                               feed_previous=is_chatting,
+                                               dtype=tf.float32)
 
         # Note that self.outputs and self.losses are lists of length len(buckets).
         # This allows us to identify which outputs/losses to compute given a particular bucket.
         # Furthermore, \forall i < j, len(self.outputs[i])  < len(self.outputs[j]). (same for loss)
-        self.outputs, self.losses = model_with_buckets(self.encoder_inputs, self.decoder_inputs,
-                                                       target_outputs, self.target_weights,
-                                                       buckets, lambda x, y: seq2seq_f(x, y),
-                                                       softmax_loss_function=softmax_loss)
+        self.outputs, self.losses = model_with_buckets(
+            self.encoder_inputs, self.decoder_inputs,
+            target_outputs, self.target_weights,
+            buckets, seq2seq_f,
+            softmax_loss_function=softmax_loss)
 
         # If decoding, append _projection to true output to the model.
         if is_chatting and output_proj is not None:
@@ -120,17 +133,17 @@ class ChatBot(BucketModel):
                 name = "loss{}".format(i)
                 self.summaries[name] = tf.summary.scalar("loss{}".format(i), loss)
 
-        super(SimpleBot, self).__init__(buckets,
-                                        self.losses,
-                                        self.log,
-                                        data_name=data_name,
-                                        ckpt_dir=ckpt_dir,
-                                        vocab_size=vocab_size,
-                                        batch_size=batch_size,
-                                        learning_rate=learning_rate,
-                                        lr_decay=lr_decay,
-                                        steps_per_ckpt=steps_per_ckpt,
-                                        is_chatting=is_chatting)
+        super(ChatBot, self).__init__(buckets,
+                                      self.losses,
+                                      self.log,
+                                      data_name=data_name,
+                                      ckpt_dir=ckpt_dir,
+                                      vocab_size=vocab_size,
+                                      batch_size=batch_size,
+                                      learning_rate=learning_rate,
+                                      lr_decay=lr_decay,
+                                      steps_per_ckpt=steps_per_ckpt,
+                                      is_chatting=is_chatting)
 
     def step(self, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only=False):
         """Run a step of the model.
@@ -164,13 +177,13 @@ class ChatBot(BucketModel):
                        self.apply_gradients[bucket_id],  # Update Op that does SGD.
                        self.losses[bucket_id]]          # Loss for this batch.
             outputs = self.sess.run(fetches=fetches, feed_dict=input_feed)
-            return outputs[0], None, outputs[2], None
+            return outputs[0], None, outputs[2], None # Summary, no gradients, loss, outputs.
         else:
             fetches = [self.losses[bucket_id]]  # Loss for this batch.
             for l in range(decoder_size):       # Output logits.
                 fetches.append(self.outputs[bucket_id][l])
             outputs = self.sess.run(fetches=fetches, feed_dict=input_feed)
-            return None, None, outputs[0], outputs[1:]
+            return None, None, outputs[0], outputs[1:] # No summary, no gradients, loss, outputs.
 
     @staticmethod
     def _sampled_loss(num_samples, hidden_size, vocab_size):

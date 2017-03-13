@@ -50,6 +50,14 @@ class TestLegacyModels(unittest.TestCase):
         self.log.info("\n [SimpleBot] Initiating training session.")
         bot.train(self.dataset)
 
+    def test_chat_bot_train(self):
+        """Test basic functionality of SimpleBot remains up-to-date with _models."""
+        buckets = [(10, 20)]
+        bot = ChatBot(buckets, self.dataset.name, batch_size=self.batch_size)
+        bot.compile(max_gradient=FLAGS.max_gradient, reset=FLAGS.reset_model)
+        self.log.info("\n [SimpleBot] Initiating training session.")
+        bot.train(self.dataset)
+
 
 if __name__ == '__main__':
     unittest.main()
