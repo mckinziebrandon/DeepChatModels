@@ -15,7 +15,7 @@ flags.DEFINE_string("ckpt_dir", "out", "Directory in which checkpoint files will
 flags.DEFINE_string("log_dir", "out/logs", ".")
 flags.DEFINE_string("dataset", "cornell", "Dataset to use. 'ubuntu', 'cornell', or 'wmt'.")
 # Boolean flags.
-flags.DEFINE_boolean("reset_model", False, "wipe output directory; new params")
+flags.DEFINE_boolean("reset_model", True, "wipe output directory; new params")
 flags.DEFINE_boolean("decode", False, "If true, initiates chat session.")
 # Integer flags.
 flags.DEFINE_integer("steps_per_ckpt", 100, "How many training steps to do per checkpoint.")
@@ -43,6 +43,8 @@ if __name__ == "__main__":
 
     bot = chatbot.SimpleBot(dataset.name,
                             batch_size=batch_size)
+
+    bot.compile(max_gradient=FLAGS.max_gradient, reset=FLAGS.reset_model)
 
     config = TrainConfig(FLAGS)
     print("IT'S TRAINING TIME.")

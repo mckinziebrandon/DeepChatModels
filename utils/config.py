@@ -7,7 +7,6 @@ Note: Only used by legacy_models.
 class TrainConfig(object):
     def __init__(self, FLAGS):
         self.reset_model        = FLAGS.reset_model
-        self.max_train_samples  = FLAGS.max_train_samples
         self.batch_size         = FLAGS.batch_size
         self.log_dir            = FLAGS.log_dir
         self.ckpt_dir           = FLAGS.ckpt_dir

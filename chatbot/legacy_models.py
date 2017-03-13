@@ -349,6 +349,7 @@ class SimpleBot(BucketModel):
 
         # Let superclass handle the boring stuff :)
         super(SimpleBot, self).__init__(buckets,
+                                        self.losses,
                                         self.log,
                                         data_name=data_name,
                                         ckpt_dir=ckpt_dir,
@@ -407,7 +408,7 @@ class SimpleBot(BucketModel):
                        self.apply_gradients[bucket_id],  # Update Op that does SGD.
                        self.losses[bucket_id]]          # Loss for this batch.
             outputs = self.sess.run(fetches=fetches, feed_dict=input_feed)
-            return outputs[0], None, outputs[3], None  # summaries,  No gradient norm, loss, no outputs.
+            return outputs[0], None, outputs[2], None  # summaries,  No gradient norm, loss, no outputs.
         else:
             fetches = [self.losses[bucket_id]]  # Loss for this batch.
             for l in range(decoder_size):       # Output logits.
