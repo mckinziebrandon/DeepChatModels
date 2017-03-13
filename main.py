@@ -3,7 +3,7 @@
 import time
 import tensorflow as tf
 from chatbot import DynamicBot
-from data import Cornell, Ubuntu, WMT
+from data import Cornell, Ubuntu, WMT, Reddit
 from utils import io_utils
 
 # ==================================================================================================
@@ -42,7 +42,8 @@ FLAGS = flags.FLAGS
 
 DATASET = {'ubuntu': Ubuntu,
            'cornell': Cornell,
-           'wmt': WMT}
+           'wmt': WMT,
+           'reddit': Reddit}
 
 if __name__ == "__main__":
 
@@ -51,6 +52,8 @@ if __name__ == "__main__":
             print("WARNING: To chat, should pass --reset_model=False, but found True."
                   "Resetting to False.")
             FLAGS.reset_model = False
+    if FLAGS.ckpt_dir == 'out':
+        FLAGS.ckpt_dir += '/' + FLAGS.dataset
     assert FLAGS.data_dir is not None, "You must specify --data_dir [path] as an argument."
 
     # All datasets follow the same API, found in data/_dataset.py
