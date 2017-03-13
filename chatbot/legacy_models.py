@@ -1,20 +1,14 @@
 """Sequence-to-sequence models."""
 
-# TODO: Figure out what to do with these old models. Made when I was using TF r0.12.
-# EDIT: Modified inheritance strucutre (see _models.py) so these *should* work now.
-#       I have NOT tested them since the change.
-
+# EDIT: Modified inheritance strucutre (see _models.py) so these *should* work again.
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-
-# ML/DL-specific imports.
+import logging
 import numpy as np
 import tensorflow as tf
-# ChatBot class.
 from tensorflow.contrib.legacy_seq2seq import embedding_attention_seq2seq
 from tensorflow.contrib.legacy_seq2seq import model_with_buckets
-# Just in case (temporary)
 from tensorflow.contrib.rnn.python.ops import core_rnn
 from tensorflow.python.ops import embedding_ops
 
@@ -45,49 +39,51 @@ class ChatBot(BucketModel):
                  data_name="default_chatbot",
                  ckpt_dir="out",
                  vocab_size=40000,
-                 layer_size=512,
+                 state_size=512,
                  num_layers=3,
                  max_gradient=5.0,
-                 batch_size=64,     # TODO: shouldn't be here -- training specific.
+                 batch_size=64,  # TODO: shouldn't be here -- training specific.
                  learning_rate=0.5,
                  lr_decay=0.98,
                  num_softmax_samp=512,
-                 is_decoding=False):
+                 is_chatting=False):
         """Create the model.
 
         Args:
             vocab_size: number of unique tokens in the dataset vocabulary.
             buckets: a list of pairs (I, O), where I (O) specifies maximum input (output) length
                      that will be processed in that bucket.
-            layer_size: number of units in each recurrent layer (contained within the model cell).
+            state_size: number of units in each recurrent layer (contained within the model cell).
             num_layers: number of recurrent layers in the model's cell state.
             max_gradient: gradients will be clipped to maximally this norm.
             batch_size: the size of the batches used during training;
             learning_rate: learning rate to start with.
             lr_decay: decay learning rate by this much when needed.
             num_softmax_samp: number of samples for sampled softmax.
-            is_decoding: if True, don't build backward pass.
+            is_chatting: if True, don't build backward pass.
         """
 
-        # ==============================================================================================
+        # ==========================================================================================
         # Define basic components: cell(s) state, encoder, decoder.
-        # ==============================================================================================
+        # ==========================================================================================
 
-        cell = ChatBot._get_cell(num_layers, layer_size)
+        cell =  tf.contrib.rnn.MultiRNNCell([tf.contrib.rnn.GRUCell(state_size)
+                                             for _ in range(num_layers)])
         self.encoder_inputs = ChatBot._get_placeholder_list("encoder", buckets[-1][0])
         self.decoder_inputs = ChatBot._get_placeholder_list("decoder", buckets[-1][1] + 1)
         self.target_weights = ChatBot._get_placeholder_list("weight", buckets[-1][1] + 1, tf.float32)
         target_outputs = [self.decoder_inputs[i + 1] for i in range(len(self.decoder_inputs) - 1)]
 
-        # Determine whether to draw sample subset from output softmax or just use default tensorflow softmax.
+        # If specified, sample from subset of full vocabulary size during training.
+        softmax_loss, output_proj = None, None
         if 0 < num_softmax_samp < vocab_size:
-            softmax_loss, output_proj = ChatBot._sampled_softmax_loss(num_softmax_samp, layer_size, vocab_size)
-        else:
-            softmax_loss, output_proj = None, None
+            softmax_loss, output_proj = ChatBot._sampled_loss(num_softmax_samp,
+                                                              state_size,
+                                                              vocab_size)
 
-        # ==============================================================================================
+        # ==========================================================================================
         # Combine the components to construct desired model architecture.
-        # ==============================================================================================
+        # ==========================================================================================
 
         # The seq2seq function: we use embedding for the input and attention.
         def seq2seq_f(encoder_inputs, decoder_inputs):
@@ -100,21 +96,21 @@ class ChatBot(BucketModel):
                 return embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
                                                    num_encoder_symbols=vocab_size,
                                                    num_decoder_symbols=vocab_size,
-                                                   embedding_size=layer_size,
+                                                   embedding_size=state_size,
                                                    output_projection=output_proj,
-                                                   feed_previous=is_decoding,
+                                                   feed_previous=is_chatting,
                                                    dtype=tf.float32)
 
         # Note that self.outputs and self.losses are lists of length len(buckets).
         # This allows us to identify which outputs/losses to compute given a particular bucket.
-        # Furthermore, \forall i < j, len(self.outputs[i])  < len(self.outputs[j]). Same goes for losses.
+        # Furthermore, \forall i < j, len(self.outputs[i])  < len(self.outputs[j]). (same for loss)
         self.outputs, self.losses = model_with_buckets(self.encoder_inputs, self.decoder_inputs,
                                                        target_outputs, self.target_weights,
                                                        buckets, lambda x, y: seq2seq_f(x, y),
                                                        softmax_loss_function=softmax_loss)
 
-        # If decoding, append projection to true output to the model.
-        if is_decoding and output_proj is not None:
+        # If decoding, append _projection to true output to the model.
+        if is_chatting and output_proj is not None:
             self.outputs = ChatBot._get_projections(len(buckets), self.outputs, output_proj)
 
         with tf.variable_scope("summaries"):
@@ -130,7 +126,7 @@ class ChatBot(BucketModel):
                                       batch_size=batch_size,
                                       learning_rate=learning_rate,
                                       lr_decay=lr_decay,
-                                      is_decoding=is_decoding)
+                                      is_decoding=is_chatting)
 
         super(ChatBot, self).compile(self.losses, max_gradient)
 
@@ -175,16 +171,16 @@ class ChatBot(BucketModel):
             return None, None, outputs[0], outputs[1:]
 
     @staticmethod
-    def _sampled_softmax_loss(num_samples, hidden_size, vocab_size):
-        """Defines the samples softmax loss op and the associated output projection.
+    def _sampled_loss(num_samples, hidden_size, vocab_size):
+        """Defines the samples softmax loss op and the associated output _projection.
         Args:
             num_samples:     (context: importance sampling) size of subset of outputs for softmax.
             hidden_size:     number of units in the individual recurrent states.
             vocab_size: number of unique output words.
         Returns:
-            sampled_loss, output_projection
+            sampled_loss, apply_projection
             - function: sampled_loss(labels, inputs)
-            - output_projection: transformation to full vocab space, applied to decoder output.
+            - apply_projection: transformation to full vocab space, applied to decoder output.
         """
 
         assert(0 < num_samples < vocab_size)
@@ -197,7 +193,7 @@ class ChatBot(BucketModel):
         output_projection = (w, b)
 
         def sampled_loss(labels, inputs):
-            # QUESTION: (1) Why reshape? (2) Explain the math (sec 3 of paper).
+            # Question: Why reshape?
             labels = tf.reshape(labels, [-1, 1])
             return tf.nn.sampled_softmax_loss(
                     weights=w_t,
@@ -211,7 +207,7 @@ class ChatBot(BucketModel):
 
     @staticmethod
     def _get_projections(num_buckets, unprojected_vals, projection_operator):
-        """Apply projection operator to unprojected_vals, a tuple of length num_buckets.
+        """Apply _projection operator to unprojected_vals, a tuple of length num_buckets.
 
         :param num_buckets:         the number of projections that will be applied.
         :param unprojected_vals:    tuple of length num_buckets.
@@ -223,16 +219,6 @@ class ChatBot(BucketModel):
             projected_vals[b] = [tf.matmul(output, projection_operator[0]) + projection_operator[1]
                                  for output in unprojected_vals[b]]
         return projected_vals
-
-    @staticmethod
-    def _get_cell(num_layers, layer_size):
-        # Create the internal (potentially multi-layer) cell for our RNN.
-        def single_cell():
-            return tf.contrib.rnn.GRUCell(layer_size)
-        if num_layers > 1:
-            return tf.contrib.rnn.MultiRNNCell([single_cell() for _ in range(num_layers)])
-        else:
-            return single_cell()
 
     @staticmethod
     def _get_placeholder_list(name, length, dtype=tf.int32):
@@ -255,16 +241,20 @@ class SimpleBot(BucketModel):
     """
 
     def __init__(self,
-                 data_name="default_simple_bot",
-                 ckpt_dir="out",
-                 max_seq_len = 30,
+                 data_name,
                  vocab_size=40000,
-                 layer_size=512,
-                 max_gradient=5.0,
-                 batch_size=64,     # TODO: shouldn't be here -- training specific.
-                 learning_rate=0.5,
-                 lr_decay=0.98,
-                 is_decoding=False):
+                 ckpt_dir="out",
+                 batch_size=64,
+                 state_size=128,
+                 learning_rate=0.6,
+                 lr_decay=0.995,
+                 steps_per_ckpt=100,
+                 temperature=0.0,
+                 max_seq_len=30,
+                 is_chatting=False):
+
+        logging.basicConfig(level=logging.INFO)
+        self.log = logging.getLogger('SimpleBotLogger')
 
         # SimpleBot allows user to not worry about making their own buckets.
         # SimpleBot does that for you. SimpleBot cares.
@@ -274,8 +264,6 @@ class SimpleBot(BucketModel):
         # Create placeholder lists for encoder/decoder sequences.
         # ==========================================================================================
 
-        # Base of cell: GRU.
-        #base_cell = tf.contrib.rnn.GRUCell(layer_size)
         with tf.variable_scope("placeholders"):
             self.encoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="encoder"+str(i))
                                    for i in range(max_seq_len)]
@@ -284,42 +272,46 @@ class SimpleBot(BucketModel):
             self.target_weights = [tf.placeholder(tf.float32, shape=[None], name="weight"+str(i))
                                    for i in range(max_seq_len+1)]
 
-        # ====================================================================================
+        # ==========================================================================================
         # Before bucketing, need to define the underlying model(x, y) -> outputs, state(s).
-        # ====================================================================================
+        # ==========================================================================================
 
-        def seq2seq(encoder_inputs, decoder_inputs):
+        def seq2seq(encoder_inputs, decoder_inputs, scope=None):
             """Builds basic encoder-decoder model and returns list of (2D) output tensors."""
-            with tf.variable_scope("seq2seq"):
-                encoder_cell = tf.contrib.rnn.GRUCell(layer_size)
-                encoder_cell = tf.contrib.rnn.EmbeddingWrapper(encoder_cell, vocab_size, layer_size)
+            with tf.variable_scope(scope or "seq2seq"):
+                encoder_cell = tf.contrib.rnn.GRUCell(state_size)
+                encoder_cell = tf.contrib.rnn.EmbeddingWrapper(encoder_cell, vocab_size, state_size)
                 # Encoder(raw_inputs) -> Embed(raw_inputs) -> [be an RNN] -> encoder state.
                 _, encoder_state = core_rnn.static_rnn(encoder_cell, encoder_inputs, dtype=tf.float32)
-                with tf.variable_scope("decoder") as decoder_scope:
+                with tf.variable_scope("decoder"):
 
-                    embedding = tf.get_variable("embedding", [vocab_size, layer_size])
-                    decoder_cell = tf.contrib.rnn.GRUCell(layer_size)
-                    decoder_cell = tf.contrib.rnn.EmbeddingWrapper(decoder_cell, vocab_size, layer_size)
-                    decoder_cell = tf.contrib.rnn.OutputProjectionWrapper(decoder_cell, vocab_size)
+                    def loop_function(x):
+                        with tf.variable_scope("loop_function"):
+                            params = tf.get_variable("embed_tensor", [vocab_size, state_size])
+                            return embedding_ops.embedding_lookup(params, tf.argmax(x, 1))
+
+                    _decoder_cell = tf.contrib.rnn.GRUCell(state_size)
+                    _decoder_cell = tf.contrib.rnn.EmbeddingWrapper(_decoder_cell, vocab_size, state_size)
+                    # Dear TensorFlow: you should replace the 'reuse' param in
+                    # OutputProjectionWrapper with 'scope' and just do scope.reuse in __init__.
+                    # sincerely, programming conventions.
+                    decoder_cell = tf.contrib.rnn.OutputProjectionWrapper(
+                        _decoder_cell, vocab_size, reuse=tf.get_variable_scope().reuse)
 
                     decoder_outputs = []
                     prev = None
                     decoder_state = None
 
-                    loop_function = lambda x : embedding_ops.embedding_lookup(embedding, tf.argmax(x, 1))
-
                     for i, dec_inp in enumerate(decoder_inputs):
-
-                        #if is_chatting and prev is not None:
-                        #    dec_inp = loop_function(prev)
-
+                        if is_chatting and prev is not None:
+                            dec_inp = loop_function(tf.reshape(prev, [1, 1]))
                         if i == 0:
-                            #decoder_scope.reuse_variables()
-                            output, decoder_state = decoder_cell(dec_inp, encoder_state)
+                            output, decoder_state = decoder_cell(dec_inp, encoder_state,
+                                                                 scope=tf.get_variable_scope())
                         else:
-                            decoder_scope.reuse_variables()
-                            output, decoder_state = decoder_cell(dec_inp, decoder_state)
-
+                            tf.get_variable_scope().reuse_variables()
+                            output, decoder_state = decoder_cell(dec_inp, decoder_state,
+                                                                 scope=tf.get_variable_scope())
                         decoder_outputs.append(output)
                 return decoder_outputs
 
@@ -333,10 +325,13 @@ class SimpleBot(BucketModel):
         with tf.name_scope("simple_bucket_model", values):
             for idx_b, bucket in enumerate(buckets):
                 # Reminder: you should never explicitly set reuse=False. It's a no-no.
-                with tf.variable_scope(tf.get_variable_scope(), reuse=True if idx_b > 0 else None):
+                with tf.variable_scope(tf.get_variable_scope(), reuse=True if idx_b > 0 else None)\
+                        as bucket_scope:
                     # The outputs for this bucket are defined entirely by the seq2seq function.
-                    self.outputs.append(seq2seq(self.encoder_inputs[:bucket[0]],
-                                           self.decoder_inputs[:bucket[1]]))
+                    self.outputs.append(seq2seq(
+                        self.encoder_inputs[:bucket[0]],
+                        self.decoder_inputs[:bucket[1]],
+                        scope=bucket_scope))
                     # Target outputs are just the inputs time-shifted by 1.
                     target_outputs = [self.decoder_inputs[i + 1]
                                       for i in range(len(self.decoder_inputs) - 1)]
@@ -354,15 +349,16 @@ class SimpleBot(BucketModel):
 
         # Let superclass handle the boring stuff :)
         super(SimpleBot, self).__init__(buckets,
+                                        self.losses,
+                                        self.log,
                                         data_name=data_name,
                                         ckpt_dir=ckpt_dir,
                                         vocab_size=vocab_size,
                                         batch_size=batch_size,
                                         learning_rate=learning_rate,
                                         lr_decay=lr_decay,
-                                        is_decoding=is_decoding)
-
-        super(SimpleBot, self).compile(self.losses, max_gradient)
+                                        steps_per_ckpt=steps_per_ckpt,
+                                        is_chatting=is_chatting)
 
     @staticmethod
     def _simple_loss(batch_size, logits, targets, weights):
@@ -412,7 +408,7 @@ class SimpleBot(BucketModel):
                        self.apply_gradients[bucket_id],  # Update Op that does SGD.
                        self.losses[bucket_id]]          # Loss for this batch.
             outputs = self.sess.run(fetches=fetches, feed_dict=input_feed)
-            return outputs[0], None, outputs[3], None  # summaries,  No gradient norm, loss, no outputs.
+            return outputs[0], None, outputs[2], None  # summaries,  No gradient norm, loss, no outputs.
         else:
             fetches = [self.losses[bucket_id]]  # Loss for this batch.
             for l in range(decoder_size):       # Output logits.

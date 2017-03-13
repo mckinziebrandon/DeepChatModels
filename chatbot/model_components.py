@@ -41,17 +41,16 @@ class Cell(tf.contrib.rnn.RNNCell):
 
     def __init__(self, state_size, dropout_prob=1.0):
         self._state_size = state_size
-        self._base_cell = tf.contrib.rnn.GRUCell(state_size)
+        self._base_cell = tf.contrib.rnn.LSTMBlockCell(state_size)
         self._dropout_prob = dropout_prob
 
     @property
     def state_size(self):
-        return self._state_size
+        return self._base_cell.state_size
 
     @property
     def output_size(self):
         return self._base_cell.output_size
-
 
     def __call__(self, inputs, state, scope=None):
         inputs = tf.layers.dropout(inputs, rate=self._dropout_prob, name="dropout")
@@ -71,7 +70,6 @@ class RNN(object):
         self.state_size = state_size
         self.embed_size = embed_size
         # TODO: Allow for cell to be passed in as parameter.
-        # self.cell = tf.contrib.rnn.GRUCell(self.state_size)
         self.cell = tf.contrib.rnn.MultiRNNCell(
             [Cell(self.state_size, dropout_prob) for _ in range(num_layers)])
 
@@ -129,7 +127,7 @@ class Decoder(RNN):
         self.output_size = output_size
         w = tf.get_variable("w", [state_size, output_size], dtype=tf.float32)
         b = tf.get_variable("b", [output_size], dtype=tf.float32)
-        self.projection = (w, b)
+        self._projection = (w, b)
         if temperature < 0.1:
             self.max_seq_len = 1000
         elif temperature < 0.8:
@@ -166,7 +164,7 @@ class Decoder(RNN):
                                                dtype=tf.float32,
                                                scope=dec_call_scope)
             # Outputs has shape [batch_size, max_time, output_size].
-            outputs = self.output_projection(outputs)
+            outputs = self.apply_projection(outputs)
 
             if not is_chatting:
                 # Dynamic sampling is not needed unless in interactive chat session, so we're done.
@@ -186,7 +184,7 @@ class Decoder(RNN):
                                              sequence_length=[1],
                                              dtype=tf.float32,
                                                    scope=dec_call_scope)
-                next_id = self.sample(self.output_projection(outputs))
+                next_id = self.sample(self.apply_projection(outputs))
                 return tf.concat([response, tf.stack([next_id])], axis=0), state
 
             def cond(response, s):
@@ -217,8 +215,8 @@ class Decoder(RNN):
             outputs = tf.expand_dims(response, 0)
             return outputs, None
 
-    def output_projection(self, outputs, scope=None):
-        """Defines the affine transformation from state space to output space.
+    def apply_projection(self, outputs, scope=None):
+        """Defines & applies the affine transformation from state space to output space.
 
         Args:
             outputs: Tensor of shape [batch_size, max_time, state_size] returned by tf dynamic_rnn.
@@ -230,7 +228,7 @@ class Decoder(RNN):
 
         def single_proj(single_batch):
             """Function passed to tf.map_fn below. PEP8 discourages lambda functions, so use def."""
-            return tf.matmul(single_batch, self.projection[0]) + self.projection[1]
+            return tf.matmul(single_batch, self._projection[0]) + self._projection[1]
 
         with tf.variable_scope(scope or "proj_scope"):
             # Swap 1st and 2nd indices to match expected input of map_fn.
@@ -255,11 +253,11 @@ class Decoder(RNN):
         sample_ID = tf.squeeze(tf.multinomial(tf.expand_dims(projected_output, 0), 1))
         return sample_ID
 
-    def get_output_projection(self):
+    def get_projection_tensors(self):
         """Returns the tuple (w, b) that decoder uses for projecting.
         Required as argument to the sampled softmax loss.
         """
-        return self.projection
+        return self._projection
 
 
 class OutputProjection:

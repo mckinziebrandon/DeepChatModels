@@ -1,4 +1,8 @@
-"""Train seq2seq attention chatbot."""
+"""Train seq2seq attention chatbot.
+Note: Only used for legacy_models.
+For (better) DynamicBot implementation, please see dynamic_models.py and, for saving/restoring ops,
+the base class of all models in _models.py.
+"""
 import time
 from utils import *
 
@@ -9,11 +13,9 @@ def train(bot, dataset, train_config):
     """
 
     with bot.sess as sess:
-        print("Reading data (limit: %d)." % train_config.max_train_samples)
         # Get data as token-ids.
         train_set, dev_set = io_utils.read_data(dataset,
-                                                bot.buckets,
-                                                train_config.max_train_samples)
+                                                bot.buckets)
 
         # Interpret train_buckets_scale[i] as [cumulative] frac of samples in bucket i or below.
         train_buckets_scale = _get_data_distribution(train_set, bot.buckets)
@@ -49,7 +51,7 @@ def train(bot, dataset, train_config):
             # Store the model's graph in ckpt directory.
             bot.saver.export_meta_graph(train_config.ckpt_dir + dataset.name + '.meta')
             # Flush event file to disk.
-            bot.file_writer.close()
+            bot.train_writer.close()
             print("Done.")
 
 
@@ -59,7 +61,7 @@ def run_train_step(model, train_set, bucket_id, forward_only=False):
     step_returns = model.step(encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only)
     summary, _, losses, _ = step_returns
     if not forward_only and summary is not None:
-        model.file_writer.add_summary(summary, model.global_step.eval())
+        model.train_writer.add_summary(summary, model.global_step.eval())
     return losses
 
 
@@ -71,14 +73,7 @@ def run_checkpoint(model, config, step_time, loss, previous_losses, dev_set):
     print("step time: %.2f" % step_time, end="  ")
     print("perplexity: %.2f" % perplexity)
 
-    # Decrease learning rate more aggressively.
-    if len(previous_losses) > 1 and loss > min(previous_losses):
-        model.sess.run(model.lr_decay_op)
-    previous_losses.append(loss)
-
-    # Save a checkpoint file.
     model.save()
-
     # Run evals on development set and print their perplexity.
     for bucket_id in range(len(model.buckets)):
         if len(dev_set[bucket_id]) == 0:

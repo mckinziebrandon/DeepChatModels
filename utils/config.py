@@ -1,39 +1,24 @@
-"""Container classes for command-line-provided information from user."""
+"""Container classes for command-line-provided information from user.
+Note: Only used by legacy_models.
+"""
+
 
 
 class TrainConfig(object):
     def __init__(self, FLAGS):
-        # Should we train from scratch or load a previous model state?
-        self.reset_model = FLAGS.reset_model
-        # Maximum number of samples used in a training session.
-        self.max_train_samples = FLAGS.max_train_samples
-        # Number of samples used per step.
-        self.batch_size = FLAGS.batch_size
-        # Tensorboard's logdir.
-        self.log_dir    = FLAGS.log_dir
-        # Directory where model's saver will place TF checkpoints.
-        self.ckpt_dir = FLAGS.ckpt_dir
-        # Determines how frequently checkpoints are saved.
-        self.steps_per_ckpt = FLAGS.steps_per_ckpt
-        # TODO: change this later when applicable.
-        self.nb_epoch   = 1
-        # FIXME: hi
-        self.data_name = FLAGS.data_name
+        self.reset_model        = FLAGS.reset_model
+        self.batch_size         = FLAGS.batch_size
+        self.log_dir            = FLAGS.log_dir
+        self.ckpt_dir           = FLAGS.ckpt_dir
+        self.steps_per_ckpt     = FLAGS.steps_per_ckpt
+        self.nb_epoch           = FLAGS.nb_epoch
 
 
 class TestConfig(object):
     def __init__(self, FLAGS):
-        # TODO: too chatbot-specific. Move elsewhere.
-        self.temperature = FLAGS.temperature
-        # For loading model parameters.
-        self.ckpt_dir = FLAGS.ckpt_dir
-        # For loading model graph. Question: Right?
-        self.log_dir = FLAGS.log_dir
-        # It makes no sense to test a newly created model.
-        self.data_dir = FLAGS.data_dir
-
-        # TODO:
-        self.teacher_mode = True
-        self.reset_model = False
-
-
+        self.temperature    = FLAGS.temperature
+        self.ckpt_dir       = FLAGS.ckpt_dir
+        self.log_dir        = FLAGS.log_dir
+        self.teacher_mode   = True
+        # Protecting the users from themselves . . .
+        self.reset_model    = False

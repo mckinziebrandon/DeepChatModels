@@ -65,7 +65,7 @@ class DatasetABC(metaclass=ABCMeta):
 class Dataset(DatasetABC):
     """Implements the most general of subset of operations that all classes can use."""
 
-    def _generator(self, from_path, to_path, batch_size, max_seq_len=100):
+    def _generator(self, from_path, to_path, batch_size, max_seq_len=50):
 
         def padded_batch(sentences, max_length):
             padded = np.array([s + [PAD_ID] * (max_length - len(s)) for s in sentences])
@@ -99,6 +99,10 @@ class Dataset(DatasetABC):
                         decoder_batch = padded_batch(decoder_tokens, max_sent_len)
                         if num_skipped > 2:
                             print("Skipped %d sentences making batch." % num_skipped)
+                        # Shuffling. Likely not that effective on batch by batch basis.
+                        rand_indices = np.random.permutation(batch_size)
+                        encoder_batch = encoder_batch[rand_indices]
+                        decoder_batch = decoder_batch[rand_indices]
                         yield encoder_batch, decoder_batch
                         # Clear token containers for next batch.
                         encoder_tokens = []
