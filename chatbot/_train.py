@@ -32,7 +32,7 @@ def train(bot, dataset):
 
             # Get a batch and make a step.
             start_time = time.time()
-            step_loss = run_train_step(bot, train_set, bucket_id, False)
+            summary, step_loss = run_train_step(bot, train_set, bucket_id, False)
             step_time += (time.time() - start_time) / bot.steps_per_ckpt
             loss      += step_loss / bot.steps_per_ckpt
 
@@ -55,25 +55,25 @@ def run_train_step(model, train_set, bucket_id, forward_only=False):
     step_returns = model.step(encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only)
     summary, _, losses, _ = step_returns
     if not forward_only and summary is not None:
-        model.train_writer.add_summary(summary, model.global_step.eval())
-    return losses
+        model.train_writer.add_summary(summary, model.global_step.eval(model.sess))
+    return summary, losses
 
 
 def run_checkpoint(model, step_time, loss, previous_losses, dev_set):
     # Print statistics for the previous epoch.
     perplexity = np.exp(float(loss)) if loss < 300 else float("inf")
-    print("\nglobal step:", model.global_step.eval(), end="  ")
-    print("learning rate: %.4f" %  model.learning_rate.eval(), end="  ")
+    print("\nglobal step:", model.global_step.eval(model.sess), end="  ")
+    print("learning rate: %.4f" %  model.learning_rate.eval(session=model.sess), end="  ")
     print("step time: %.2f" % step_time, end="  ")
     print("perplexity: %.2f" % perplexity)
 
-    model.save()
     # Run evals on development set and print their perplexity.
     for bucket_id in range(len(model.buckets)):
         if len(dev_set[bucket_id]) == 0:
             print("  eval: empty bucket %d" % (bucket_id))
             continue
-        eval_loss = run_train_step(model, dev_set, bucket_id, forward_only=True)
+        summary, eval_loss = run_train_step(model, dev_set, bucket_id, forward_only=True)
+        model.save(summaries=summary)
         eval_ppx = np.exp(float(eval_loss)) if eval_loss < 300 else float("inf")
         print("  eval: bucket %d perplexity %.2f" % (bucket_id, eval_ppx))
     sys.stdout.flush()

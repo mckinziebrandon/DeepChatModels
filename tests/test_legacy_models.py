@@ -43,11 +43,11 @@ class TestLegacyModels(unittest.TestCase):
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('TestLegacyModels')
 
-    def test_simple_bot(self):
+    def test_simple_bot_train(self):
         """Test basic functionality of SimpleBot remains up-to-date with _models."""
         bot = SimpleBot(self.dataset.name, batch_size=self.batch_size)
         bot.compile(max_gradient=FLAGS.max_gradient, reset=FLAGS.reset_model)
-        print("IT'S TRAINING TIME.")
+        self.log.info("\n [SimpleBot] Initiating training session.")
         bot.train(self.dataset)
 
 
