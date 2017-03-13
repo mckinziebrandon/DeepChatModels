@@ -97,7 +97,7 @@ class Dataset(DatasetABC):
                         # Encoder sentences are fed in reverse intentionally.
                         encoder_batch = padded_batch(encoder_tokens, max_sent_len)[:, ::-1]
                         decoder_batch = padded_batch(decoder_tokens, max_sent_len)
-                        if num_skipped > 0:
+                        if num_skipped > 2:
                             print("Skipped %d sentences making batch." % num_skipped)
                         yield encoder_batch, decoder_batch
                         # Clear token containers for next batch.
