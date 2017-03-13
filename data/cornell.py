@@ -8,14 +8,15 @@ from utils import io_utils
 
 class Cornell(Dataset):
 
-    def __init__(self, vocab_size=20000):
+    def __init__(self, data_dir, vocab_size=20000):
 
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('CornellLogger')
 
         self._name = "cornell"
         self.vocab_size = vocab_size
-        self._data_dir = '/home/brandon/terabyte/Datasets/cornell_movie_corpus'
+        #self._data_dir = '/home/brandon/terabyte/Datasets/cornell_movie_corpus'
+        self._data_dir = data_dir
         # We query io_utils to ensure all data files are organized properly,
         # and io_utils returns the paths to files of interest.
         paths_triplet = io_utils.prepare_data(self._data_dir,
