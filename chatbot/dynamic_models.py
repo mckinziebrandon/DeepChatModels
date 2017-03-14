@@ -277,8 +277,15 @@ class DynamicBot(Model):
                         # Report training averages.
                         print("Step %d: step time = %.3f;  perplexity = %.3f"
                               % (i_step, avg_step_time, perplexity(avg_loss)))
+
                         # Generate & run a batch of validation data.
-                        summaries, eval_loss, _ = self.step(*next(valid_gen))
+                        # Recreate
+                        try:
+                            summaries, eval_loss, _ = self.step(*next(valid_gen))
+                        except StopIteration:
+                            valid_gen = dataset.valid_generator(self.batch_size)
+                            summaries, eval_loss, _ = self.step(*next(valid_gen))
+
                         self.save(summaries=summaries, summaries_type="valid", save_dir=save_dir)
                         print("Validation loss:%.3f, perplexity:%.3f" % (eval_loss, perplexity(eval_loss)))
 
