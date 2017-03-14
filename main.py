@@ -24,11 +24,11 @@ flags.DEFINE_string("dataset", "cornell", "Dataset to use. 'ubuntu', 'cornell', 
 flags.DEFINE_boolean("reset_model", False, "wipe output directory; new params")
 flags.DEFINE_boolean("decode", False, "If true, initiates chat session.")
 # Integer flags.
-flags.DEFINE_integer("steps_per_ckpt", 100, "How many training steps to do per checkpoint.")
+flags.DEFINE_integer("steps_per_ckpt", 200, "How many training steps to do per checkpoint.")
 flags.DEFINE_integer("batch_size", 64, "Batch size to use during training.")
 flags.DEFINE_integer("vocab_size", 40000, "Number of unique words/tokens to use.")
 flags.DEFINE_integer("state_size", 512, "Number of units in the RNN cell.")
-flags.DEFINE_integer("embed_size", 64, "Size of word embedding dimension.")
+flags.DEFINE_integer("embed_size", 32, "Size of word embedding dimension.")
 flags.DEFINE_integer("nb_epoch", 10, "Number of epochs over full train set to run.")
 flags.DEFINE_integer("num_layers", 3, "Num layers in underlying MultiRNNCell.")
 flags.DEFINE_integer("max_seq_len", 80, "Num layers in underlying MultiRNNCell.")
@@ -58,7 +58,8 @@ if __name__ == "__main__":
 
     # All datasets follow the same API, found in data/_dataset.py
     print("Setting up %s dataset." % FLAGS.dataset)
-    dataset = DATASET[FLAGS.dataset](FLAGS.data_dir, FLAGS.vocab_size)
+    dataset = DATASET[FLAGS.dataset](FLAGS.data_dir, FLAGS.vocab_size,
+                                     max_seq_len=FLAGS.max_seq_len)
 
     # Create chat model of choice. Pass in FLAGS values in case you want to change from defaults.
     print("Creating DynamicBot.")

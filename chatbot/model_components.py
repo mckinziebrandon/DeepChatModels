@@ -39,22 +39,23 @@ class Cell(tf.contrib.rnn.RNNCell):
     """Simple wrapper class for any extensions I want to make to the
     encoder/decoder rnn cells. For now, just Dropout+GRU."""
 
-    def __init__(self, state_size, dropout_prob=1.0):
+    def __init__(self, state_size, num_layers, dropout_prob=1.0):
         self._state_size = state_size
-        self._base_cell = tf.contrib.rnn.LSTMBlockCell(state_size)
+        self._cell = tf.contrib.rnn.MultiRNNCell(
+            [tf.contrib.rnn.GRUCell(self._state_size) for _ in range(num_layers)])
         self._dropout_prob = dropout_prob
 
     @property
     def state_size(self):
-        return self._base_cell.state_size
+        return self._cell.state_size
 
     @property
     def output_size(self):
-        return self._base_cell.output_size
+        return self._cell.output_size
 
     def __call__(self, inputs, state, scope=None):
         inputs = tf.layers.dropout(inputs, rate=self._dropout_prob, name="dropout")
-        output, new_state = self._base_cell(inputs, state, scope)
+        output, new_state = self._cell(inputs, state, scope)
         return output, new_state
 
 
@@ -70,9 +71,7 @@ class RNN(object):
         self.state_size = state_size
         self.embed_size = embed_size
         # TODO: Allow for cell to be passed in as parameter.
-        self.cell = tf.contrib.rnn.MultiRNNCell(
-            [Cell(self.state_size, dropout_prob) for _ in range(num_layers)])
-
+        self.cell = Cell(state_size, num_layers, dropout_prob=dropout_prob)
 
 class Encoder(RNN):
     def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2):

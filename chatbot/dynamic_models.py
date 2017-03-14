@@ -13,6 +13,7 @@ from chatbot._models import Model
 from chatbot.model_components import *
 from utils import io_utils
 from utils.io_utils import GO_ID
+from heapq import *
 
 
 def check_shape(tensor, expected_shape, log):
@@ -146,7 +147,7 @@ class DynamicBot(Model):
                 # 'inputs' for sampled softmax is 'outputs' for reality.
                 # w, b = self.decoder.get_projection_tensors()
                 # w_t = tf.transpose(w)
-                losses = []
+                # losses = []
                 #for i, label in enumerate(tf.unstack(target_labels, axis=1)):
                 # Such a hack.  In the bad way.
                 #for i in range(self.batch_size):
@@ -254,6 +255,7 @@ class DynamicBot(Model):
             """Common alternative to loss in NLP models."""
             return np.exp(float(loss)) if loss < 300 else float("inf")
 
+        losses = []
         hyper_params = {}
         try:
             for i_epoch in range(nb_epoch):
@@ -272,6 +274,14 @@ class DynamicBot(Model):
 
                     # Print updates in desired intervals (steps_per_ckpt).
                     if i_step % self.steps_per_ckpt == 0:
+                        if len(losses) < 5:
+                            heappush(losses, avg_loss)
+                        else:
+                            heappushpop(losses, avg_loss)
+                            if avg_loss >= max(losses):
+                                print("Loss is larger than the largest of 5 previous losses. "
+                                      "Terminating training.")
+                                break
                         # Save current parameter values in a new checkpoint file.
                         self.save(summaries=summaries, summaries_type="train", save_dir=save_dir)
                         # Report training averages.
