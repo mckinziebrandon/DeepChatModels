@@ -4,6 +4,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import sys
 import os
 import time
 import logging
@@ -255,7 +256,6 @@ class DynamicBot(Model):
             """Common alternative to loss in NLP models."""
             return np.exp(float(loss)) if loss < 300 else float("inf")
 
-        losses = []
         hyper_params = {}
         try:
             for i_epoch in range(nb_epoch):
@@ -274,22 +274,11 @@ class DynamicBot(Model):
 
                     # Print updates in desired intervals (steps_per_ckpt).
                     if i_step % self.steps_per_ckpt == 0:
-                        if len(losses) < 5:
-                            heappush(losses, avg_loss)
-                        else:
-                            heappushpop(losses, avg_loss)
-                            if avg_loss >= max(losses):
-                                print("Loss is larger than the largest of 5 previous losses. "
-                                      "Terminating training.")
-                                break
-                        # Save current parameter values in a new checkpoint file.
-                        self.save(summaries=summaries, summaries_type="train", save_dir=save_dir)
-                        # Report training averages.
+
                         print("Step %d: step time = %.3f;  perplexity = %.3f"
                               % (i_step, avg_step_time, perplexity(avg_loss)))
+                        self.save(summaries=summaries, summaries_type="train", save_dir=save_dir)
 
-                        # Generate & run a batch of validation data.
-                        # Recreate
                         try:
                             summaries, eval_loss, _ = self.step(*next(valid_gen))
                         except StopIteration:

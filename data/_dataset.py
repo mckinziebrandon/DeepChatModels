@@ -69,6 +69,7 @@ class Dataset(DatasetABC):
 
     def __init__(self, data_dir, vocab_size=20000, max_seq_len=80):
         """Implements the most general of subset of operations that all classes can use."""
+        self._max_seq_len = max_seq_len
         print("max_seq_len recorded as ", max_seq_len)
         self.vocab_size = vocab_size
         self._data_dir = data_dir
@@ -93,7 +94,7 @@ class Dataset(DatasetABC):
         self._word_to_idx, _ = io_utils.get_vocab_dicts(self.paths['from_vocab'])
         _, self._idx_to_word = io_utils.get_vocab_dicts(self.paths['to_vocab'])
 
-    def _generator(self, from_path, to_path, batch_size, max_seq_len=80):
+    def _generator(self, from_path, to_path, batch_size):
 
         def padded_batch(sentences, max_length):
             padded = np.array([s + [PAD_ID] * (max_length - len(s)) for s in sentences])
@@ -106,38 +107,31 @@ class Dataset(DatasetABC):
 
         encoder_tokens = []
         decoder_tokens = []
-        max_queue = 4
         with tf.gfile.GFile(from_path, mode="r") as source_file:
             with tf.gfile.GFile(to_path, mode="r") as target_file:
+
                 source, target = source_file.readline(), target_file.readline()
                 while source and target:
-                    # Get the next sentence as integer token IDs.
-                    if len(source.split()) > max_seq_len or len(target.split()) > max_seq_len:
+
+                    if len(source.split()) > self.max_seq_len or len(target.split()) > self.max_seq_len:
                         source, target = source_file.readline(), target_file.readline()
                         continue
+
                     encoder_tokens.append([int(x) for x in source.split()])
                     decoder_tokens.append([int(x) for x in target.split()] + [EOS_ID])
+
                     # Have we collected batch_size number of sentences? If so, pad & yield.
                     assert len(encoder_tokens) == len(decoder_tokens)
-                    if len(encoder_tokens) == max_queue * batch_size:
-                        rand_indices = np.random.permutation(max_queue * batch_size)
-                        encoder_tokens = np.array(encoder_tokens)[rand_indices]
-                        decoder_tokens = np.array(decoder_tokens)[rand_indices]
-                        for _ in range(max_queue):
-                            encoder_batch = encoder_tokens[:batch_size]
-                            decoder_batch = decoder_tokens[:batch_size]
-                            max_sent_len = longest_sentence(encoder_batch, decoder_batch)
-                            # Encoder sentences are fed in reverse intentionally.
-                            encoder_batch = padded_batch(encoder_batch, max_sent_len)[:, ::-1]
-                            decoder_batch = padded_batch(decoder_batch, max_sent_len)
-                            yield encoder_batch, decoder_batch
-                            if len(encoder_tokens) > 0:
-                                encoder_tokens = encoder_tokens[batch_size:]
-                                decoder_tokens = decoder_tokens[batch_size:]
+                    if len(encoder_tokens) == batch_size:
+                        max_sent_len = longest_sentence(encoder_tokens, decoder_tokens)
+                        encoder_batch = padded_batch(encoder_tokens, max_sent_len)[:, ::-1]
+                        decoder_batch = padded_batch(decoder_tokens, max_sent_len)
+                        yield encoder_batch, decoder_batch
                         encoder_tokens = []
                         decoder_tokens = []
-                        # Clear token containers for next batch.
                     source, target = source_file.readline(), target_file.readline()
+
+
                 # Don't forget to yield the 'leftovers'!
                 assert len(encoder_tokens) == len(decoder_tokens)
                 assert len(encoder_tokens) <= batch_size
@@ -254,8 +248,7 @@ class Dataset(DatasetABC):
 
     @property
     def max_seq_len(self):
-        self.log.error("Tried getting max_seq_len. Unsupported since DynamicBot.")
-        raise NotImplemented
+        return self._max_seq_len
 
     # =========================================================================================
     # Deprecated methods that have been replaced by better/more efficent ones.
