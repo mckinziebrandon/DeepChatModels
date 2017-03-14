@@ -3,9 +3,10 @@ import numpy as np
 import tensorflow as tf
 from abc import ABCMeta, abstractmethod, abstractproperty
 from utils import io_utils
+import random
 from utils.io_utils import EOS_ID, PAD_ID
 import logging
-from collections import Counter
+
 
 class DatasetABC(metaclass=ABCMeta):
 
@@ -37,26 +38,6 @@ class DatasetABC(metaclass=ABCMeta):
     @abstractproperty
     def name(self):
         """Returns name of the dataset as a string."""
-        pass
-
-    @abstractproperty
-    def train_size(self):
-        """Returns number of samples (sentences) in this dataset."""
-        pass
-
-    @abstractproperty
-    def valid_size(self):
-        """Returns number of samples (sentences) in this dataset."""
-        pass
-
-    @abstractproperty
-    def train_data(self):
-        """List of training samples (token IDs)."""
-        pass
-
-    @abstractproperty
-    def valid_data(self):
-        """List of validation samples (token IDs)."""
         pass
 
     @abstractproperty
@@ -94,80 +75,6 @@ class Dataset(DatasetABC):
         self._word_to_idx, _ = io_utils.get_vocab_dicts(self.paths['from_vocab'])
         _, self._idx_to_word = io_utils.get_vocab_dicts(self.paths['to_vocab'])
 
-    def _generator(self, from_path, to_path, batch_size):
-
-        def padded_batch(sentences, max_length):
-            padded = np.array([s + [PAD_ID] * (max_length - len(s)) for s in sentences])
-            return padded
-
-        def longest_sentence(enc_list, dec_list):
-            max_enc_len = max([len(s) for s in enc_list])
-            max_dec_len = max([len(s) for s in dec_list])
-            return max(max_enc_len, max_dec_len)
-
-        encoder_tokens = []
-        decoder_tokens = []
-        with tf.gfile.GFile(from_path, mode="r") as source_file:
-            with tf.gfile.GFile(to_path, mode="r") as target_file:
-
-                source, target = source_file.readline(), target_file.readline()
-                while source and target:
-
-                    if len(source.split()) > self.max_seq_len or len(target.split()) > self.max_seq_len:
-                        source, target = source_file.readline(), target_file.readline()
-                        continue
-
-                    encoder_tokens.append([int(x) for x in source.split()])
-                    decoder_tokens.append([int(x) for x in target.split()] + [EOS_ID])
-
-                    # Have we collected batch_size number of sentences? If so, pad & yield.
-                    assert len(encoder_tokens) == len(decoder_tokens)
-                    if len(encoder_tokens) == batch_size:
-                        max_sent_len = longest_sentence(encoder_tokens, decoder_tokens)
-                        encoder_batch = padded_batch(encoder_tokens, max_sent_len)[:, ::-1]
-                        decoder_batch = padded_batch(decoder_tokens, max_sent_len)
-                        yield encoder_batch, decoder_batch
-                        encoder_tokens = []
-                        decoder_tokens = []
-                    source, target = source_file.readline(), target_file.readline()
-
-
-                # Don't forget to yield the 'leftovers'!
-                assert len(encoder_tokens) == len(decoder_tokens)
-                assert len(encoder_tokens) <= batch_size
-                if len(encoder_tokens) > 0:
-                    max_sent_len = longest_sentence(encoder_tokens, decoder_tokens)
-                    encoder_batch = padded_batch(encoder_tokens, max_sent_len)[:, ::-1]
-                    decoder_batch = padded_batch(decoder_tokens, max_sent_len)
-                    yield encoder_batch, decoder_batch
-
-    def _read_data(self, from_path, to_path):
-        """(Deprecated, use generator methods instead).
-        Read entire dataset into memory. Can be prohibitively memory intensive for large
-        datasets.
-        Args:
-            suffix: (str) either "train" or "valid"
-
-        Returns:
-            2-tuple (source_data, target_data) of sentence-token lists.
-        """
-        source_data = []
-        target_data = []
-        # Counter for the number of source/target pairs that couldn't fit in _buckets.
-        with tf.gfile.GFile(from_path, mode="r") as source_file:
-            with tf.gfile.GFile(to_path, mode="r") as target_file:
-                source, target = source_file.readline(), target_file.readline()
-                while source and target:
-                    # Get source/target as list of word IDs.
-                    source_ids = [int(x) for x in source.split()]
-                    target_ids = [int(x) for x in target.split()]
-                    target_ids.append(EOS_ID)
-                    # Add to data_set and retrieve next id list.
-                    source_data.append(source_ids)
-                    target_data.append(target_ids)
-                    source, target = source_file.readline(), target_file.readline()
-        return source_data, target_data
-
     def train_generator(self, batch_size):
         """Returns a generator function. Each call to next() yields a batch
             of size batch_size data as numpy array of shape [batch_size, max_seq_len],
@@ -178,6 +85,61 @@ class Dataset(DatasetABC):
 
     def valid_generator(self, batch_size):
         return self._generator(self.paths['from_valid'], self.paths['to_valid'], batch_size)
+
+    def _generator(self, from_path, to_path, batch_size):
+        """Returns a generator function that reads data from file, an d
+            yields shuffled batches.
+
+        Args:
+            from_path: full path to file for encoder inputs.
+            to_path: full path to file for decoder inputs.
+            batch_size: number of samples to yield at once.
+        """
+
+        def longest_sentence(enc_list, dec_list):
+            max_enc_len = max([len(s) for s in enc_list])
+            max_dec_len = max([len(s) for s in dec_list])
+            return max(max_enc_len, max_dec_len)
+
+        def padded_batch(encoder_tokens, decoder_tokens):
+            max_sent_len = longest_sentence(encoder_tokens, decoder_tokens)
+            encoder_batch = np.array([s + [PAD_ID] * (max_sent_len - len(s)) for s in encoder_tokens])[:, ::-1]
+            decoder_batch = np.array([s + [PAD_ID] * (max_sent_len - len(s)) for s in decoder_tokens])
+            return encoder_batch, decoder_batch
+
+        encoder_tokens = []
+        decoder_tokens = []
+        with tf.gfile.GFile(from_path, mode="r") as source_file:
+            with tf.gfile.GFile(to_path, mode="r") as target_file:
+
+                source, target = source_file.readline(), target_file.readline()
+                while source and target:
+
+                    # Skip any sentence pairs that are too long for user specifications.
+                    space_needed = max(len(source.split()), len(target.split()))
+                    if space_needed > self.max_seq_len:
+                        source, target = source_file.readline(), target_file.readline()
+                        continue
+
+                    # Reformat token strings to token lists.
+                    # Note: GO_ID is prepended by the chat bot, since it determines
+                    # whether or not it's responsible for responding.
+                    encoder_tokens.append([int(x) for x in source.split()])
+                    decoder_tokens.append([int(x) for x in target.split()] + [EOS_ID])
+
+                    # Have we collected batch_size number of sentences? If so, pad & yield.
+                    assert len(encoder_tokens) == len(decoder_tokens)
+                    if len(encoder_tokens) == batch_size:
+                        yield padded_batch(encoder_tokens, decoder_tokens)
+                        encoder_tokens = []
+                        decoder_tokens = []
+                    source, target = source_file.readline(), target_file.readline()
+
+                # Don't forget to yield the 'leftovers'!
+                assert len(encoder_tokens) == len(decoder_tokens)
+                assert len(encoder_tokens) <= batch_size
+                if len(encoder_tokens) > 0:
+                    yield padded_batch(encoder_tokens, decoder_tokens)
 
     @property
     def word_to_idx(self):
@@ -235,26 +197,6 @@ class Dataset(DatasetABC):
         raise NotImplemented
 
     @property
-    def train_data(self):
-        """Removed. Use generator instead."""
-        self.log.error("Tried getting full training data. Use train_generator instead.")
-        raise NotImplemented
-
-    @property
-    def valid_data(self):
-        """Removed. Use generator instead."""
-        self.log.error("Tried getting full validation data. Use valid_generator instead.")
-        raise NotImplemented
-
-    @property
     def max_seq_len(self):
         return self._max_seq_len
-
-    # =========================================================================================
-    # Deprecated methods that have been replaced by better/more efficent ones.
-    # Keeping in case users want to load full dataset at once/don't care about memory usage.
-    # =========================================================================================
-
-    def read_data(self, suffix="train"):
-        return self._read_data(self.paths['from_%s' % suffix], self.paths['to_%s' % suffix])
 

@@ -13,7 +13,6 @@ class Cornell(Dataset):
         self._name = "cornell"
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('CornellLogger')
-        data_dir = '/home/brandon/terabyte/Datasets/cornell_movie_corpus'
         super(Cornell, self).__init__(data_dir, vocab_size=vocab_size, max_seq_len=max_seq_len)
 
 

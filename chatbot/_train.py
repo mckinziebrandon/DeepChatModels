@@ -49,7 +49,6 @@ def train(bot, dataset):
 
 
 def run_train_step(model, train_set, bucket_id, forward_only=False):
-    # Recall that target_weights are NOT parameter weights; they are weights in the sense of "weighted average."
     encoder_inputs, decoder_inputs, target_weights = model.get_batch(train_set, bucket_id)
     step_returns = model.step(encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only)
     summary, _, losses, _ = step_returns

@@ -61,7 +61,7 @@ if __name__ == "__main__":
         print("Compiling DynamicBot.")
         bot.compile(max_gradient=FLAGS.max_gradient, reset=True)
         print("Training bot. CTRL-C to stop training.")
-        bot.train(dataset, nb_epoch=FLAGS.nb_epoch, save_params=True)
+        bot.train(dataset, nb_epoch=FLAGS.nb_epoch, searching_hyperparams=True)
 
         tf.reset_default_graph()
 

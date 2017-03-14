@@ -136,32 +136,13 @@ class DynamicBot(Model):
         if not self.is_chatting:
             # Define ops/variables related to loss computation.
             with tf.variable_scope("evaluation"):
-                check_shape(self.outputs, [None, None, self.vocab_size], self.log)
+                #check_shape(self.outputs, [None, None, self.vocab_size], self.log)
                 # Loss - target is to predict, as output, the next decoder input.
                 target_labels = self.decoder_inputs[:, 1:]
-                check_shape(target_labels, [None, None], self.log)
+                #check_shape(target_labels, [None, None], self.log)
                 self.loss = tf.losses.sparse_softmax_cross_entropy(
                     labels=target_labels, logits=self.outputs[:, :-1, :],
                     weights=self.target_weights[:, :-1])
-
-                #_______  Sampled Softmax Construction status: stalled because ambiguity of
-                # 'inputs' for sampled softmax is 'outputs' for reality.
-                # w, b = self.decoder.get_projection_tensors()
-                # w_t = tf.transpose(w)
-                # losses = []
-                #for i, label in enumerate(tf.unstack(target_labels, axis=1)):
-                # Such a hack.  In the bad way.
-                #for i in range(self.batch_size):
-                #    losses.append(tf.nn.sampled_softmax_loss(
-                #        weights=w_t,
-                #        biases=b,
-                #        labels=tf.expand_dims(target_labels[i, :], -1),
-                #        inputs=self.outputs[i, :-1],
-                #        num_sampled=512,
-                #        num_classes=self.vocab_size
-                #    ))
-                ## Welp, that should do it. Right? Yeah, probably.
-                #self.loss = tf.stack(losses)
 
                 # Define the training portion of the graph.
                 params = tf.trainable_variables()
@@ -178,9 +159,6 @@ class DynamicBot(Model):
             with tf.variable_scope(self.summary_scope):
                 tf.summary.scalar("loss", self.loss),
                 tf.summary.scalar("learning_rate", self.learning_rate)
-                # Not finding these very informative. May use in the future.
-                #for var in tf.trainable_variables():
-                #    tf.summary.histogram(var.name, var)
                 for grad, var in grads:
                     if grad is None: continue
                     tf.summary.histogram(var.name + "/gradient", grad)
@@ -199,27 +177,26 @@ class DynamicBot(Model):
             forward_only: if True, don't perform backward pass (gradient updates).
 
         Returns:
-            step_loss, step_outputs. If forward_only == False, then outputs is None
-
+            summaries, step_loss, step_outputs.
+            If forward_only == False, then outputs is None
         """
         if decoder_batch is None and not forward_only:
             self.log.error("Can't perform gradient updates without a decoder_batch.")
 
-        if forward_only and decoder_batch is None:
-            # This is true if and only if we are in a chat session.
-            # In a chat session, our batch size is 1 by definition, and
-            # the inputs are fed 1 token at a time.
+        if self.is_chatting:
+            assert decoder_batch is None, "Found decoder_batch inputs during chat session."
             decoder_batch = np.array([[GO_ID]])
             target_weights = np.array([[1.0]])
         else:
             # Prepend GO token to each sample in decoder_batch.
             decoder_batch   = np.insert(decoder_batch, 0, [GO_ID], axis=1)
-            # Define weights to be 0 if next decoder input is PAD, else 1.
             target_weights  = np.ones(shape=decoder_batch.shape)
             pad_indices = np.where(decoder_batch == io_utils.PAD_ID)
-            for b, m in np.stack(pad_indices, axis=1):
-                target_weights[b, m-1] = 0.0
-            # Last element should never be accessed anyway, but better be safe.
+            # Define weights to be 0 if next decoder input is PAD.
+            for batch_idx, time_idx in np.stack(pad_indices, axis=1):
+                target_weights[batch_idx, time_idx-1] = 0.0
+            # Last element should never be accessed anyway, since the target for a given
+            # decoder input is defined as the next decoder input, but better to be safe.
             target_weights[:, -1] = 0.0
 
         input_feed = {}
@@ -227,27 +204,23 @@ class DynamicBot(Model):
         input_feed[self.decoder_inputs.name] = decoder_batch
         input_feed[self.target_weights.name] = target_weights
 
-        # TODO: Needs refactor.
         if not forward_only:
             fetches = (self.merged, self.loss, self.apply_gradients)
             summaries, step_loss, _ = self.sess.run(fetches, input_feed)
             return summaries, step_loss, None
+        elif self.is_chatting:
+            step_outputs = self.sess.run(self.outputs, input_feed)
+            return None, None, step_outputs
         else:
-            if self.is_chatting:
-                step_outputs = self.sess.run(self.outputs, input_feed)
-                return None, None, step_outputs
-            else:
-                fetches = [self.merged, self.loss, self.outputs]
-                summaries, step_loss, step_outputs = self.sess.run(fetches, input_feed)
-                return summaries, step_loss, step_outputs
+            fetches = [self.merged, self.loss, self.outputs]
+            summaries, step_loss, step_outputs = self.sess.run(fetches, input_feed)
+            return summaries, step_loss, step_outputs
 
-    def train(self, dataset,
-              nb_epoch=1, save_dir=None, save_params=False):
+    def train(self, dataset, nb_epoch=1, save_dir=None, searching_hyperparams=False):
         """Train bot on inputs for nb_epoch epochs, or until user types CTRL-C.
 
         Args:
-            train_data: (2-tuple) property of any 'Dataset' instance.
-            valid_data: (2-tuple) property of any 'Dataset' instance.
+            dataset: any instance of the Dataset class.
             nb_epoch: (int) Number of times to train over all entries in inputs.
             save_dir: (str) Path to save ckpt files. If None, defaults to self.ckpt_dir.
         """
@@ -256,14 +229,29 @@ class DynamicBot(Model):
             """Common alternative to loss in NLP models."""
             return np.exp(float(loss)) if loss < 300 else float("inf")
 
-        hyper_params = {}
+        def save_loss_and_hyperparams(validation_loss, file_name=None):
+            """Save snapshot of hyperparams with current validation loss."""
+            if file_name is None:
+                file_name = 'data/saved_train_data/' + self.data_name + '.csv'
+            hyper_params = {"global_step":[self.global_step.eval(session=self.sess)],
+                           "loss": [eval_loss],
+                            "learning_rate":[self.init_learning_rate],
+                            "vocab_size":[self.vocab_size],
+                            "state_size":[self.state_size],
+                            "embed_size":[self.embed_size],
+                            "dropout_prob":[self.dropout_prob],
+                            "num_layers":[self.num_layers]}
+            io_utils.save_hyper_params(hyper_params, fname=file_name)
+
         try:
             for i_epoch in range(nb_epoch):
+
                 i_step = 0
                 avg_loss = avg_step_time = 0.0
-                # Create data generators.
+                # Create data generators for feeding inputs to step().
                 train_gen = dataset.train_generator(self.batch_size)
                 valid_gen = dataset.valid_generator(self.batch_size)
+
                 print("_______________ NEW EPOCH: %d _______________" % i_epoch)
                 for encoder_batch, decoder_batch in train_gen:
                     start_time = time.time()
@@ -275,38 +263,31 @@ class DynamicBot(Model):
                     # Print updates in desired intervals (steps_per_ckpt).
                     if i_step % self.steps_per_ckpt == 0:
 
-                        print("Step %d: step time = %.3f;  perplexity = %.3f"
-                              % (i_step, avg_step_time, perplexity(avg_loss)))
+                        print("Step %d:" % i_step, end=" ")
+                        print("step time = %.3f" % avg_step_time)
+                        print("\ttraining loss = %.3f" % avg_loss, end="; ")
+                        print("training perplexity = %.1f" % perplexity(avg_loss))
                         self.save(summaries=summaries, summaries_type="train", save_dir=save_dir)
 
+                        # Run validation step. If we are out of validation data, reset generator.
                         try:
                             summaries, eval_loss, _ = self.step(*next(valid_gen))
                         except StopIteration:
                             valid_gen = dataset.valid_generator(self.batch_size)
                             summaries, eval_loss, _ = self.step(*next(valid_gen))
 
+                        print("\tValidation loss = %.3f" % eval_loss, end="; ")
+                        print("val perplexity = %.1f" % perplexity(eval_loss))
                         self.save(summaries=summaries, summaries_type="valid", save_dir=save_dir)
-                        print("Validation loss:%.3f, perplexity:%.3f" % (eval_loss, perplexity(eval_loss)))
 
-                        # TODO: less ugly. For now, having training up and running is priority.
-                        if save_params:
-                            hyper_params = {"global_step":[self.global_step.eval(session=self.sess)],
-                                           "loss": [eval_loss],
-                                            "learning_rate":[self.init_learning_rate],
-                                            "vocab_size":[self.vocab_size],
-                                            "state_size":[self.state_size],
-                                            "embed_size":[self.embed_size],
-                                            "dropout_prob":[self.dropout_prob],
-                                            "num_layers":[self.num_layers]}
-                            if i_step == 0:
-                                hyper_params["loss"] = [step_loss]
-                            if self.data_name != "test_data":
-                                io_utils.save_hyper_params(
-                                    hyper_params, fname='data/saved_train_data/'+self.data_name+".csv")
+                        if searching_hyperparams and self.data_name != 'test_data':
+                            save_loss_and_hyperparams(eval_loss)
 
-                        # Reset the running averages.
+                        # Reset the running averages and exit checkpoint.
                         avg_loss = avg_step_time = 0.0
+
                     i_step += 1
+
         except (KeyboardInterrupt, SystemExit):
             print("Training halted. Cleaning up . . . ")
             self.close()

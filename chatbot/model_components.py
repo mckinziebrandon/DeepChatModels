@@ -13,11 +13,13 @@ class Embedder:
         self.embed_size = embed_size
 
     def __call__(self, inputs, name=None, scope=None):
-        """Mimicking the tensorflow Layers API.
-            Arguments:
-              inputs: input tensor of shape [batch_size, max_tgraph & summaries ime].
-            Returns:
-              Output tensor of shape [batch_size, max_time, embed_size]
+        """Embeds integers in inputs and returns the embedded inputs.
+
+        Args:
+          inputs: input tensor of shape [batch_size, max_time].
+
+        Returns:
+          Output tensor of shape [batch_size, max_time, embed_size]
         """
         assert len(inputs.shape) == 2, "Expected inputs rank 2 but found rank %r" % len(inputs.shape)
         with tf.variable_scope(scope or "embedding_inputs"):
@@ -62,7 +64,7 @@ class Cell(tf.contrib.rnn.RNNCell):
 class RNN(object):
     """Base class for Encoder/Decoder."""
 
-    def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2):
+    def __init__(self, state_size, embed_size, dropout_prob, num_layers):
         """
         Args:
             state_size: number of units in underlying rnn cell.
@@ -73,6 +75,7 @@ class RNN(object):
         # TODO: Allow for cell to be passed in as parameter.
         self.cell = Cell(state_size, num_layers, dropout_prob=dropout_prob)
 
+
 class Encoder(RNN):
     def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2):
         """
@@ -81,8 +84,7 @@ class Encoder(RNN):
             output_size: dimension of output space for projections.
             embed_size: dimension size of word-embedding space.
         """
-        super(Encoder, self).__init__(state_size=state_size, embed_size=embed_size,
-                                      dropout_prob=dropout_prob, num_layers=num_layers)
+        super(Encoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
 
     def __call__(self, inputs, return_sequence=False, initial_state=None, scope=None):
         """Run the inputs on the encoder and return the output(s).
@@ -133,8 +135,7 @@ class Decoder(RNN):
             self.max_seq_len = 40
         else:
             self.max_seq_len = 20
-        super(Decoder, self).__init__(state_size=state_size, embed_size=embed_size,
-                                      dropout_prob=dropout_prob, num_layers=num_layers)
+        super(Decoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
 
     def __call__(self, inputs, initial_state=None, is_chatting=False,
                  loop_embedder=None, scope=None):
