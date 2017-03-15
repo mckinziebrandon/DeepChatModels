@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     # All datasets follow the same API, found in data/_dataset.py
     log.info("Setting up dataset.")
-    dataset = TestData(vocab_size=2000)
+    dataset = TestData(vocab_size=64)
 
     # Create chat model of choice. Pass in FLAGS values in case you want to change from defaults.
     print("Creating DynamicBot.")
@@ -55,7 +55,13 @@ if __name__ == "__main__":
     # Don't forget to compile!
     log.info("Compiling DynamicBot.")
     bot.compile(max_gradient=10.0, reset=reset)
+    # Train an epoch on the data. CTRL-C at any time to safely stop training.
+    # Model saved in FLAGS.ckpt_dir if specified, else "./out"
+    print("Training bot. CTRL-C to stop training.")
+    bot.train(dataset, nb_epoch=5)
 
+
+def mini_train(bot, dataset):
     wi_from, iw_from = io_utils.get_vocab_dicts(dataset.paths['from_vocab'])
     wi_to, iw_to = io_utils.get_vocab_dicts(dataset.paths['to_vocab'])
 

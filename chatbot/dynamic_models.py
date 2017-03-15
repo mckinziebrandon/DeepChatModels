@@ -70,7 +70,6 @@ class DynamicBot(Model):
         # It's quite helpful in the decoding/chat sessions, but it feels even more odd
         # passing it as an argument there.
         self.dataset = dataset
-        self.init_learning_rate = learning_rate
         self.dropout_prob = dropout_prob
         self.num_layers = num_layers
 
@@ -81,7 +80,6 @@ class DynamicBot(Model):
 
         # Thanks to variable scoping, only need one object for multiple embeddings.
         self.embedder = Embedder(self.vocab_size, embed_size)
-
 
         # Encoder inputs in embedding space. Shape is [None, None, embed_size].
         with tf.variable_scope("encoder") as encoder_scope:
@@ -104,8 +102,6 @@ class DynamicBot(Model):
                                                           loop_embedder=self.embedder,
                                                           scope=decoder_scope)
 
-        #with tf.variable_scope("summaries") as self.summary_scope:
-        #    self.summary_scope = self.summary_scope  # *sighs audibly*
         tf.summary.histogram("encoder_embedding", self.embedder.get_embed_tensor(encoder_scope))
         tf.summary.histogram("decoder_embedding", self.embedder.get_embed_tensor(decoder_scope))
         self.merged = tf.summary.merge_all()
@@ -138,7 +134,7 @@ class DynamicBot(Model):
 
         if not self.is_chatting:
             # Define ops/variables related to loss computation.
-            with tf.variable_scope("evaluation"):
+            with tf.name_scope("evaluation"):
                 check_shape(self.outputs, [None, None, self.vocab_size], self.log)
                 # Loss - target is to predict, as output, the next decoder input.
                 target_labels = self.decoder_inputs[:, 1:]
@@ -147,21 +143,29 @@ class DynamicBot(Model):
                     labels=target_labels, logits=self.outputs[:, :-1, :],
                     weights=self.target_weights[:, :-1])
 
+
                 # Define the training portion of the graph.
                 params = tf.trainable_variables()
-                optimizer = tf.train.AdagradOptimizer(self.learning_rate)
-                gradients = tf.gradients(self.loss, params)
-                clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, max_gradient)
-                grads = list(zip(clipped_gradients, params))
-                self.apply_gradients = optimizer.apply_gradients(grads, global_step=self.global_step)
+                self.apply_gradients = tf.train.AdagradOptimizer(self.learning_rate).minimize(
+                    self.loss, global_step=self.global_step)
+                #gradients = tf.gradients(self.loss, params)
+                #clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, max_gradient)
+                #grads = list(zip(clipped_gradients, params))
+                #self.apply_gradients = optimizer.apply_gradients(grads, global_step=self.global_step)
 
-            # Creating a summar.scalar tells TF that we want to track the value for visualization.
-            # It is the responsibility of the bot to save these via train_writer after each step.
-            # We can view plots of how they change over training in TensorBoard.
-            # with tf.variable_scope(self.summary_scope):
-            tf.summary.scalar("loss", self.loss),
-            tf.summary.scalar("learning_rate", self.learning_rate)
+                correct_pred = tf.equal(
+                    tf.argmax(self.outputs[:, :-1, :], axis=2), tf.argmax(target_labels)
+                )
+                accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+
+                # Creating a summar.scalar tells TF that we want to track the value for visualization.
+                # It is the responsibility of the bot to save these via file_writer after each step.
+                # We can view plots of how they change over training in TensorBoard.
+            tf.summary.scalar('accuracy', accuracy)
+            tf.summary.scalar('loss', self.loss),
+            tf.summary.scalar('learning_rate', self.learning_rate),
             self.merged = tf.summary.merge_all()
+            self.sess.graph.add_to_collection(tf.GraphKeys.SUMMARIES, self.learning_rate)
 
         # Next, let superclass load param values from file (if not reset), otherwise
         # initialize newly created model.
@@ -215,7 +219,7 @@ class DynamicBot(Model):
             summaries, step_loss, step_outputs = self.sess.run(fetches, input_feed)
             return summaries, step_loss, step_outputs
 
-    def train(self, dataset, nb_epoch=1, save_dir=None, searching_hyperparams=False):
+    def train(self, dataset, nb_epoch=1):
         """Train bot on inputs for nb_epoch epochs, or until user types CTRL-C.
 
         Args:
@@ -228,21 +232,13 @@ class DynamicBot(Model):
             """Common alternative to loss in NLP models."""
             return np.exp(float(loss)) if loss < 300 else float("inf")
 
-        def save_loss_and_hyperparams(validation_loss, file_name=None):
-            """Save snapshot of hyperparams with current validation loss."""
-            if file_name is None:
-                file_name = 'data/saved_train_data/' + self.data_name + '.csv'
-            hyper_params = {"global_step":[self.global_step.eval(session=self.sess)],
-                           "loss": [eval_loss],
-                            "learning_rate":[self.init_learning_rate],
-                            "vocab_size":[self.vocab_size],
-                            "state_size":[self.state_size],
-                            "embed_size":[self.embed_size],
-                            "dropout_prob":[self.dropout_prob],
-                            "num_layers":[self.num_layers]}
-            io_utils.save_hyper_params(hyper_params, fname=file_name)
+        self.embedder.assign_visualizer(self.file_writer,
+                                        self.encoder_scope,
+                                        dataset.paths['from_vocab'])
+        self.embedder.assign_visualizer(self.file_writer,
+                                        self.decoder_scope,
+                                        dataset.paths['to_vocab'])
 
-        self.embedder.assign_visualizer(self.train_writer, self.encoder_scope)
         try:
             for i_epoch in range(nb_epoch):
 
@@ -267,21 +263,18 @@ class DynamicBot(Model):
                         print("step time = %.3f" % avg_step_time)
                         print("\ttraining loss = %.3f" % avg_loss, end="; ")
                         print("training perplexity = %.1f" % perplexity(avg_loss))
-                        self.save(summaries=summaries, summaries_type="train", save_dir=save_dir)
+                        self.save(summaries=summaries)
 
                         # Run validation step. If we are out of validation data, reset generator.
-                        try:
-                            summaries, eval_loss, _ = self.step(*next(valid_gen))
-                        except StopIteration:
-                            valid_gen = dataset.valid_generator(self.batch_size)
-                            summaries, eval_loss, _ = self.step(*next(valid_gen))
+                        with self.sess.graph.device('/cpu:0'):
+                            try:
+                                summaries, eval_loss, _ = self.step(*next(valid_gen))
+                            except StopIteration:
+                                valid_gen = dataset.valid_generator(self.batch_size)
+                                summaries, eval_loss, _ = self.step(*next(valid_gen))
 
-                        print("\tValidation loss = %.3f" % eval_loss, end="; ")
-                        print("val perplexity = %.1f" % perplexity(eval_loss))
-                        self.save(summaries=summaries, summaries_type="valid", save_dir=save_dir)
-
-                        if searching_hyperparams and self.data_name != 'test_data':
-                            save_loss_and_hyperparams(eval_loss)
+                            print("\tValidation loss = %.3f" % eval_loss, end="; ")
+                            print("val perplexity = %.1f" % perplexity(eval_loss))
 
                         # Reset the running averages and exit checkpoint.
                         avg_loss = avg_step_time = 0.0

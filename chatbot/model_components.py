@@ -38,7 +38,7 @@ class Embedder:
         with tf.variable_scope(scope, reuse=True):
             return tf.get_variable("embed_tensor")
 
-    def assign_visualizer(self, writer, scope):
+    def assign_visualizer(self, writer, scope, metadata_path):
         """Setup the tensorboard embedding visualizer.
 
         Args:
@@ -47,12 +47,8 @@ class Embedder:
         with tf.variable_scope(scope, reuse=True):
             config = tf.contrib.tensorboard.plugins.projector.ProjectorConfig()
             emb = config.embeddings.add()
-            sup = tf.get_variable("embed_tensor")
-            emb.tensor_name = sup.name
-            print("name is ", emb.tensor_name)
-            print("name is ", emb.tensor_name)
-            print("name is ", emb.tensor_name)
-            print("name is ", emb.tensor_name)
+            emb.tensor_name = tf.get_variable("embed_tensor").name
+            emb.metadata_path = metadata_path
             tf.contrib.tensorboard.plugins.projector.visualize_embeddings(writer, config)
 
 

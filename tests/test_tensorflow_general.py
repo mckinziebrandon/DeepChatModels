@@ -133,6 +133,20 @@ class TestTFGeneral(unittest.TestCase):
                 log.info("\tt shape: %r" % t.get_shape())
 
 
+    def test_input_pipeline(self):
+        """First steps at the confusing input pipeline. """
+
+        n_samples = 3 # of one datapoint.
+        x = tf.random_normal([n_samples], mean=-1, stddev=4)
+
+        # Create a waiting line.
+        q = tf.FIFOQueue(capacity=n_samples, dtypes=tf.float32)
+
+        # We need an operation that will actually fill the queue with our data
+        # "enqueue_many" slices "x_input_data" along the 0th dimension to make multiple queue elements
+        enqueue_op = q.enqueue_many(x_input_data)  # <- x1 - x2 -x3 |
+
+
 class TestRNN(unittest.TestCase):
     """Test behavior of tf.contrib.rnn after migrating to r1.0."""
 
@@ -201,7 +215,7 @@ class TestTensorboard(unittest.TestCase):
         for encoder_batch, decoder_batch in train_gen:
             summary, loss, _ = self.bot.step(encoder_batch, decoder_batch)
             # Confirmed: The following line WILL save the summary to the file, and online.
-            self.bot.train_writer.add_summary(summary, i_step)
+            self.bot.file_writer.add_summary(summary, i_step)
             assert summary is not None, "Returned summary was None."
             i_step += 1
 

@@ -31,7 +31,6 @@ class Model(object):
                  learning_rate=0.5,
                  lr_decay=0.98,
                  steps_per_ckpt=100,
-                 #embed_name=None,
                  is_decoding=False):
         """
         Args:
@@ -42,27 +41,25 @@ class Model(object):
             steps_per_ckpt: (int) Specifies step interval for testing on validation data.
         """
 
-        with tf.variable_scope("model_vars"):
-            self.steps_per_ckpt = steps_per_ckpt
+        self.sess = tf.Session()
+        with self.graph.name_scope(tf.GraphKeys.SUMMARIES):
             self.global_step    = tf.Variable(initial_value=0, trainable=False)
-            self.learning_rate = tf.train.exponential_decay(learning_rate, self.global_step,
-                                                       self.steps_per_ckpt, lr_decay, staircase=True)
+            self.learning_rate = tf.Variable(learning_rate)
+            #self.learning_rate = tf.train.exponential_deay(
+            #    learning_rate, self.global_step, self.steps_per_ckpt, lr_decay, staircase=True)
 
+        self.steps_per_ckpt = steps_per_ckpt
         self.log = logger
         self.data_name = data_name
-        self.sess           = tf.Session()
         self.is_chatting    = is_decoding
         self.batch_size     = batch_size
         self.vocab_size = vocab_size
         # Directory IO management.
         self.ckpt_dir = ckpt_dir
-        self.log_dir = os.path.join(ckpt_dir, "logs")
         os.popen('mkdir -p %s' % self.ckpt_dir)  # Just in case :)
-        os.popen('mkdir -p %s' % self.log_dir)  # Just in case :)
         self.projector_config = projector.ProjectorConfig()
         # Responsibility of user to determine training operations.
-        self.train_writer    = None
-        self.valid_writer    = None
+        self.file_writer    = None
         self.apply_gradients = None
         self.saver = None
 
@@ -80,27 +77,24 @@ class Model(object):
         if not reset and checkpoint_state \
                 and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
             print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
-            self.train_writer    = tf.summary.FileWriter(os.path.join(self.log_dir, "train"))
-            self.valid_writer    = tf.summary.FileWriter(os.path.join(self.log_dir, "valid"))
+            self.file_writer    = tf.summary.FileWriter(self.ckpt_dir)
             self.saver = tf.train.Saver(tf.global_variables())
             self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
         else:
             print("Created model with fresh parameters.")
             # Recursively delete all files in output but keep directories.
             os.popen("find {0}".format(self.ckpt_dir)+" -type f -exec rm {} \;")
-            self.train_writer    = tf.summary.FileWriter(os.path.join(self.log_dir, "train"))
-            self.valid_writer    = tf.summary.FileWriter(os.path.join(self.log_dir, "valid"))
+            self.file_writer    = tf.summary.FileWriter(self.ckpt_dir)
             # Add operation for calling all variable initializers.
             init_op = tf.global_variables_initializer()
             # Construct saver (adds save/restore ops to all).
             self.saver = tf.train.Saver(tf.global_variables())
             # Add the fully-constructed graph to the event file.
-            self.train_writer.add_graph(self.sess.graph)
-            self.valid_writer.add_graph(self.sess.graph)
+            self.file_writer.add_graph(self.sess.graph)
             # Initialize all model variables.
             self.sess.run(init_op)
 
-    def save(self, summaries=None, summaries_type="train", save_dir=None):
+    def save(self, summaries=None):
         """
         Args:
             summaries: merged summary instance returned by session.run.
@@ -109,29 +103,26 @@ class Model(object):
 
         if self.saver is None:
             raise ValueError("Tried saving model before defining a saver.")
-        if save_dir is None:
-            save_dir = self.ckpt_dir
-        checkpoint_path = os.path.join(save_dir, 'logs/train', "{}.ckpt".format(self.data_name))
-        # Saves the state of all global variables.
+
+        checkpoint_path = os.path.join(self.ckpt_dir, "{}.ckpt".format(self.data_name))
+        # Saves the state of all global variables in a ckpt file.
         self.saver.save(self.sess, checkpoint_path, global_step=self.global_step)
 
-        if summaries is None:
+        if summaries is not None:
+            self.file_writer.add_summary(summaries, self.global_step.eval(self.sess))
+        else:
             self.log.info("Save called without summaries.")
-            return
 
-        if summaries_type == "train":
-            self.train_writer.add_summary(summaries, self.global_step.eval(self.sess))
-        elif summaries_type == "valid":
-            self.valid_writer.add_summary(summaries, self.global_step.eval(self.sess))
-
-    def close(self, save_dir=None):
+    def close(self):
         """Call then when training session is terminated."""
         # First save the checkpoint as usual.
         self.save()
-        # Flush event file to disk.
-        self.train_writer.close()
-        self.valid_writer.close()
+        self.file_writer.close()
         self.sess.close()
+
+    @property
+    def graph(self):
+        return self.sess.graph
 
 class BucketModel(Model):
     """Abstract class. Any classes that extend BucketModel just need to customize their

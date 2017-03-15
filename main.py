@@ -28,8 +28,8 @@ flags.DEFINE_integer("steps_per_ckpt", 200, "How many training steps to do per c
 flags.DEFINE_integer("batch_size", 64, "Batch size to use during training.")
 flags.DEFINE_integer("vocab_size", 40000, "Number of unique words/tokens to use.")
 flags.DEFINE_integer("state_size", 256, "Number of units in the RNN cell.")
-flags.DEFINE_integer("embed_size", 32, "Size of word embedding dimension.")
-flags.DEFINE_integer("nb_epoch", 10, "Number of epochs over full train set to run.")
+flags.DEFINE_integer("embed_size", 25, "Size of word embedding dimension.")
+flags.DEFINE_integer("nb_epoch", 4, "Number of epochs over full train set to run.")
 flags.DEFINE_integer("num_layers", 3, "Num layers in underlying MultiRNNCell.")
 flags.DEFINE_integer("max_seq_len", 80, "Num layers in underlying MultiRNNCell.")
 # Float flags -- hyperparameters.
@@ -37,7 +37,7 @@ flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
 flags.DEFINE_float("lr_decay", 0.98, "Decay factor applied to learning rate.")
 flags.DEFINE_float("max_gradient", 5.0, "Clip gradients to this value.")
 flags.DEFINE_float("temperature", 0.01, "Sampling temperature.")
-flags.DEFINE_float("dropout_prob", 0.5, "Dropout rate before each layer.")
+flags.DEFINE_float("dropout_prob", 0.2, "Dropout rate before each layer.")
 FLAGS = flags.FLAGS
 
 DATASET = {'ubuntu': Ubuntu,
@@ -52,9 +52,15 @@ if __name__ == "__main__":
             print("WARNING: To chat, should pass --reset_model=False, but found True."
                   "Resetting to False.")
             FLAGS.reset_model = False
+
+    assert FLAGS.data_dir is not None, "You must specify --data_dir [path] as an argument."
+
+    # If not given specific ckpt_dir, it will build a directory structure
+    # rooted at out that makes for great TensorBoard visualizations.
     if FLAGS.ckpt_dir == 'out':
         FLAGS.ckpt_dir += '/' + FLAGS.dataset
-    assert FLAGS.data_dir is not None, "You must specify --data_dir [path] as an argument."
+        FLAGS.ckpt_dir += '/lr%d_st%d_emb%d' % (
+            int(1e2*FLAGS.learning_rate), FLAGS.state_size, FLAGS.embed_size)
 
     # All datasets follow the same API, found in data/_dataset.py
     print("Setting up %s dataset." % FLAGS.dataset)
