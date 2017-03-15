@@ -29,15 +29,15 @@ class DynamicBot(Model):
 
     def __init__(self,
                  dataset,
-                 ckpt_dir="out",
                  batch_size=64,
-                 state_size=128,
+                 ckpt_dir="out",
+                 dropout_prob=0.0,
                  embed_size=32,
-                 learning_rate=0.6,
-                 lr_decay=0.995,
-                 steps_per_ckpt=100,
-                 dropout_prob=1.0,
+                 learning_rate=0.5,
+                 lr_decay=0.99,
                  num_layers=2,
+                 state_size=128,
+                 steps_per_ckpt=100,
                  temperature=0.0,
                  is_chatting=False):
         """
@@ -80,13 +80,14 @@ class DynamicBot(Model):
         self.target_weights = tf.placeholder(tf.float32, [None, None], name="target_weights")
 
         # Thanks to variable scoping, only need one object for multiple embeddings.
-        embedder = Embedder(self.vocab_size, embed_size)
+        self.embedder = Embedder(self.vocab_size, embed_size)
+
 
         # Encoder inputs in embedding space. Shape is [None, None, embed_size].
         with tf.variable_scope("encoder") as encoder_scope:
             self.encoder = Encoder(state_size, self.embed_size,
                                    dropout_prob=dropout_prob, num_layers=num_layers)
-            embedded_enc_inputs = embedder(self.encoder_inputs, scope=encoder_scope)
+            embedded_enc_inputs = self.embedder(self.encoder_inputs, scope=encoder_scope)
             # Get encoder state after feeding the sequence(s). Shape is [None, state_size].
             encoder_state = self.encoder(embedded_enc_inputs, scope=encoder_scope)
 
@@ -95,19 +96,21 @@ class DynamicBot(Model):
                                    dropout_prob=dropout_prob, num_layers=num_layers,
                                    temperature=temperature)
             # Decoder inputs in embedding space. Shape is [None, None, embed_size].
-            embedded_dec_inputs = embedder(self.decoder_inputs, scope=decoder_scope)
+            embedded_dec_inputs = self.embedder(self.decoder_inputs, scope=decoder_scope)
             # For decoder, we want the full sequence of output states, not simply the last.
             decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
                                                           initial_state=encoder_state,
                                                           is_chatting=is_chatting,
-                                                          loop_embedder=embedder,
+                                                          loop_embedder=self.embedder,
                                                           scope=decoder_scope)
 
-        with tf.variable_scope("summaries") as self.summary_scope:
-            self.summary_scope = self.summary_scope  # *sighs audibly*
-            tf.summary.histogram("embed_tensor", embedder.get_embed_tensor(encoder_scope))
-            tf.summary.histogram("embed_tensor", embedder.get_embed_tensor(decoder_scope))
-            self.merged = tf.summary.merge_all()
+        #with tf.variable_scope("summaries") as self.summary_scope:
+        #    self.summary_scope = self.summary_scope  # *sighs audibly*
+        tf.summary.histogram("encoder_embedding", self.embedder.get_embed_tensor(encoder_scope))
+        tf.summary.histogram("decoder_embedding", self.embedder.get_embed_tensor(decoder_scope))
+        self.merged = tf.summary.merge_all()
+        self.encoder_scope = encoder_scope
+        self.decoder_scope = decoder_scope
 
         # If in chat session, need _projection from state space to vocab space.
         # Note: The decoder handles this for us (as it should).
@@ -122,6 +125,7 @@ class DynamicBot(Model):
                                          learning_rate,
                                          lr_decay,
                                          steps_per_ckpt,
+                                         #embedder.get_embed_tensor(encoder_scope).name,
                                          is_chatting)
 
     def compile(self, optimizer=None, max_gradient=5.0, reset=False):
@@ -136,10 +140,10 @@ class DynamicBot(Model):
         if not self.is_chatting:
             # Define ops/variables related to loss computation.
             with tf.variable_scope("evaluation"):
-                #check_shape(self.outputs, [None, None, self.vocab_size], self.log)
+                check_shape(self.outputs, [None, None, self.vocab_size], self.log)
                 # Loss - target is to predict, as output, the next decoder input.
                 target_labels = self.decoder_inputs[:, 1:]
-                #check_shape(target_labels, [None, None], self.log)
+                check_shape(target_labels, [None, None], self.log)
                 self.loss = tf.losses.sparse_softmax_cross_entropy(
                     labels=target_labels, logits=self.outputs[:, :-1, :],
                     weights=self.target_weights[:, :-1])
@@ -150,19 +154,15 @@ class DynamicBot(Model):
                 gradients = tf.gradients(self.loss, params)
                 clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, max_gradient)
                 grads = list(zip(clipped_gradients, params))
-                self.apply_gradients = optimizer.apply_gradients(
-                    zip(clipped_gradients, params), global_step=self.global_step)
+                self.apply_gradients = optimizer.apply_gradients(grads, global_step=self.global_step)
 
             # Creating a summar.scalar tells TF that we want to track the value for visualization.
             # It is the responsibility of the bot to save these via train_writer after each step.
             # We can view plots of how they change over training in TensorBoard.
-            with tf.variable_scope(self.summary_scope):
-                tf.summary.scalar("loss", self.loss),
-                tf.summary.scalar("learning_rate", self.learning_rate)
-                for grad, var in grads:
-                    if grad is None: continue
-                    tf.summary.histogram(var.name + "/gradient", grad)
-                self.merged = tf.summary.merge_all()
+            # with tf.variable_scope(self.summary_scope):
+            tf.summary.scalar("loss", self.loss),
+            tf.summary.scalar("learning_rate", self.learning_rate)
+            self.merged = tf.summary.merge_all()
 
         # Next, let superclass load param values from file (if not reset), otherwise
         # initialize newly created model.
@@ -243,6 +243,7 @@ class DynamicBot(Model):
                             "num_layers":[self.num_layers]}
             io_utils.save_hyper_params(hyper_params, fname=file_name)
 
+        self.embedder.assign_visualizer(self.train_writer, self.encoder_scope)
         try:
             for i_epoch in range(nb_epoch):
 

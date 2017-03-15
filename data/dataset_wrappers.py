@@ -1,4 +1,5 @@
 import logging
+import os
 
 import tensorflow as tf
 import pandas as pd
@@ -44,4 +45,17 @@ class Reddit(Dataset):
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('RedditLogger')
         super(Reddit, self).__init__(data_dir, vocab_size=vocab_size, max_seq_len=max_seq_len)
+
+
+class TestData(Dataset):
+    """Mock dataset with a handful of sentences."""
+
+    def __init__(self, vocab_size=1000):
+        logging.basicConfig(level=logging.INFO)
+        self.log = logging.getLogger('TestDataLogger')
+        self._name = "test_data"
+        self._data_dir = '/home/brandon/terabyte/Datasets/test_data'
+        super(TestData, self).__init__(data_dir='/home/brandon/terabyte/Datasets/test_data',
+                                       vocab_size=vocab_size,
+                                       max_seq_len=800)
 

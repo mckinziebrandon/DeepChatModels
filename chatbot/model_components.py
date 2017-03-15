@@ -1,6 +1,7 @@
 import tensorflow as tf
 import pdb
 from utils.io_utils import EOS_ID, UNK_ID
+from tensorflow.contrib.tensorboard.plugins import projector
 
 
 class Embedder:
@@ -23,7 +24,8 @@ class Embedder:
         """
         assert len(inputs.shape) == 2, "Expected inputs rank 2 but found rank %r" % len(inputs.shape)
         with tf.variable_scope(scope or "embedding_inputs"):
-            params = tf.get_variable("embed_tensor", [self.vocab_size, self.embed_size])
+            params = tf.get_variable("embed_tensor", [self.vocab_size, self.embed_size],
+                                     initializer=tf.contrib.layers.xavier_initializer())
             embedded_inputs = tf.nn.embedding_lookup(params, inputs, name=name)
             if not isinstance(embedded_inputs, tf.Tensor):
                 raise TypeError("Embedded inputs should be of type Tensor.")
@@ -36,6 +38,18 @@ class Embedder:
         with tf.variable_scope(scope, reuse=True):
             return tf.get_variable("embed_tensor")
 
+    def assign_visualizer(self, writer, scope):
+        """Setup the tensorboard embedding visualizer.
+
+        Args:
+            writer: instance of tf.summary.FileWriter
+        """
+        config = projector.ProjectorConfig()
+        emb = config.embeddings.add()
+        emb.tensor_name = self.get_embed_tensor(scope).name
+        projector.visualize_embeddings(writer, config)
+        print('k vis done')
+
 
 class Cell(tf.contrib.rnn.RNNCell):
     """Simple wrapper class for any extensions I want to make to the
@@ -43,8 +57,10 @@ class Cell(tf.contrib.rnn.RNNCell):
 
     def __init__(self, state_size, num_layers, dropout_prob=1.0):
         self._state_size = state_size
-        self._cell = tf.contrib.rnn.MultiRNNCell(
-            [tf.contrib.rnn.GRUCell(self._state_size) for _ in range(num_layers)])
+        # TODO: MultiRNNCell has issues with decoding, particularly for shape_invariants.
+        self._cell = tf.contrib.rnn.GRUCell(self._state_size)
+        #self._cell = tf.contrib.rnn.MultiRNNCell(
+        #    [tf.contrib.rnn.GRUCell(self._state_size) for _ in range(num_layers)])
         self._dropout_prob = dropout_prob
 
     @property
@@ -56,7 +72,8 @@ class Cell(tf.contrib.rnn.RNNCell):
         return self._cell.output_size
 
     def __call__(self, inputs, state, scope=None):
-        inputs = tf.layers.dropout(inputs, rate=self._dropout_prob, name="dropout")
+        if self._dropout_prob > 0.1:
+            inputs = tf.layers.dropout(inputs, rate=self._dropout_prob, name="dropout")
         output, new_state = self._cell(inputs, state, scope)
         return output, new_state
 

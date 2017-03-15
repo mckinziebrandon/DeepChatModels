@@ -12,6 +12,7 @@ import logging
 # ML/DL-specific imports.
 import numpy as np
 import tensorflow as tf
+from tensorflow.contrib.tensorboard.plugins import projector
 
 # User-defined imports.
 from utils import io_utils
@@ -30,6 +31,7 @@ class Model(object):
                  learning_rate=0.5,
                  lr_decay=0.98,
                  steps_per_ckpt=100,
+                 #embed_name=None,
                  is_decoding=False):
         """
         Args:
@@ -57,6 +59,7 @@ class Model(object):
         self.log_dir = os.path.join(ckpt_dir, "logs")
         os.popen('mkdir -p %s' % self.ckpt_dir)  # Just in case :)
         os.popen('mkdir -p %s' % self.log_dir)  # Just in case :)
+        self.projector_config = projector.ProjectorConfig()
         # Responsibility of user to determine training operations.
         self.train_writer    = None
         self.valid_writer    = None

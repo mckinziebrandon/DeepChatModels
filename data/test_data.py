@@ -2,19 +2,18 @@ import logging
 import tensorflow as tf
 import os
 import pandas as pd
-from data._dataset import Dataset
+from data._dataset import DatasetABC
 from utils import io_utils
 
 
-class TestData(Dataset):
+class TestData(DatasetABC):
     """Mock dataset with a handful of sentences."""
 
-    def __init__(self, data_dir):
+    def __init__(self):
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('TestDataLogger')
         self._name = "test_data"
-        #self._data_dir = '/home/brandon/terabyte/Datasets/test_data'
-        self._data_dir = data_dir
+        self._data_dir = '/home/brandon/terabyte/Datasets/test_data'
 
 
         paths_triplet = io_utils.prepare_data(self._data_dir,

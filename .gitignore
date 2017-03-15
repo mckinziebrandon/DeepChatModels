@@ -1,6 +1,8 @@
 flags.txt
 run.sh
 
+**/images/hidden/*
+
 # Note: Any leading '**' need to be followed by a '/'. 
 # Seems like '**/thing_to_ignore_always[/*]' covers all bases.
 **/.*.swp
