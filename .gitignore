@@ -15,6 +15,7 @@ run.sh
 **/*.h5/*
 **/out/**
 .cache/**
+**/.cache/**
 **/notebooks/*.txt
 
 # Ignore collection of useful tf files that once 

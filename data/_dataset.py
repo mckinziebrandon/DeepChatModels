@@ -109,6 +109,10 @@ class Dataset(DatasetABC):
 
         encoder_tokens = []
         decoder_tokens = []
+
+        #filenames = tf.train.string_input_producer([from_path, to_path])
+        #reader = tf.TextLineReader()
+
         with tf.gfile.GFile(from_path, mode="r") as source_file:
             with tf.gfile.GFile(to_path, mode="r") as target_file:
 
@@ -140,6 +144,44 @@ class Dataset(DatasetABC):
                 assert len(encoder_tokens) <= batch_size
                 if len(encoder_tokens) > 0:
                     yield padded_batch(encoder_tokens, decoder_tokens)
+
+    def convert_to_tf_records(self, from_path, to_path, batch_size):
+
+        def _int64_feature(value):
+            return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+
+        encoder_tokens = []
+        decoder_tokens = []
+
+        example = tf.train.SequenceExample()
+        encoder_inp = example.feature_lists.feature_list['encoder_inp']
+        out_file = 'test.tfrecords'
+        writer = tf.python_io.TFRecordWriter(out_file)
+
+        with tf.gfile.GFile(from_path, mode="r") as source_file:
+            with tf.gfile.GFile(to_path, mode="r") as target_file:
+
+                source, target = source_file.readline(), target_file.readline()
+                while source and target:
+
+                    # Skip any sentence pairs that are too long for user specifications.
+                    space_needed = max(len(source.split()), len(target.split()))
+                    if space_needed > self.max_seq_len:
+                        source, target = source_file.readline(), target_file.readline()
+                        continue
+
+                    # Reformat token strings to token lists.
+                    # Note: GO_ID is prepended by the chat bot, since it determines
+                    # whether or not it's responsible for responding.
+                    encoder_tokens.append([int(x) for x in source.split()])
+                    encoder_inp.feature.add().int64_list.append(encoder_tokens[0])
+
+                    decoder_tokens.append([int(x) for x in target.split()] + [EOS_ID])
+        writer.close()
+
+
+
+
 
     @property
     def word_to_idx(self):

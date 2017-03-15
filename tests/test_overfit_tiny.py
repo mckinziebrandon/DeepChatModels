@@ -38,6 +38,10 @@ if __name__ == "__main__":
     log.info("Setting up dataset.")
     dataset = TestData(vocab_size=64)
 
+    dataset.convert_to_tf_records(dataset.paths['from_train'], dataset.paths['to_train'], 2)
+
+    exit()
+
     # Create chat model of choice. Pass in FLAGS values in case you want to change from defaults.
     print("Creating DynamicBot.")
     bot = DynamicBot(dataset,
