@@ -111,7 +111,7 @@ class Model(object):
             raise ValueError("Tried saving model before defining a saver.")
         if save_dir is None:
             save_dir = self.ckpt_dir
-        checkpoint_path = os.path.join(save_dir, "{}.ckpt".format(self.data_name))
+        checkpoint_path = os.path.join(save_dir, 'logs/train', "{}.ckpt".format(self.data_name))
         # Saves the state of all global variables.
         self.saver.save(self.sess, checkpoint_path, global_step=self.global_step)
 

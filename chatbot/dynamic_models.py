@@ -125,7 +125,6 @@ class DynamicBot(Model):
                                          learning_rate,
                                          lr_decay,
                                          steps_per_ckpt,
-                                         #embedder.get_embed_tensor(encoder_scope).name,
                                          is_chatting)
 
     def compile(self, optimizer=None, max_gradient=5.0, reset=False):

@@ -44,11 +44,16 @@ class Embedder:
         Args:
             writer: instance of tf.summary.FileWriter
         """
-        config = projector.ProjectorConfig()
-        emb = config.embeddings.add()
-        emb.tensor_name = self.get_embed_tensor(scope).name
-        projector.visualize_embeddings(writer, config)
-        print('k vis done')
+        with tf.variable_scope(scope, reuse=True):
+            config = tf.contrib.tensorboard.plugins.projector.ProjectorConfig()
+            emb = config.embeddings.add()
+            sup = tf.get_variable("embed_tensor")
+            emb.tensor_name = sup.name
+            print("name is ", emb.tensor_name)
+            print("name is ", emb.tensor_name)
+            print("name is ", emb.tensor_name)
+            print("name is ", emb.tensor_name)
+            tf.contrib.tensorboard.plugins.projector.visualize_embeddings(writer, config)
 
 
 class Cell(tf.contrib.rnn.RNNCell):
