@@ -15,16 +15,6 @@ from chatbot._models import Model
 from chatbot.model_components import *
 from utils import io_utils
 from utils.io_utils import GO_ID
-from tensorflow.contrib.training import bucket_by_sequence_length
-from heapq import *
-
-
-def check_shape(tensor, expected_shape, log):
-    if tensor.shape.as_list() != expected_shape:
-        msg = "Bad shape of tensor {0}. Expected {1} but found {2}.".format(
-            tensor.name, expected_shape, tensor.shape.as_list())
-        log.error(msg)
-        raise ValueError(msg)
 
 
 class DynamicBot(Model):
@@ -77,16 +67,18 @@ class DynamicBot(Model):
         self.batch_size = batch_size
 
         self.pipeline = InputPipeline(dataset.paths, batch_size)
-        self.encoder_inputs = self.pipeline.get_encoder_inputs()
-        self.decoder_inputs = self.pipeline.get_decoder_inputs()
-
+        self.encoder_inputs = self.pipeline.encoder_inputs
+        self.decoder_inputs = self.pipeline.decoder_inputs
         self.embedder = Embedder(self.vocab_size, embed_size)
+        print(self.encoder_inputs)
+        print(self.decoder_inputs)
 
         # Encoder inputs in embedding space. Shape is [None, None, embed_size].
         with tf.variable_scope("encoder") as encoder_scope:
             self.encoder = Encoder(state_size, self.embed_size,
                                    dropout_prob=dropout_prob, num_layers=num_layers)
             embedded_enc_inputs = self.embedder(self.encoder_inputs, scope=encoder_scope)
+            print(embedded_enc_inputs)
             # Get encoder state after feeding the sequence(s). Shape is [None, state_size].
             encoder_state = self.encoder(embedded_enc_inputs, scope=encoder_scope)
 
@@ -128,6 +120,7 @@ class DynamicBot(Model):
         """ Configure training process and initialize model. Inspired by Keras.
 
         Args:
+            optimizer: object that inherits from tf.train.Optimizer.
             max_gradient: float. Gradients will be clipped to be below this value.
             reset: boolean. Tells Model superclass whether or not we wish to compile
                             a model from scratch or load existing parameters from ckpt_dir.
@@ -137,16 +130,15 @@ class DynamicBot(Model):
             # Define ops/variables related to loss computation.
             with tf.name_scope("evaluation"):
 
-                #check_shape(self.outputs, [None, None, self.vocab_size], self.log)
                 # Loss - target is to predict, as output, the next decoder input.
                 target_labels = self.decoder_inputs[:, 1:]
-                #check_shape(target_labels, [None, None], self.log)
                 self.loss = tf.losses.sparse_softmax_cross_entropy(
                     labels=target_labels, logits=self.outputs[:, :-1, :])
 
                 # Define the training portion of the graph.
+                if optimizer is None:
+                    optimizer = tf.train.AdagradOptimizer(self.learning_rate)
                 params = tf.trainable_variables()
-                optimizer = tf.train.AdagradOptimizer(self.learning_rate)
                 gradients = tf.gradients(self.loss, params)
                 clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, max_gradient)
                 grads = list(zip(clipped_gradients, params))
@@ -164,7 +156,6 @@ class DynamicBot(Model):
             tf.summary.scalar('loss', self.loss),
             tf.summary.scalar('learning_rate', self.learning_rate),
             self.merged = tf.summary.merge_all()
-            self.sess.graph.add_to_collection(tf.GraphKeys.SUMMARIES, self.learning_rate)
 
         # Next, let superclass load param values from file (if not reset), otherwise
         # initialize newly created model.
@@ -231,10 +222,6 @@ class DynamicBot(Model):
             save_dir: (str) Path to save ckpt files. If None, defaults to self.ckpt_dir.
         """
 
-
-        #qr = tf.train.QueueRunner(self.queue, [self.enqueue_op] * 8)
-        #tf.train.add_queue_runner(qr)
-
         def perplexity(loss):
             """Common alternative to loss in NLP models."""
             return np.exp(float(loss)) if loss < 300 else float("inf")
@@ -280,16 +267,12 @@ class DynamicBot(Model):
                     self.save(summaries=summaries)
 
                     # Run validation step. If we are out of validation data, reset generator.
+                    #with self.sess.graph.device('/cpu:0'):
                     if False:
-                        with self.sess.graph.device('/cpu:0'):
-                            try:
-                                summaries, eval_loss, _ = self.step(*next(valid_gen))
-                            except StopIteration:
-                                valid_gen = dataset.valid_generator(self.batch_size)
-                                summaries, eval_loss, _ = self.step(*next(valid_gen))
-
-                            print("\tValidation loss = %.3f" % eval_loss, end="; ")
-                            print("val perplexity = %.1f" % perplexity(eval_loss))
+                        self.pipeline.toggle_active()
+                        summaries, eval_loss, _ = self.step()
+                        print("\tValidation loss = %.3f" % eval_loss, end="; ")
+                        print("val perplexity = %.1f" % perplexity(eval_loss))
 
                     # Reset the running averages and exit checkpoint.
                     avg_loss = avg_step_time = 0.0

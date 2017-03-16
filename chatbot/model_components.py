@@ -4,6 +4,8 @@ from utils.io_utils import EOS_ID, UNK_ID
 from tensorflow.contrib.tensorboard.plugins import projector
 from tensorflow.contrib.training import bucket_by_sequence_length
 
+__all__ = ['InputPipeline', 'Embedder', 'Encoder', 'Decoder']
+
 LENGTHS = {'encoder_sequence_length': tf.FixedLenFeature([], dtype=tf.int64),
            'decoder_sequence_length': tf.FixedLenFeature([], dtype=tf.int64)}
 SEQUENCES = {'encoder_sequence': tf.FixedLenSequenceFeature([], dtype=tf.int64),
@@ -14,7 +16,7 @@ class InputPipeline:
     """Manages the new input pipeline and all nodes therein."""
     # TODO: This class needs a logger.
 
-    def __init__(self, file_paths, batch_size, capacity=None):
+    def __init__(self, file_paths, batch_size, steps_per_ckpt=None, capacity=None):
         """
         Args:
             file_paths: returned by instance of Dataset via Dataset.paths.
@@ -23,7 +25,9 @@ class InputPipeline:
             self.capacity = 10 * batch_size
         self.batch_size = batch_size
         self.paths = file_paths
-        self.num_threads = 1
+        self.num_threads = 4
+        self.control = {'train': 0, 'valid': 1}
+        self.active_data = tf.convert_to_tensor(self.control['train'])
 
         # =======================================================================
         # Begin: Pipeline Construction. Steps:
@@ -32,57 +36,81 @@ class InputPipeline:
         # 3. Organize sequences into buckets of similar lengths, pad, and batch.
         # ======================================================================
 
-        # TODO: Obviously this shouldn't be hardcoded. Fix after skeleton code written.
-        proto_text_line = self._read_line(self.paths['train_tfrecords'])
-        parsed_length_pair, parsed_sequence_pair = self._initialize_shuffle_queue(proto_text_line)
-        input_length = tf.add(parsed_length_pair['encoder_sequence_length'],
-                              parsed_length_pair['decoder_sequence_length'])
-        self.batched_inputs = self._padded_bucket_batches(input_length, parsed_sequence_pair)
+        self.train_batches = self.build_pipeline('train')
+        self.valid_batches = self.build_pipeline('valid')
 
-    def get_encoder_inputs(self):
+    def toggle_active(self):
+        to_valid = lambda : tf.constant(self.control['valid'])
+        to_train = lambda : tf.constant(self.control['train'])
+        self.active_data =  tf.case(
+            [(tf.equal(self.active_data, self.control['train']), to_valid)],
+            default=to_train
+        )
+
+    def build_pipeline(self, name):
+        """
+        Args:
+            name: 'train', 'valid', etc.
+        """
+        with tf.variable_scope(name + '_input_pipeline') as scope:
+            proto_text = self._read_line(self.paths[name + '_tfrecords'], scope)
+            context_pair, sequence_pair = self._assign_queue(proto_text, scope)
+            input_length = tf.add(context_pair['encoder_sequence_length'],
+                                  context_pair['decoder_sequence_length'],
+                                  name=name + 'length_add')
+            return self._padded_bucket_batches(input_length, sequence_pair, scope)
+
+    @property
+    def encoder_inputs(self):
         # Note: This would be a good place to manage warnings on whether or not
         # inputs are ready for dequeueing.
-        return self.batched_inputs['encoder_sequence']
 
-    def get_decoder_inputs(self):
-        return self.batched_inputs['decoder_sequence']
+        def train(): return self.train_batches['encoder_sequence']
+        def valid(): return self.valid_batches['encoder_sequence']
+        return tf.cond(tf.equal(self.active_data, self.control['train']),
+                       train, valid)
 
-    def _read_line(self, file):
+    @property
+    def decoder_inputs(self):
+        train = lambda : self.train_batches['decoder_sequence']
+        valid = lambda : self.valid_batches['decoder_sequence']
+        return tf.cond(tf.equal(self.active_data, self.control['train']),
+                       train, valid)
+
+    def _read_line(self, file, scope=None):
         """Create ops for extracting lines from files.
 
         Returns:
             Tensor that will contain the lines at runtime.
         """
-
-        with tf.name_scope('reader'):
-            tfrecords_fname = self.paths['train_tfrecords']
+        with tf.variable_scope(scope or 'reader'):
+            tfrecords_fname = file
             filename_queue = tf.train.string_input_producer([tfrecords_fname])
             reader = tf.TFRecordReader(name='tfrecord_reader')
             _, next_raw = reader.read(filename_queue, name='read_records')
             return next_raw
 
-    def _initialize_shuffle_queue(self, data):
+    def _assign_queue(self, data, scope=None):
         """
         Args:
             data: object to be enqueued and managed by parallel threads.
         """
 
-        with tf.name_scope('shuffle_queue'):
+        with tf.variable_scope(scope or 'shuffle_queue'):
+
             queue = tf.RandomShuffleQueue(
                 capacity=self.capacity, min_after_dequeue=2*self.batch_size,
                 dtypes=tf.string, shapes=[()], name='randomize_records')
             enqueue_op = queue.enqueue(data)
             example_dq = queue.dequeue()
-            qr = tf.train.QueueRunner(queue, [enqueue_op] * 8)
+            qr = tf.train.QueueRunner(queue, [enqueue_op] * 4)
             tf.train.add_queue_runner(qr)
-
             _sequence_lengths, _sequences = tf.parse_single_sequence_example(
                 serialized=example_dq, context_features=LENGTHS, sequence_features=SEQUENCES)
-
             return _sequence_lengths, _sequences
 
-    def _padded_bucket_batches(self, input_length, data):
-        with tf.name_scope('bucket_batch'):
+    def _padded_bucket_batches(self, input_length, data, scope=None):
+        with tf.variable_scope(scope or 'bucket_batch'):
             _, sequences = bucket_by_sequence_length(
                 input_length=tf.to_int32(input_length),
                 tensors=data,
@@ -111,15 +139,15 @@ class Embedder:
         Returns:
           Output tensor of shape [batch_size, max_time, embed_size]
         """
-        assert len(inputs.shape) == 2, "Expected inputs rank 2 but found rank %r" % len(inputs.shape)
+        #assert len(inputs.shape) == 2, "Expected inputs rank 2 but found rank %r" % len(inputs.shape)
         with tf.variable_scope(scope or "embedding_inputs"):
             params = tf.get_variable("embed_tensor", [self.vocab_size, self.embed_size],
                                      initializer=tf.contrib.layers.xavier_initializer())
             embedded_inputs = tf.nn.embedding_lookup(params, inputs, name=name)
             if not isinstance(embedded_inputs, tf.Tensor):
                 raise TypeError("Embedded inputs should be of type Tensor.")
-            if len(embedded_inputs.shape) != 3:
-                raise ValueError("Embedded sentence has incorrect shape.")
+            #if len(embedded_inputs.shape) != 3:
+            #    raise ValueError("Embedded sentence has incorrect shape.")
         return embedded_inputs
 
     def get_embed_tensor(self, scope):
@@ -147,10 +175,11 @@ class Cell(tf.contrib.rnn.RNNCell):
 
     def __init__(self, state_size, num_layers, dropout_prob=1.0):
         self._state_size = state_size
-        # TODO: MultiRNNCell has issues with decoding, particularly for shape_invariants.
-        self._cell = tf.contrib.rnn.GRUCell(self._state_size)
-        #self._cell = tf.contrib.rnn.MultiRNNCell(
-        #    [tf.contrib.rnn.GRUCell(self._state_size) for _ in range(num_layers)])
+        if num_layers == 1:
+            self._cell = tf.contrib.rnn.GRUCell(self._state_size)
+        else:
+            self._cell = tf.contrib.rnn.MultiRNNCell(
+                [tf.contrib.rnn.GRUCell(self._state_size) for _ in range(num_layers)])
         self._dropout_prob = dropout_prob
 
     @property
