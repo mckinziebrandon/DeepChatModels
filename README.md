@@ -84,6 +84,14 @@ Below are plots of training error for non-optimal hyperparameters on the ubuntu 
 
 Before the input pipeline, achieving these losses, even with finely tuned hyperparameters after running random search, would've taken around an hour or so. To be completely honest, I still have yet to determine why the training performance is this consistently better after only modifying the input structure. This is what I'll be analyzing for the next couple days. 
 
+### Graph Visualization with TensorBoard
+
+(Descriptions coming soon)
+
+<img alt="input_pipeline" src="http://i.imgur.com/xrLqths.png" width="400" align="left">
+<img alt="input_pipeline_expanded" src="http://i.imgur.com/xMWB7oL.png" width="400">
+<br/>
+<br/>
 
 ## Preliminary Testing
 
