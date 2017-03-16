@@ -83,7 +83,7 @@ Now that the goals for DynamicBot have been met design-wise, I'm digging into th
 
 Below is a plot related to one of the debugging strategies recommended in chapter 11 of *Deep Learning* by Goodfellow et al. The idea is that any sufficiently large model should be able to perfectly fit (well, overfit) a small training dataset. I wanted to make sure DynamicBot could overfit before I started implementing any regularizing techniques. It is a plot in TensorBoard of cross-entropy loss (y-axis) against global training steps (x-axis). The orange curve is the training loss, while the blue curve is the validation loss. TensorBoard has visually smoothed out the oscillations a bit. 
 
-![Ensuring DynamicBot can overfit before optimizing any further](http://i.imgur.com/PwhSmwJ.png)
+![Ensuring DynamicBot can overfit before optimizing any further](http://i.imgur.com/TLYvhEE.png)
 
 This plot shows DynamicBot can achieve 0 loss for an extremely small dataset. Great, we can overfit. Now we can begin to explore regularization techniques.
 
