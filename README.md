@@ -91,10 +91,6 @@ This plot shows DynamicBot can achieve 0 loss for an extremely small dataset. Gr
 
 I recently did a small random search and grid search over the following hyperparameters: learning rate, embed size, state size. The plots below show some of the findings. These are simply exploratory, I understand their limitations and I'm not drawing strong conclusions from them. They are meant to give a rough sense of the energy landscape in hyperparameter space. Oh and, plots make me happy. Enjoy. For all below, the y-axis is validation loss and the x-axis is global (training) step. The colors distinguish between model hyperparameters defined in the legends.
 
-
-
-
-
 <img alt="state_size" src="http://i.imgur.com/w479tSo.png" width="400" align="left">
 <img alt="embed_size" src="http://i.imgur.com/2Tj3vmA.png" width="400">
 <br/>
@@ -107,4 +103,12 @@ The only takeaway I saw from these two plots (after seeing the learning rate plo
 
 **General conclusion: the learning rate influences the validation loss far more than state size or embed size.** This was basically known before making these plots, as it is a well known property of such networks (Ng). It was nice to verify this for myself.
 
+## The Input Pipeline
 
+In the past couple days, the way the model reads and interacts with data has been completely reimplemented. Before, a data generator fed padded numpy array batches from files to the model directly. It turns out that it is *substantially* faster encode the input information and preprocessing techniques in the graph structure itself. In the new implementation, we don't feed the model anything at all. Rather, it uses a sequence of queues to access the data from files in google's protobuf format, decode the files into tensor sequences, dynamically batch and pad the sequences, and then feed these batches to the embedding decoder. All within the graph structure. Furthermore, this data processing is coordinated by multiple threads in parallel. The result? You start the model, watch all cores of your CPU light up in a brief burst, and then it's 100% GPU training utilization (with helper CPU threads managing data in the background) for the remaining time (this is, of course, as reported on my system). 
+
+Below are plots of training error for non-optimal hyperparameters on the ubuntu (purple), reddit (blue), and cornell (light blue) datasets. These plots correspond to just __five minutes__ of training time on each dataset. The relative performance is also expected; the current reddit data is our smallest and noisiest dataset (still working on the preprocessing) and cornell is about as high quality as one would ever need (they're grammatically correct type movie dialogs). 
+
+![](http://i.imgur.com/cM35tYJ.png)
+
+Before the input pipeline, achieving these losses, even with finely tuned hyperparameters after running random search, would've taken around an hour or so. To be completely honest, I still have yet to determine why the training performance is this consistently better after only modifying the input structure. This is what I'll be analyzing for the next couple days. 
