@@ -66,13 +66,14 @@ class DynamicBot(Model):
         self.num_layers = num_layers
         self.batch_size = batch_size
 
-        self.pipeline = InputPipeline(dataset.paths, batch_size)
-        self.encoder_inputs = self.pipeline.encoder_inputs
-        self.decoder_inputs = self.pipeline.decoder_inputs
-        self.embedder = Embedder(self.vocab_size, embed_size)
-        print(self.encoder_inputs)
-        print(self.decoder_inputs)
+        with tf.variable_scope("input_pipeline"):
+            self.pipeline = InputPipeline(dataset.paths, batch_size)
+            self.encoder_inputs = self.pipeline.encoder_inputs
+            self.decoder_inputs = self.pipeline.decoder_inputs
+            print(self.encoder_inputs)
+            print(self.decoder_inputs)
 
+        self.embedder = Embedder(self.vocab_size, embed_size)
         # Encoder inputs in embedding space. Shape is [None, None, embed_size].
         with tf.variable_scope("encoder") as encoder_scope:
             self.encoder = Encoder(state_size, self.embed_size,
@@ -257,10 +258,7 @@ class DynamicBot(Model):
                     print("training perplexity = %.1f" % perplexity(avg_loss))
                     self.save(summaries=summaries)
 
-                    # Run validation step. If we are out of validation data, reset generator.
-                    #with self.sess.graph.device('/cpu:0'):
                     if i_step == 0:
-                        print("Probably about to crash.")
                         self.pipeline.toggle_active()
                         summaries, eval_loss, _ = self.step(forward_only=True)
                         self.pipeline.toggle_active()

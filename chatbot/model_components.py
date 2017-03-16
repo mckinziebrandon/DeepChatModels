@@ -40,25 +40,23 @@ class InputPipeline:
         self.valid_batches = self.build_pipeline('valid')
 
     def toggle_active(self):
-        to_valid = lambda : tf.constant(self.control['valid'])
-        to_train = lambda : tf.constant(self.control['train'])
-        self.active_data =  tf.case(
-            [(tf.equal(self.active_data, self.control['train']), to_valid)],
-            default=to_train
-        )
+        def to_valid(): return tf.constant(self.control['valid'])
+        def to_train(): return tf.constant(self.control['train'])
+        self.active_data =  tf.cond(tf.equal(self.active_data, self.control['train']),
+                                    to_valid, to_train)
 
     def build_pipeline(self, name):
         """
         Args:
             name: 'train', 'valid', etc.
         """
-        with tf.variable_scope(name + '_input_pipeline') as scope:
-            proto_text = self._read_line(self.paths[name + '_tfrecords'], scope)
-            context_pair, sequence_pair = self._assign_queue(proto_text, scope)
+        with tf.variable_scope(name + '_pipeline'):
+            proto_text = self._read_line(self.paths[name + '_tfrecords'])
+            context_pair, sequence_pair = self._assign_queue(proto_text)
             input_length = tf.add(context_pair['encoder_sequence_length'],
                                   context_pair['decoder_sequence_length'],
                                   name=name + 'length_add')
-            return self._padded_bucket_batches(input_length, sequence_pair, scope)
+            return self._padded_bucket_batches(input_length, sequence_pair)
 
     @property
     def encoder_inputs(self):
@@ -77,26 +75,26 @@ class InputPipeline:
         return tf.cond(tf.equal(self.active_data, self.control['train']),
                        train, valid)
 
-    def _read_line(self, file, scope=None):
+    def _read_line(self, file):
         """Create ops for extracting lines from files.
 
         Returns:
             Tensor that will contain the lines at runtime.
         """
-        with tf.variable_scope(scope or 'reader'):
+        with tf.variable_scope('reader'):
             tfrecords_fname = file
             filename_queue = tf.train.string_input_producer([tfrecords_fname])
             reader = tf.TFRecordReader(name='tfrecord_reader')
             _, next_raw = reader.read(filename_queue, name='read_records')
             return next_raw
 
-    def _assign_queue(self, data, scope=None):
+    def _assign_queue(self, data):
         """
         Args:
             data: object to be enqueued and managed by parallel threads.
         """
 
-        with tf.variable_scope(scope or 'shuffle_queue'):
+        with tf.variable_scope('shuffle_queue'):
 
             queue = tf.RandomShuffleQueue(
                 capacity=self.capacity, min_after_dequeue=2*self.batch_size,
@@ -110,7 +108,7 @@ class InputPipeline:
             return _sequence_lengths, _sequences
 
     def _padded_bucket_batches(self, input_length, data, scope=None):
-        with tf.variable_scope(scope or 'bucket_batch'):
+        with tf.variable_scope('bucket_batch'):
             _, sequences = bucket_by_sequence_length(
                 input_length=tf.to_int32(input_length),
                 tensors=data,
