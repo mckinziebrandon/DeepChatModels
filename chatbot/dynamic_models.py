@@ -161,7 +161,7 @@ class DynamicBot(Model):
         # initialize newly created model.
         super(DynamicBot, self).compile(reset=reset)
 
-    def step(self):  #, encoder_batch, decoder_batch=None, forward_only=False):
+    def step(self, forward_only=False):
         """Run forward and backward pass on single data batch.
 
         Args:
@@ -192,26 +192,17 @@ class DynamicBot(Model):
         #    # decoder input is defined as the next decoder input, but better to be safe.
         #    target_weights[:, -1] = 0.0
 
-        input_feed = {}
-        #input_feed[self.encoder_inputs.name] = encoder_batch
-        #input_feed[self.decoder_inputs.name] = decoder_batch
-        #input_feed[self.target_weights.name] = target_weights
-
-        fetches = [self.merged, self.loss, self.apply_gradients]
-        summaries,step_loss, _ = self.sess.run(fetches)
-        return summaries, step_loss, None
-
-        #if not forward_only:
-        #    fetches = (self.merged, self.loss, self.apply_gradients)
-        #    summaries, step_loss, _ = self.sess.run(fetches, input_feed)
-        #    return summaries, step_loss, None
         #elif self.is_chatting:
         #    step_outputs = self.sess.run(self.outputs, input_feed)
         #    return None, None, step_outputs
-        #else:
-        #    fetches = [self.merged, self.loss, self.outputs]
-        #    summaries, step_loss, step_outputs = self.sess.run(fetches, input_feed)
-        #    return summaries, step_loss, step_outputs
+        if not forward_only:
+            fetches = [self.merged, self.loss, self.apply_gradients]
+            summaries,step_loss, _ = self.sess.run(fetches)
+            return summaries, step_loss, None
+        else:
+            fetches = [self.merged, self.loss, self.outputs]
+            summaries, step_loss, step_outputs = self.sess.run(fetches)
+            return summaries, step_loss, step_outputs
 
     def train(self, dataset, nb_epoch=1):
         """Train bot on inputs for nb_epoch epochs, or until user types CTRL-C.
@@ -268,9 +259,11 @@ class DynamicBot(Model):
 
                     # Run validation step. If we are out of validation data, reset generator.
                     #with self.sess.graph.device('/cpu:0'):
-                    if False:
+                    if i_step == 0:
+                        print("Probably about to crash.")
                         self.pipeline.toggle_active()
-                        summaries, eval_loss, _ = self.step()
+                        summaries, eval_loss, _ = self.step(forward_only=True)
+                        self.pipeline.toggle_active()
                         print("\tValidation loss = %.3f" % eval_loss, end="; ")
                         print("val perplexity = %.1f" % perplexity(eval_loss))
 
