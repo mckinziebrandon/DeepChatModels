@@ -1,6 +1,6 @@
 import tensorflow as tf
 import pdb
-from utils.io_utils import EOS_ID, UNK_ID
+from utils.io_utils import EOS_ID, UNK_ID, GO_ID
 from tensorflow.contrib.tensorboard.plugins import projector
 from tensorflow.contrib.training import bucket_by_sequence_length
 
@@ -16,7 +16,7 @@ class InputPipeline:
     """Manages the new input pipeline and all nodes therein."""
     # TODO: This class needs a logger.
 
-    def __init__(self, file_paths, batch_size, steps_per_ckpt=None, capacity=None):
+    def __init__(self, file_paths, batch_size, capacity=None, is_chatting=False):
         """
         Args:
             file_paths: returned by instance of Dataset via Dataset.paths.
@@ -28,6 +28,9 @@ class InputPipeline:
         self.num_threads = 4
         self.control = {'train': 0, 'valid': 1}
         self.active_data = tf.convert_to_tensor(self.control['train'])
+        self.is_chatting = is_chatting
+        self._user_input = tf.placeholder(tf.int32, [1, None], name='user_input_ph')
+        self._feed_dict = None
 
         # =======================================================================
         # Begin: Pipeline Construction. Steps:
@@ -36,8 +39,9 @@ class InputPipeline:
         # 3. Organize sequences into buckets of similar lengths, pad, and batch.
         # ======================================================================
 
-        self.train_batches = self.build_pipeline('train')
-        self.valid_batches = self.build_pipeline('valid')
+        if not is_chatting:
+            self.train_batches = self.build_pipeline('train')
+            self.valid_batches = self.build_pipeline('valid')
 
     def toggle_active(self):
         def to_valid(): return tf.constant(self.control['valid'])
@@ -63,17 +67,32 @@ class InputPipeline:
         # Note: This would be a good place to manage warnings on whether or not
         # inputs are ready for dequeueing.
 
-        def train(): return self.train_batches['encoder_sequence']
-        def valid(): return self.valid_batches['encoder_sequence']
-        return tf.cond(tf.equal(self.active_data, self.control['train']),
-                       train, valid)
+        if not self.is_chatting:
+            def train(): return self.train_batches['encoder_sequence']
+            def valid(): return self.valid_batches['encoder_sequence']
+            return tf.cond(tf.equal(self.active_data, self.control['train']),
+                           train, valid)
+        else:
+            assert self._user_input is not None
+            return self._user_input
 
     @property
     def decoder_inputs(self):
-        train = lambda : self.train_batches['decoder_sequence']
-        valid = lambda : self.valid_batches['decoder_sequence']
-        return tf.cond(tf.equal(self.active_data, self.control['train']),
-                       train, valid)
+        if not self.is_chatting:
+            train = lambda : self.train_batches['decoder_sequence']
+            valid = lambda : self.valid_batches['decoder_sequence']
+            return tf.cond(tf.equal(self.active_data, self.control['train']),
+                           train, valid)
+        else:
+            return tf.convert_to_tensor([[GO_ID]])
+
+    def feed_user_input(self, user_input):
+        self._feed_dict = {self._user_input.name: user_input}
+
+    @property
+    def feed_dict(self):
+        assert self._feed_dict is not None
+        return self._feed_dict
 
     def _read_line(self, file):
         """Create ops for extracting lines from files.
@@ -95,10 +114,9 @@ class InputPipeline:
         """
 
         with tf.variable_scope('shuffle_queue'):
-
-            queue = tf.RandomShuffleQueue(
-                capacity=self.capacity, min_after_dequeue=2*self.batch_size,
-                dtypes=tf.string, shapes=[()], name='randomize_records')
+            queue = tf.RandomShuffleQueue(capacity=self.capacity,
+                                          min_after_dequeue=2*self.batch_size,
+                                          dtypes=tf.string, shapes=[()])
             enqueue_op = queue.enqueue(data)
             example_dq = queue.dequeue()
             qr = tf.train.QueueRunner(queue, [enqueue_op] * 4)
@@ -107,13 +125,13 @@ class InputPipeline:
                 serialized=example_dq, context_features=LENGTHS, sequence_features=SEQUENCES)
             return _sequence_lengths, _sequences
 
-    def _padded_bucket_batches(self, input_length, data, scope=None):
+    def _padded_bucket_batches(self, input_length, data):
         with tf.variable_scope('bucket_batch'):
             _, sequences = bucket_by_sequence_length(
                 input_length=tf.to_int32(input_length),
                 tensors=data,
                 batch_size=self.batch_size,
-                bucket_boundaries=[10],
+                bucket_boundaries=[16, 64],
                 capacity=self.capacity,
                 dynamic_pad=True,
             )
@@ -173,11 +191,11 @@ class Cell(tf.contrib.rnn.RNNCell):
 
     def __init__(self, state_size, num_layers, dropout_prob=1.0):
         self._state_size = state_size
-        if num_layers == 1:
-            self._cell = tf.contrib.rnn.GRUCell(self._state_size)
-        else:
-            self._cell = tf.contrib.rnn.MultiRNNCell(
-                [tf.contrib.rnn.GRUCell(self._state_size) for _ in range(num_layers)])
+        #f num_layers == 1:
+        self._cell = tf.contrib.rnn.GRUCell(self._state_size)
+        #else:
+        #    self._cell = tf.contrib.rnn.MultiRNNCell(
+        #        [tf.contrib.rnn.GRUCell(self._state_size) for _ in range(num_layers)])
         self._dropout_prob = dropout_prob
 
     @property
@@ -264,7 +282,7 @@ class Decoder(RNN):
         b = tf.get_variable("b", [output_size], dtype=tf.float32)
         self._projection = (w, b)
         if temperature < 0.1:
-            self.max_seq_len = 1000
+            self.max_seq_len = 50
         elif temperature < 0.8:
             self.max_seq_len = 40
         else:

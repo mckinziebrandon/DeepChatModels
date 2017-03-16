@@ -67,25 +67,25 @@ class DynamicBot(Model):
         self.batch_size = batch_size
 
         with tf.variable_scope("input_pipeline"):
-            self.pipeline = InputPipeline(dataset.paths, batch_size)
+            self.pipeline = InputPipeline(dataset.paths, batch_size, is_chatting=is_chatting)
             self.encoder_inputs = self.pipeline.encoder_inputs
             self.decoder_inputs = self.pipeline.decoder_inputs
             print(self.encoder_inputs)
             print(self.decoder_inputs)
 
         self.embedder = Embedder(self.vocab_size, embed_size)
-        # Encoder inputs in embedding space. Shape is [None, None, embed_size].
         with tf.variable_scope("encoder") as encoder_scope:
             self.encoder = Encoder(state_size, self.embed_size,
-                                   dropout_prob=dropout_prob, num_layers=num_layers)
+                                   dropout_prob=dropout_prob,
+                                   num_layers=num_layers)
             embedded_enc_inputs = self.embedder(self.encoder_inputs, scope=encoder_scope)
-            print(embedded_enc_inputs)
             # Get encoder state after feeding the sequence(s). Shape is [None, state_size].
             encoder_state = self.encoder(embedded_enc_inputs, scope=encoder_scope)
 
         with tf.variable_scope("decoder") as decoder_scope:
             self.decoder = Decoder(state_size, self.vocab_size, self.embed_size,
-                                   dropout_prob=dropout_prob, num_layers=num_layers,
+                                   dropout_prob=dropout_prob,
+                                   num_layers=num_layers,
                                    temperature=temperature)
             # Decoder inputs in embedding space. Shape is [None, None, embed_size].
             embedded_dec_inputs = self.embedder(self.decoder_inputs, scope=decoder_scope)
@@ -177,10 +177,6 @@ class DynamicBot(Model):
         #if decoder_batch is None and not forward_only:
         #    self.log.error("Can't perform gradient updates without a decoder_batch.")
 
-        #if self.is_chatting:
-        #    assert decoder_batch is None, "Found decoder_batch inputs during chat session."
-        #    decoder_batch = np.array([[GO_ID]])
-        #    target_weights = np.array([[1.0]])
         #else:
         #    # Prepend GO token to each sample in decoder_batch.
         #    decoder_batch   = np.insert(decoder_batch, 0, [GO_ID], axis=1)
@@ -193,13 +189,14 @@ class DynamicBot(Model):
         #    # decoder input is defined as the next decoder input, but better to be safe.
         #    target_weights[:, -1] = 0.0
 
-        #elif self.is_chatting:
-        #    step_outputs = self.sess.run(self.outputs, input_feed)
-        #    return None, None, step_outputs
         if not forward_only:
             fetches = [self.merged, self.loss, self.apply_gradients]
             summaries,step_loss, _ = self.sess.run(fetches)
             return summaries, step_loss, None
+        if self.is_chatting:
+            step_outputs = self.sess.run(self.outputs,
+                                         feed_dict=self.pipeline.feed_dict)
+            return None, None, step_outputs
         else:
             fetches = [self.merged, self.loss, self.outputs]
             summaries, step_loss, step_outputs = self.sess.run(fetches)
@@ -304,9 +301,11 @@ class DynamicBot(Model):
         encoder_inputs = io_utils.sentence_to_token_ids(
             tf.compat.as_bytes(sentence),self.dataset.word_to_idx)
 
+        assert self.is_chatting
         encoder_inputs = np.array([encoder_inputs[::-1]])
+        self.pipeline.feed_user_input(encoder_inputs)
         # Get output sentence from the chatbot.
-        a, b, response = self.step(encoder_inputs, forward_only=True)
+        a, b, response = self.step(forward_only=True)
         assert a is None
         assert b is None
         # response has shape [1, response_length] and it's last element is EOS_ID. :)
