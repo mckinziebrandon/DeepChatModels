@@ -74,6 +74,16 @@ The newest model, ```DynamicBot```, is substantially faster than the previous mo
 
 One particular feature of DynamicBot worth mentioning is that the output generation and sampling process is _fully contained within the graph_ structure itself. This is in contrast with methods of outputting large arrays representing the logits (unnormalized log probabilities) and then sampling/argmax-ing over these. DynamicBot, however, directly returns its generated responses as a sequence of word-tokens.
 
+## The Input Pipeline
+
+In the past couple days, the way the model reads and interacts with data has been completely reimplemented. Before, a data generator fed padded numpy array batches from files to the model directly. It turns out that it is *substantially* faster encode the input information and preprocessing techniques in the graph structure itself. In the new implementation, we don't feed the model anything at all. Rather, it uses a sequence of queues to access the data from files in google's protobuf format, decode the files into tensor sequences, dynamically batch and pad the sequences, and then feed these batches to the embedding decoder. All within the graph structure. Furthermore, this data processing is coordinated by multiple threads in parallel. The result? You start the model, watch all cores of your CPU light up in a brief burst, and then it's 100% GPU training utilization (with helper CPU threads managing data in the background) for the remaining time (this is, of course, as reported on my system). 
+
+Below are plots of training error for non-optimal hyperparameters on the ubuntu (purple), reddit (light blue), and cornell (orange) datasets. These plots correspond to just __five minutes__ of training time on each dataset. The relative performance is also expected; the current reddit data is our smallest and noisiest dataset (still working on the preprocessing) and cornell is about as high quality as one would ever need (grammatically correct movie dialogs). 
+
+![](http://i.imgur.com/cM35tYJ.png)
+
+Before the input pipeline, achieving these losses, even with finely tuned hyperparameters after running random search, would've taken around an hour or so. To be completely honest, I still have yet to determine why the training performance is this consistently better after only modifying the input structure. This is what I'll be analyzing for the next couple days. 
+
 
 ## Preliminary Testing
 
@@ -103,12 +113,3 @@ The only takeaway I saw from these two plots (after seeing the learning rate plo
 
 **General conclusion: the learning rate influences the validation loss far more than state size or embed size.** This was basically known before making these plots, as it is a well known property of such networks (Ng). It was nice to verify this for myself.
 
-## The Input Pipeline
-
-In the past couple days, the way the model reads and interacts with data has been completely reimplemented. Before, a data generator fed padded numpy array batches from files to the model directly. It turns out that it is *substantially* faster encode the input information and preprocessing techniques in the graph structure itself. In the new implementation, we don't feed the model anything at all. Rather, it uses a sequence of queues to access the data from files in google's protobuf format, decode the files into tensor sequences, dynamically batch and pad the sequences, and then feed these batches to the embedding decoder. All within the graph structure. Furthermore, this data processing is coordinated by multiple threads in parallel. The result? You start the model, watch all cores of your CPU light up in a brief burst, and then it's 100% GPU training utilization (with helper CPU threads managing data in the background) for the remaining time (this is, of course, as reported on my system). 
-
-Below are plots of training error for non-optimal hyperparameters on the ubuntu (purple), reddit (blue), and cornell (light blue) datasets. These plots correspond to just __five minutes__ of training time on each dataset. The relative performance is also expected; the current reddit data is our smallest and noisiest dataset (still working on the preprocessing) and cornell is about as high quality as one would ever need (they're grammatically correct type movie dialogs). 
-
-![](http://i.imgur.com/cM35tYJ.png)
-
-Before the input pipeline, achieving these losses, even with finely tuned hyperparameters after running random search, would've taken around an hour or so. To be completely honest, I still have yet to determine why the training performance is this consistently better after only modifying the input structure. This is what I'll be analyzing for the next couple days. 
