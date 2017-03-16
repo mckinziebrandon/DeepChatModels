@@ -3,6 +3,7 @@ import numpy as np
 import tensorflow as tf
 from abc import ABCMeta, abstractmethod, abstractproperty
 from utils import io_utils
+import os
 import random
 from utils.io_utils import EOS_ID, PAD_ID
 import logging
@@ -109,10 +110,6 @@ class Dataset(DatasetABC):
 
         encoder_tokens = []
         decoder_tokens = []
-
-        #filenames = tf.train.string_input_producer([from_path, to_path])
-        #reader = tf.TextLineReader()
-
         with tf.gfile.GFile(from_path, mode="r") as source_file:
             with tf.gfile.GFile(to_path, mode="r") as target_file:
 
@@ -145,43 +142,39 @@ class Dataset(DatasetABC):
                 if len(encoder_tokens) > 0:
                     yield padded_batch(encoder_tokens, decoder_tokens)
 
-    def convert_to_tf_records(self, from_path, to_path, batch_size):
+    def convert_to_tf_records(self, prefix='train'):
+        from_path = self.paths['from_'+prefix]
+        to_path = self.paths['to_'+prefix]
+        output_path = os.path.join(self._data_dir, prefix + '.tfrecords')
 
-        def _int64_feature(value):
-            return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+        def get_sequence_example(encoder_line, decoder_line):
+            """
+            Args:
+                prefix: either 'encoder' or 'decoder', typically.
+            """
+            example  = tf.train.SequenceExample()
+            context  = example.context
+            features = example.feature_lists
+            for x in encoder_line.split():
+                # Dear TensorFlow: why? Just why. - Brandon.
+                context.feature['encoder_sequence_length'].int64_list.value.append(int(x))
+                features.feature_list['encoder_sequence'].feature.add().int64_list.value.append(int(x))
+            for x in decoder_line.split():
+                # Dear TensorFlow: why? Just why. - Brandon.
+                context.feature['decoder_sequence_length'].int64_list.value.append(int(x))
+                features.feature_list['decoder_sequence'].feature.add().int64_list.value.append(int(x))
+            return example
 
-        encoder_tokens = []
-        decoder_tokens = []
+        with tf.gfile.GFile(from_path, mode="r") as encoder_file:
+            with tf.gfile.GFile(to_path, mode="r") as decoder_file:
+                with tf.python_io.TFRecordWriter(output_path) as writer:
+                    encoder_line, decoder_line = encoder_file.readline(), decoder_file.readline()
+                    while encoder_line and decoder_line:
+                        writer.write(get_sequence_example(encoder_line, decoder_line))
+                        encoder_line, decoder_line = encoder_file.readline(), decoder_file.readline()
 
-        example = tf.train.SequenceExample()
-        encoder_inp = example.feature_lists.feature_list['encoder_inp']
-        out_file = 'test.tfrecords'
-        writer = tf.python_io.TFRecordWriter(out_file)
-
-        with tf.gfile.GFile(from_path, mode="r") as source_file:
-            with tf.gfile.GFile(to_path, mode="r") as target_file:
-
-                source, target = source_file.readline(), target_file.readline()
-                while source and target:
-
-                    # Skip any sentence pairs that are too long for user specifications.
-                    space_needed = max(len(source.split()), len(target.split()))
-                    if space_needed > self.max_seq_len:
-                        source, target = source_file.readline(), target_file.readline()
-                        continue
-
-                    # Reformat token strings to token lists.
-                    # Note: GO_ID is prepended by the chat bot, since it determines
-                    # whether or not it's responsible for responding.
-                    encoder_tokens.append([int(x) for x in source.split()])
-                    encoder_inp.feature.add().int64_list.append(encoder_tokens[0])
-
-                    decoder_tokens.append([int(x) for x in target.split()] + [EOS_ID])
-        writer.close()
-
-
-
-
+        self.log.info("Converted text files %s and %s into tfrecords file %s" \
+                      % (from_path, to_path, output_path))
 
     @property
     def word_to_idx(self):

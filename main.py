@@ -67,6 +67,10 @@ if __name__ == "__main__":
     dataset = DATASET[FLAGS.dataset](FLAGS.data_dir, FLAGS.vocab_size,
                                      max_seq_len=FLAGS.max_seq_len)
 
+    dataset.convert_to_tf_records('train')
+    dataset.convert_to_tf_records('valid')
+    exit()
+
     # Create chat model of choice. Pass in FLAGS values in case you want to change from defaults.
     print("Creating DynamicBot.")
     bot = DynamicBot(dataset,
