@@ -80,50 +80,45 @@ class DynamicBot(Model):
         self.dropout_prob = dropout_prob
         self.num_layers = num_layers
         self.batch_size = batch_size
-
+        self.num_threads = 1
         capacity = 3*batch_size
-        tfrecords_fname = dataset.paths['train_tfrecords']
-        print(tfrecords_fname)
-        filename_queue = tf.train.string_input_producer([tfrecords_fname])
-        reader = tf.TFRecordReader(name='tfrecord_reader')
-        _, next_raw = reader.read(filename_queue, name='read_records')
 
-        self.queue = tf.RandomShuffleQueue(capacity=800*capacity, min_after_dequeue=2*batch_size, dtypes=tf.string,
-                                  shapes=[()], name='randomize_records')
-        self.enqueue_op = self.queue.enqueue(next_raw)
-        example_dq = self.queue.dequeue()
+        # TODO: Wrap input pipeline inside a new model_components class.
+        with tf.name_scope('reader'):
+            tfrecords_fname = dataset.paths['train_tfrecords']
+            filename_queue = tf.train.string_input_producer([tfrecords_fname])
+            reader = tf.TFRecordReader(name='tfrecord_reader')
+            _, next_raw = reader.read(filename_queue, name='read_records')
 
-        _sequence_lengths, _sequences = tf.parse_single_sequence_example(
-            serialized=example_dq, context_features=LENGTHS, sequence_features=SEQUENCES)
+        with tf.name_scope('shuffle_queue'):
+            queue = tf.RandomShuffleQueue(
+                capacity=800*capacity, min_after_dequeue=2*batch_size,
+                dtypes=tf.string, shapes=[()], name='randomize_records')
+            enqueue_op = queue.enqueue(next_raw)
+            example_dq = queue.dequeue()
+            qr = tf.train.QueueRunner(queue, [enqueue_op] * 8)
+            tf.train.add_queue_runner(qr)
 
-        print('_seqs', _sequences)
-        input_length = tf.add(_sequence_lengths['encoder_sequence_length'],
-                              _sequence_lengths['decoder_sequence_length'])
+            _sequence_lengths, _sequences = tf.parse_single_sequence_example(
+                serialized=example_dq, context_features=LENGTHS, sequence_features=SEQUENCES)
 
-        total_length, sequences = bucket_by_sequence_length(
-            input_length=tf.to_int32(input_length),
-            tensors=_sequences,
-            batch_size=self.batch_size,
-            bucket_boundaries=[10],
-            capacity=50*capacity,
-            num_threads=4,
-            dynamic_pad=True,
-            name='bucket_by_sequence_length'
-        )
-        self.encoder_inputs = sequences['encoder_sequence']
-        self.decoder_inputs = sequences['decoder_sequence']
-        print(self.encoder_inputs, self.decoder_inputs)
-        #self.target_weights = tf.placeholder(tf.float32, [batch_size, None], name="target_weights")
+        with tf.name_scope('bucket_batch'):
+            input_length = tf.add(_sequence_lengths['encoder_sequence_length'],
+                                  _sequence_lengths['decoder_sequence_length'])
 
+            total_length_, sequences = bucket_by_sequence_length(
+                input_length=tf.to_int32(input_length),
+                tensors=_sequences,
+                batch_size=batch_size,
+                bucket_boundaries=[10],
+                capacity=50*capacity,
+                dynamic_pad=True,
+            )
 
-        # The following placeholder shapes correspond with [batch_size, seq_len].
-        #self.encoder_inputs = tf.placeholder(tf.int32, [None, None], name="encoder_inputs")
-        #self.decoder_inputs = tf.placeholder(tf.int32, [None, None], name="decoder_inputs")
+            self.encoder_inputs = sequences['encoder_sequence']
+            self.decoder_inputs = sequences['decoder_sequence']
 
-
-        # Thanks to variable scoping, only need one object for multiple embeddings.
         self.embedder = Embedder(self.vocab_size, embed_size)
-
         # Encoder inputs in embedding space. Shape is [None, None, embed_size].
         with tf.variable_scope("encoder") as encoder_scope:
             self.encoder = Encoder(state_size, self.embed_size,
@@ -145,8 +140,8 @@ class DynamicBot(Model):
                                                           loop_embedder=self.embedder,
                                                           scope=decoder_scope)
 
-        #tf.summary.histogram("encoder_embedding", self.embedder.get_embed_tensor(encoder_scope))
-        #tf.summary.histogram("decoder_embedding", self.embedder.get_embed_tensor(decoder_scope))
+        tf.summary.histogram("encoder_embedding", self.embedder.get_embed_tensor(encoder_scope))
+        tf.summary.histogram("decoder_embedding", self.embedder.get_embed_tensor(decoder_scope))
         self.merged = tf.summary.merge_all()
         self.encoder_scope = encoder_scope
         self.decoder_scope = decoder_scope
@@ -184,18 +179,22 @@ class DynamicBot(Model):
                 target_labels = self.decoder_inputs[:, 1:]
                 #check_shape(target_labels, [None, None], self.log)
                 self.loss = tf.losses.sparse_softmax_cross_entropy(
-                    labels=target_labels, logits=self.outputs[:, :-1, :],
-                    weights=tf.ones(tf.shape(self.decoder_inputs[:, :-1])))
-                    #weights=self.target_weights[:, :-1])
+                    labels=target_labels, logits=self.outputs[:, :-1, :])
+                    #weights=tf.ones(tf.shape(self.decoder_inputs[:, :-1])))
+
+                #    for batch_idx, time_idx in np.stack(pad_indices, axis=1):
+                #        target_weights[batch_idx, time_idx-1] = 0.0
+                #    # Last element should never be accessed anyway, since the target for a given
+                #    # decoder input is defined as the next decoder input, but better to be safe.
+                #    target_weights[:, -1] = 0.0
 
                 # Define the training portion of the graph.
                 params = tf.trainable_variables()
-                self.apply_gradients = tf.train.AdagradOptimizer(self.learning_rate).minimize(
-                    self.loss, global_step=self.global_step)
-                #gradients = tf.gradients(self.loss, params)
-                #clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, max_gradient)
-                #grads = list(zip(clipped_gradients, params))
-                #self.apply_gradients = optimizer.apply_gradients(grads, global_step=self.global_step)
+                optimizer = tf.train.AdagradOptimizer(self.learning_rate)
+                gradients = tf.gradients(self.loss, params)
+                clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, max_gradient)
+                grads = list(zip(clipped_gradients, params))
+                self.apply_gradients = optimizer.apply_gradients(grads, global_step=self.global_step)
 
                 correct_pred = tf.equal(
                     tf.argmax(self.outputs[:, :-1, :], axis=2), tf.argmax(target_labels)
@@ -249,10 +248,9 @@ class DynamicBot(Model):
         input_feed = {}
         #input_feed[self.encoder_inputs.name] = encoder_batch
         #input_feed[self.decoder_inputs.name] = decoder_batch
-
-        #target_weights = np.ones(tf.shape(self.encoder_inputs))
         #input_feed[self.target_weights.name] = target_weights
-        fetches = (self.merged, self.loss, self.apply_gradients)
+
+        fetches = [self.merged, self.loss, self.apply_gradients]
         summaries,step_loss, _ = self.sess.run(fetches)
         return summaries, step_loss, None
 
@@ -277,11 +275,9 @@ class DynamicBot(Model):
             save_dir: (str) Path to save ckpt files. If None, defaults to self.ckpt_dir.
         """
 
-        numberOfThreads = 4
-        qr = tf.train.QueueRunner(self.queue, [self.enqueue_op] * numberOfThreads)
-        # Don't forget to add your "QueueRunner" to the QUEUE_RUNNERS collection
-        tf.train.add_queue_runner(qr)
 
+        #qr = tf.train.QueueRunner(self.queue, [self.enqueue_op] * 8)
+        #tf.train.add_queue_runner(qr)
 
         def perplexity(loss):
             """Common alternative to loss in NLP models."""
@@ -296,57 +292,62 @@ class DynamicBot(Model):
 
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=self.sess, coord=coord)
+        print('wait')
+        time.sleep(3)
+        print('wait')
+        time.sleep(3)
+        print('wait')
+        time.sleep(3)
+        print('go')
         try:
-            for i_epoch in range(nb_epoch):
+            i_step = 0
+            avg_loss = avg_step_time = 0.0
+            # Create data generators for feeding inputs to step().
+            #train_gen = dataset.train_generator(self.batch_size)
+            #valid_gen = dataset.valid_generator(self.batch_size)
 
-                i_step = 0
-                avg_loss = avg_step_time = 0.0
-                # Create data generators for feeding inputs to step().
-                train_gen = dataset.train_generator(self.batch_size)
-                #valid_gen = dataset.valid_generator(self.batch_size)
-                #fetched = sess.run({'out_len': sequence_length, 'out': outputs})
-                #print(fetched['out_len'])
-                #print(fetched['out'])
-                print("_______________ NEW EPOCH: %d _______________" % i_epoch)
-                while True:
-                #for encoder_batch, decoder_batch in train_gen:
-                    start_time = time.time()
-                    #encoder_batch, decoder_batch = self.sess.run([self.encoder_inputs, self.decoder_inputs])
-                    summaries, step_loss, _ = self.step()
-                    # Calculate running averages.
-                    avg_step_time  += (time.time() - start_time) / self.steps_per_ckpt
-                    avg_loss       += step_loss / self.steps_per_ckpt
+            print("_______________ NEW EPOCH: _______________" )
+            while not coord.should_stop():
 
-                    # Print updates in desired intervals (steps_per_ckpt).
-                    if i_step % self.steps_per_ckpt == 0:
+                start_time = time.time()
+                summaries, step_loss, _ = self.step()
+                # Calculate running averages.
+                avg_step_time  += (time.time() - start_time) / self.steps_per_ckpt
+                avg_loss       += step_loss / self.steps_per_ckpt
 
-                        print("Step %d:" % i_step, end=" ")
-                        print("step time = %.3f" % avg_step_time)
-                        print("\ttraining loss = %.3f" % avg_loss, end="; ")
-                        print("training perplexity = %.1f" % perplexity(avg_loss))
-                        self.save(summaries=summaries)
+                # Print updates in desired intervals (steps_per_ckpt).
+                if i_step % self.steps_per_ckpt == 0:
 
-                        # Run validation step. If we are out of validation data, reset generator.
-                        if False:
-                            with self.sess.graph.device('/cpu:0'):
-                                try:
-                                    summaries, eval_loss, _ = self.step(*next(valid_gen))
-                                except StopIteration:
-                                    valid_gen = dataset.valid_generator(self.batch_size)
-                                    summaries, eval_loss, _ = self.step(*next(valid_gen))
+                    print("Step %d:" % i_step, end=" ")
+                    print("step time = %.3f" % avg_step_time)
+                    print("\ttraining loss = %.3f" % avg_loss, end="; ")
+                    print("training perplexity = %.1f" % perplexity(avg_loss))
+                    self.save(summaries=summaries)
 
-                                print("\tValidation loss = %.3f" % eval_loss, end="; ")
-                                print("val perplexity = %.1f" % perplexity(eval_loss))
+                    # Run validation step. If we are out of validation data, reset generator.
+                    if False:
+                        with self.sess.graph.device('/cpu:0'):
+                            try:
+                                summaries, eval_loss, _ = self.step(*next(valid_gen))
+                            except StopIteration:
+                                valid_gen = dataset.valid_generator(self.batch_size)
+                                summaries, eval_loss, _ = self.step(*next(valid_gen))
 
-                        # Reset the running averages and exit checkpoint.
-                        avg_loss = avg_step_time = 0.0
+                            print("\tValidation loss = %.3f" % eval_loss, end="; ")
+                            print("val perplexity = %.1f" % perplexity(eval_loss))
 
-                    i_step += 1
+                    # Reset the running averages and exit checkpoint.
+                    avg_loss = avg_step_time = 0.0
 
+                i_step += 1
         except (KeyboardInterrupt, SystemExit):
-            coord.request_stop()
-            coord.join(threads)
             print("Training halted. Cleaning up . . . ")
+            coord.request_stop()
+        except tf.errors.OutOfRangeError:
+            print("Sigh. OutOfRangeError. Queues closed for business.")
+            coord.request_stop()
+        finally:
+            coord.join(threads)
             self.close()
 
     def decode(self):

@@ -153,23 +153,24 @@ class Dataset(DatasetABC):
             self.paths[prefix + '_tfrecords'] = output_path
             return
 
-        self.log.info('MAKING OUR OWN')
         def get_sequence_example(encoder_line, decoder_line):
             """
             Args:
                 prefix: either 'encoder' or 'decoder', typically.
             """
             example  = tf.train.SequenceExample()
-            context  = example.context
-            features = example.feature_lists
             encoder_list = [int(x) for x in encoder_line.split()]
-            decoder_list = [int(x) for x in decoder_line.split()]
-            context.feature['encoder_sequence_length'].int64_list.value.append(len(encoder_list))
-            context.feature['decoder_sequence_length'].int64_list.value.append(len(decoder_list))
-            for y in encoder_list:
-                features.feature_list['encoder_sequence'].feature.add().int64_list.value.append(y)
-            for y in decoder_list:
-                features.feature_list['decoder_sequence'].feature.add().int64_list.value.append(y)
+            decoder_list = [io_utils.GO_ID] + [int(x) for x in decoder_line.split()] + [EOS_ID]
+            example.context.feature['encoder_sequence_length'].int64_list.value.append(len(encoder_list))
+            example.context.feature['decoder_sequence_length'].int64_list.value.append(len(decoder_list))
+
+            encoder_sequence = example.feature_lists.feature_list['encoder_sequence']
+            decoder_sequence = example.feature_lists.feature_list['decoder_sequence']
+            for e in encoder_list:
+                encoder_sequence.feature.add().int64_list.value.append(e)
+            for d in decoder_list:
+                decoder_sequence.feature.add().int64_list.value.append(d)
+
             return example
 
         with tf.gfile.GFile(from_path, mode="r") as encoder_file:
