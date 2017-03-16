@@ -2,7 +2,96 @@ import tensorflow as tf
 import pdb
 from utils.io_utils import EOS_ID, UNK_ID
 from tensorflow.contrib.tensorboard.plugins import projector
+from tensorflow.contrib.training import bucket_by_sequence_length
 
+LENGTHS = {'encoder_sequence_length': tf.FixedLenFeature([], dtype=tf.int64),
+           'decoder_sequence_length': tf.FixedLenFeature([], dtype=tf.int64)}
+SEQUENCES = {'encoder_sequence': tf.FixedLenSequenceFeature([], dtype=tf.int64),
+             'decoder_sequence': tf.FixedLenSequenceFeature([], dtype=tf.int64)}
+
+
+class InputPipeline:
+    """Manages the new input pipeline and all nodes therein."""
+    # TODO: This class needs a logger.
+
+    def __init__(self, file_paths, batch_size, capacity=None):
+        """
+        Args:
+            file_paths: returned by instance of Dataset via Dataset.paths.
+        """
+        if capacity is None:
+            self.capacity = 10 * batch_size
+        self.batch_size = batch_size
+        self.paths = file_paths
+        self.num_threads = 1
+
+        # =======================================================================
+        # Begin: Pipeline Construction. Steps:
+        # 1. Create ops for reading protobuf tfrecords line-by-line.
+        # 2. Enqueue raw outputs, attach to threads, and parse sequences.
+        # 3. Organize sequences into buckets of similar lengths, pad, and batch.
+        # ======================================================================
+
+        # TODO: Obviously this shouldn't be hardcoded. Fix after skeleton code written.
+        proto_text_line = self._read_line(self.paths['train_tfrecords'])
+        parsed_length_pair, parsed_sequence_pair = self._initialize_shuffle_queue(proto_text_line)
+        input_length = tf.add(parsed_length_pair['encoder_sequence_length'],
+                              parsed_length_pair['decoder_sequence_length'])
+        self.batched_inputs = self._padded_bucket_batches(input_length, parsed_sequence_pair)
+
+    def get_encoder_inputs(self):
+        # Note: This would be a good place to manage warnings on whether or not
+        # inputs are ready for dequeueing.
+        return self.batched_inputs['encoder_sequence']
+
+    def get_decoder_inputs(self):
+        return self.batched_inputs['decoder_sequence']
+
+    def _read_line(self, file):
+        """Create ops for extracting lines from files.
+
+        Returns:
+            Tensor that will contain the lines at runtime.
+        """
+
+        with tf.name_scope('reader'):
+            tfrecords_fname = self.paths['train_tfrecords']
+            filename_queue = tf.train.string_input_producer([tfrecords_fname])
+            reader = tf.TFRecordReader(name='tfrecord_reader')
+            _, next_raw = reader.read(filename_queue, name='read_records')
+            return next_raw
+
+    def _initialize_shuffle_queue(self, data):
+        """
+        Args:
+            data: object to be enqueued and managed by parallel threads.
+        """
+
+        with tf.name_scope('shuffle_queue'):
+            queue = tf.RandomShuffleQueue(
+                capacity=self.capacity, min_after_dequeue=2*self.batch_size,
+                dtypes=tf.string, shapes=[()], name='randomize_records')
+            enqueue_op = queue.enqueue(data)
+            example_dq = queue.dequeue()
+            qr = tf.train.QueueRunner(queue, [enqueue_op] * 8)
+            tf.train.add_queue_runner(qr)
+
+            _sequence_lengths, _sequences = tf.parse_single_sequence_example(
+                serialized=example_dq, context_features=LENGTHS, sequence_features=SEQUENCES)
+
+            return _sequence_lengths, _sequences
+
+    def _padded_bucket_batches(self, input_length, data):
+        with tf.name_scope('bucket_batch'):
+            _, sequences = bucket_by_sequence_length(
+                input_length=tf.to_int32(input_length),
+                tensors=data,
+                batch_size=self.batch_size,
+                bucket_boundaries=[10],
+                capacity=self.capacity,
+                dynamic_pad=True,
+            )
+        return sequences
 
 class Embedder:
     """Acts on tensors with integer elements, embedding them in a higher-dimensional

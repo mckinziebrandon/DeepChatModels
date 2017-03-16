@@ -19,11 +19,6 @@ from tensorflow.contrib.training import bucket_by_sequence_length
 from heapq import *
 
 
-LENGTHS = {'encoder_sequence_length': tf.FixedLenFeature([], dtype=tf.int64),
-           'decoder_sequence_length': tf.FixedLenFeature([], dtype=tf.int64)}
-SEQUENCES = {'encoder_sequence': tf.FixedLenSequenceFeature([], dtype=tf.int64),
-             'decoder_sequence': tf.FixedLenSequenceFeature([], dtype=tf.int64)}
-
 def check_shape(tensor, expected_shape, log):
     if tensor.shape.as_list() != expected_shape:
         msg = "Bad shape of tensor {0}. Expected {1} but found {2}.".format(
@@ -80,45 +75,13 @@ class DynamicBot(Model):
         self.dropout_prob = dropout_prob
         self.num_layers = num_layers
         self.batch_size = batch_size
-        self.num_threads = 1
-        capacity = 3*batch_size
 
-        # TODO: Wrap input pipeline inside a new model_components class.
-        with tf.name_scope('reader'):
-            tfrecords_fname = dataset.paths['train_tfrecords']
-            filename_queue = tf.train.string_input_producer([tfrecords_fname])
-            reader = tf.TFRecordReader(name='tfrecord_reader')
-            _, next_raw = reader.read(filename_queue, name='read_records')
-
-        with tf.name_scope('shuffle_queue'):
-            queue = tf.RandomShuffleQueue(
-                capacity=800*capacity, min_after_dequeue=2*batch_size,
-                dtypes=tf.string, shapes=[()], name='randomize_records')
-            enqueue_op = queue.enqueue(next_raw)
-            example_dq = queue.dequeue()
-            qr = tf.train.QueueRunner(queue, [enqueue_op] * 8)
-            tf.train.add_queue_runner(qr)
-
-            _sequence_lengths, _sequences = tf.parse_single_sequence_example(
-                serialized=example_dq, context_features=LENGTHS, sequence_features=SEQUENCES)
-
-        with tf.name_scope('bucket_batch'):
-            input_length = tf.add(_sequence_lengths['encoder_sequence_length'],
-                                  _sequence_lengths['decoder_sequence_length'])
-
-            total_length_, sequences = bucket_by_sequence_length(
-                input_length=tf.to_int32(input_length),
-                tensors=_sequences,
-                batch_size=batch_size,
-                bucket_boundaries=[10],
-                capacity=50*capacity,
-                dynamic_pad=True,
-            )
-
-            self.encoder_inputs = sequences['encoder_sequence']
-            self.decoder_inputs = sequences['decoder_sequence']
+        self.pipeline = InputPipeline(dataset.paths, batch_size)
+        self.encoder_inputs = self.pipeline.get_encoder_inputs()
+        self.decoder_inputs = self.pipeline.get_decoder_inputs()
 
         self.embedder = Embedder(self.vocab_size, embed_size)
+
         # Encoder inputs in embedding space. Shape is [None, None, embed_size].
         with tf.variable_scope("encoder") as encoder_scope:
             self.encoder = Encoder(state_size, self.embed_size,
@@ -180,13 +143,6 @@ class DynamicBot(Model):
                 #check_shape(target_labels, [None, None], self.log)
                 self.loss = tf.losses.sparse_softmax_cross_entropy(
                     labels=target_labels, logits=self.outputs[:, :-1, :])
-                    #weights=tf.ones(tf.shape(self.decoder_inputs[:, :-1])))
-
-                #    for batch_idx, time_idx in np.stack(pad_indices, axis=1):
-                #        target_weights[batch_idx, time_idx-1] = 0.0
-                #    # Last element should never be accessed anyway, since the target for a given
-                #    # decoder input is defined as the next decoder input, but better to be safe.
-                #    target_weights[:, -1] = 0.0
 
                 # Define the training portion of the graph.
                 params = tf.trainable_variables()
@@ -201,9 +157,9 @@ class DynamicBot(Model):
                 )
                 accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
-                # Creating a summar.scalar tells TF that we want to track the value for visualization.
-                # It is the responsibility of the bot to save these via file_writer after each step.
-                # We can view plots of how they change over training in TensorBoard.
+            # Creating a summar.scalar tells TF that we want to track the value for visualization.
+            # It is the responsibility of the bot to save these via file_writer after each step.
+            # We can view plots of how they change over training in TensorBoard.
             tf.summary.scalar('accuracy', accuracy)
             tf.summary.scalar('loss', self.loss),
             tf.summary.scalar('learning_rate', self.learning_rate),
@@ -292,21 +248,20 @@ class DynamicBot(Model):
 
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=self.sess, coord=coord)
-        print('wait')
-        time.sleep(3)
-        print('wait')
-        time.sleep(3)
-        print('wait')
-        time.sleep(3)
-        print('go')
+        print('QUEUE RUNNERS RELEASED.')
+        time.sleep(1)
+        print('CAN THEY ENQUEUE IN TIME?')
+        time.sleep(2)
+        print('AND')
+        time.sleep(1)
+        print('HERE')
+        time.sleep(1)
+        print('WE')
+        time.sleep(1)
+        print('GO!!!!!')
         try:
             i_step = 0
             avg_loss = avg_step_time = 0.0
-            # Create data generators for feeding inputs to step().
-            #train_gen = dataset.train_generator(self.batch_size)
-            #valid_gen = dataset.valid_generator(self.batch_size)
-
-            print("_______________ NEW EPOCH: _______________" )
             while not coord.should_stop():
 
                 start_time = time.time()
