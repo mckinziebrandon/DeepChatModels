@@ -72,6 +72,8 @@ class Dataset(DatasetABC):
         self.paths['to_valid']      = valid_path[1]
         self.paths['from_vocab']    = vocab_path[0]
         self.paths['to_vocab']      = vocab_path[1]
+        self.paths['train_tfrecords'] = None
+        self.paths['valid_tfrecords'] = None
 
         self._word_to_idx, _ = io_utils.get_vocab_dicts(self.paths['from_vocab'])
         _, self._idx_to_word = io_utils.get_vocab_dicts(self.paths['to_vocab'])
@@ -146,7 +148,12 @@ class Dataset(DatasetABC):
         from_path = self.paths['from_'+prefix]
         to_path = self.paths['to_'+prefix]
         output_path = os.path.join(self._data_dir, prefix + '.tfrecords')
+        if os.path.isfile(output_path):
+            self.log.info('Using tfrecords file %s' % output_path)
+            self.paths[prefix + '_tfrecords'] = output_path
+            return
 
+        self.log.info('MAKING OUR OWN')
         def get_sequence_example(encoder_line, decoder_line):
             """
             Args:
@@ -155,14 +162,14 @@ class Dataset(DatasetABC):
             example  = tf.train.SequenceExample()
             context  = example.context
             features = example.feature_lists
-            for x in encoder_line.split():
-                # Dear TensorFlow: why? Just why. - Brandon.
-                context.feature['encoder_sequence_length'].int64_list.value.append(int(x))
-                features.feature_list['encoder_sequence'].feature.add().int64_list.value.append(int(x))
-            for x in decoder_line.split():
-                # Dear TensorFlow: why? Just why. - Brandon.
-                context.feature['decoder_sequence_length'].int64_list.value.append(int(x))
-                features.feature_list['decoder_sequence'].feature.add().int64_list.value.append(int(x))
+            encoder_list = [int(x) for x in encoder_line.split()]
+            decoder_list = [int(x) for x in decoder_line.split()]
+            context.feature['encoder_sequence_length'].int64_list.value.append(len(encoder_list))
+            context.feature['decoder_sequence_length'].int64_list.value.append(len(decoder_list))
+            for y in encoder_list:
+                features.feature_list['encoder_sequence'].feature.add().int64_list.value.append(y)
+            for y in decoder_list:
+                features.feature_list['decoder_sequence'].feature.add().int64_list.value.append(y)
             return example
 
         with tf.gfile.GFile(from_path, mode="r") as encoder_file:
@@ -170,11 +177,13 @@ class Dataset(DatasetABC):
                 with tf.python_io.TFRecordWriter(output_path) as writer:
                     encoder_line, decoder_line = encoder_file.readline(), decoder_file.readline()
                     while encoder_line and decoder_line:
-                        writer.write(get_sequence_example(encoder_line, decoder_line))
+                        sequence_example = get_sequence_example(encoder_line, decoder_line)
+                        writer.write(sequence_example.SerializeToString())
                         encoder_line, decoder_line = encoder_file.readline(), decoder_file.readline()
 
         self.log.info("Converted text files %s and %s into tfrecords file %s" \
                       % (from_path, to_path, output_path))
+        self.paths[prefix + '_tfrecords'] = output_path
 
     @property
     def word_to_idx(self):

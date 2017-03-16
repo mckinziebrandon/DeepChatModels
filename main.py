@@ -69,7 +69,6 @@ if __name__ == "__main__":
 
     dataset.convert_to_tf_records('train')
     dataset.convert_to_tf_records('valid')
-    exit()
 
     # Create chat model of choice. Pass in FLAGS values in case you want to change from defaults.
     print("Creating DynamicBot.")
@@ -93,6 +92,7 @@ if __name__ == "__main__":
 
     # Train an epoch on the data. CTRL-C at any time to safely stop training.
     # Model saved in FLAGS.ckpt_dir if specified, else "./out"
+
     if not FLAGS.decode:
         print("Training bot. CTRL-C to stop training.")
         bot.train(dataset, nb_epoch=FLAGS.nb_epoch)

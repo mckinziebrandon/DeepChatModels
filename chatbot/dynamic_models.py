@@ -6,6 +6,7 @@ from __future__ import print_function
 
 import sys
 import os
+import pdb
 import time
 import logging
 import numpy as np
@@ -14,8 +15,14 @@ from chatbot._models import Model
 from chatbot.model_components import *
 from utils import io_utils
 from utils.io_utils import GO_ID
+from tensorflow.contrib.training import bucket_by_sequence_length
 from heapq import *
 
+
+LENGTHS = {'encoder_sequence_length': tf.FixedLenFeature([], dtype=tf.int64),
+           'decoder_sequence_length': tf.FixedLenFeature([], dtype=tf.int64)}
+SEQUENCES = {'encoder_sequence': tf.FixedLenSequenceFeature([], dtype=tf.int64),
+             'decoder_sequence': tf.FixedLenSequenceFeature([], dtype=tf.int64)}
 
 def check_shape(tensor, expected_shape, log):
     if tensor.shape.as_list() != expected_shape:
@@ -72,11 +79,47 @@ class DynamicBot(Model):
         self.dataset = dataset
         self.dropout_prob = dropout_prob
         self.num_layers = num_layers
+        self.batch_size = batch_size
+
+        capacity = 3*batch_size
+        tfrecords_fname = dataset.paths['train_tfrecords']
+        print(tfrecords_fname)
+        filename_queue = tf.train.string_input_producer([tfrecords_fname])
+        reader = tf.TFRecordReader(name='tfrecord_reader')
+        _, next_raw = reader.read(filename_queue, name='read_records')
+
+        self.queue = tf.RandomShuffleQueue(capacity=800*capacity, min_after_dequeue=2*batch_size, dtypes=tf.string,
+                                  shapes=[()], name='randomize_records')
+        self.enqueue_op = self.queue.enqueue(next_raw)
+        example_dq = self.queue.dequeue()
+
+        _sequence_lengths, _sequences = tf.parse_single_sequence_example(
+            serialized=example_dq, context_features=LENGTHS, sequence_features=SEQUENCES)
+
+        print('_seqs', _sequences)
+        input_length = tf.add(_sequence_lengths['encoder_sequence_length'],
+                              _sequence_lengths['decoder_sequence_length'])
+
+        total_length, sequences = bucket_by_sequence_length(
+            input_length=tf.to_int32(input_length),
+            tensors=_sequences,
+            batch_size=self.batch_size,
+            bucket_boundaries=[10],
+            capacity=50*capacity,
+            num_threads=4,
+            dynamic_pad=True,
+            name='bucket_by_sequence_length'
+        )
+        self.encoder_inputs = sequences['encoder_sequence']
+        self.decoder_inputs = sequences['decoder_sequence']
+        print(self.encoder_inputs, self.decoder_inputs)
+        #self.target_weights = tf.placeholder(tf.float32, [batch_size, None], name="target_weights")
+
 
         # The following placeholder shapes correspond with [batch_size, seq_len].
-        self.encoder_inputs = tf.placeholder(tf.int32, [None, None], name="encoder_inputs")
-        self.decoder_inputs = tf.placeholder(tf.int32, [None, None], name="decoder_inputs")
-        self.target_weights = tf.placeholder(tf.float32, [None, None], name="target_weights")
+        #self.encoder_inputs = tf.placeholder(tf.int32, [None, None], name="encoder_inputs")
+        #self.decoder_inputs = tf.placeholder(tf.int32, [None, None], name="decoder_inputs")
+
 
         # Thanks to variable scoping, only need one object for multiple embeddings.
         self.embedder = Embedder(self.vocab_size, embed_size)
@@ -102,8 +145,8 @@ class DynamicBot(Model):
                                                           loop_embedder=self.embedder,
                                                           scope=decoder_scope)
 
-        tf.summary.histogram("encoder_embedding", self.embedder.get_embed_tensor(encoder_scope))
-        tf.summary.histogram("decoder_embedding", self.embedder.get_embed_tensor(decoder_scope))
+        #tf.summary.histogram("encoder_embedding", self.embedder.get_embed_tensor(encoder_scope))
+        #tf.summary.histogram("decoder_embedding", self.embedder.get_embed_tensor(decoder_scope))
         self.merged = tf.summary.merge_all()
         self.encoder_scope = encoder_scope
         self.decoder_scope = decoder_scope
@@ -135,14 +178,15 @@ class DynamicBot(Model):
         if not self.is_chatting:
             # Define ops/variables related to loss computation.
             with tf.name_scope("evaluation"):
-                check_shape(self.outputs, [None, None, self.vocab_size], self.log)
+
+                #check_shape(self.outputs, [None, None, self.vocab_size], self.log)
                 # Loss - target is to predict, as output, the next decoder input.
                 target_labels = self.decoder_inputs[:, 1:]
-                check_shape(target_labels, [None, None], self.log)
+                #check_shape(target_labels, [None, None], self.log)
                 self.loss = tf.losses.sparse_softmax_cross_entropy(
                     labels=target_labels, logits=self.outputs[:, :-1, :],
-                    weights=self.target_weights[:, :-1])
-
+                    weights=tf.ones(tf.shape(self.decoder_inputs[:, :-1])))
+                    #weights=self.target_weights[:, :-1])
 
                 # Define the training portion of the graph.
                 params = tf.trainable_variables()
@@ -171,7 +215,7 @@ class DynamicBot(Model):
         # initialize newly created model.
         super(DynamicBot, self).compile(reset=reset)
 
-    def step(self, encoder_batch, decoder_batch=None, forward_only=False):
+    def step(self):  #, encoder_batch, decoder_batch=None, forward_only=False):
         """Run forward and backward pass on single data batch.
 
         Args:
@@ -183,41 +227,46 @@ class DynamicBot(Model):
             summaries, step_loss, step_outputs.
             If forward_only == False, then outputs is None
         """
-        if decoder_batch is None and not forward_only:
-            self.log.error("Can't perform gradient updates without a decoder_batch.")
+        #if decoder_batch is None and not forward_only:
+        #    self.log.error("Can't perform gradient updates without a decoder_batch.")
 
-        if self.is_chatting:
-            assert decoder_batch is None, "Found decoder_batch inputs during chat session."
-            decoder_batch = np.array([[GO_ID]])
-            target_weights = np.array([[1.0]])
-        else:
-            # Prepend GO token to each sample in decoder_batch.
-            decoder_batch   = np.insert(decoder_batch, 0, [GO_ID], axis=1)
-            target_weights  = np.ones(shape=decoder_batch.shape)
-            pad_indices = np.where(decoder_batch == io_utils.PAD_ID)
-            # Define weights to be 0 if next decoder input is PAD.
-            for batch_idx, time_idx in np.stack(pad_indices, axis=1):
-                target_weights[batch_idx, time_idx-1] = 0.0
-            # Last element should never be accessed anyway, since the target for a given
-            # decoder input is defined as the next decoder input, but better to be safe.
-            target_weights[:, -1] = 0.0
+        #if self.is_chatting:
+        #    assert decoder_batch is None, "Found decoder_batch inputs during chat session."
+        #    decoder_batch = np.array([[GO_ID]])
+        #    target_weights = np.array([[1.0]])
+        #else:
+        #    # Prepend GO token to each sample in decoder_batch.
+        #    decoder_batch   = np.insert(decoder_batch, 0, [GO_ID], axis=1)
+        #    target_weights  = np.ones(shape=decoder_batch.shape)
+        #    pad_indices = np.where(decoder_batch == io_utils.PAD_ID)
+        #    # Define weights to be 0 if next decoder input is PAD.
+        #    for batch_idx, time_idx in np.stack(pad_indices, axis=1):
+        #        target_weights[batch_idx, time_idx-1] = 0.0
+        #    # Last element should never be accessed anyway, since the target for a given
+        #    # decoder input is defined as the next decoder input, but better to be safe.
+        #    target_weights[:, -1] = 0.0
 
         input_feed = {}
-        input_feed[self.encoder_inputs.name] = encoder_batch
-        input_feed[self.decoder_inputs.name] = decoder_batch
-        input_feed[self.target_weights.name] = target_weights
+        #input_feed[self.encoder_inputs.name] = encoder_batch
+        #input_feed[self.decoder_inputs.name] = decoder_batch
 
-        if not forward_only:
-            fetches = (self.merged, self.loss, self.apply_gradients)
-            summaries, step_loss, _ = self.sess.run(fetches, input_feed)
-            return summaries, step_loss, None
-        elif self.is_chatting:
-            step_outputs = self.sess.run(self.outputs, input_feed)
-            return None, None, step_outputs
-        else:
-            fetches = [self.merged, self.loss, self.outputs]
-            summaries, step_loss, step_outputs = self.sess.run(fetches, input_feed)
-            return summaries, step_loss, step_outputs
+        #target_weights = np.ones(tf.shape(self.encoder_inputs))
+        #input_feed[self.target_weights.name] = target_weights
+        fetches = (self.merged, self.loss, self.apply_gradients)
+        summaries,step_loss, _ = self.sess.run(fetches)
+        return summaries, step_loss, None
+
+        #if not forward_only:
+        #    fetches = (self.merged, self.loss, self.apply_gradients)
+        #    summaries, step_loss, _ = self.sess.run(fetches, input_feed)
+        #    return summaries, step_loss, None
+        #elif self.is_chatting:
+        #    step_outputs = self.sess.run(self.outputs, input_feed)
+        #    return None, None, step_outputs
+        #else:
+        #    fetches = [self.merged, self.loss, self.outputs]
+        #    summaries, step_loss, step_outputs = self.sess.run(fetches, input_feed)
+        #    return summaries, step_loss, step_outputs
 
     def train(self, dataset, nb_epoch=1):
         """Train bot on inputs for nb_epoch epochs, or until user types CTRL-C.
@@ -227,6 +276,12 @@ class DynamicBot(Model):
             nb_epoch: (int) Number of times to train over all entries in inputs.
             save_dir: (str) Path to save ckpt files. If None, defaults to self.ckpt_dir.
         """
+
+        numberOfThreads = 4
+        qr = tf.train.QueueRunner(self.queue, [self.enqueue_op] * numberOfThreads)
+        # Don't forget to add your "QueueRunner" to the QUEUE_RUNNERS collection
+        tf.train.add_queue_runner(qr)
+
 
         def perplexity(loss):
             """Common alternative to loss in NLP models."""
@@ -239,6 +294,8 @@ class DynamicBot(Model):
                                         self.decoder_scope,
                                         dataset.paths['to_vocab'])
 
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(sess=self.sess, coord=coord)
         try:
             for i_epoch in range(nb_epoch):
 
@@ -246,12 +303,16 @@ class DynamicBot(Model):
                 avg_loss = avg_step_time = 0.0
                 # Create data generators for feeding inputs to step().
                 train_gen = dataset.train_generator(self.batch_size)
-                valid_gen = dataset.valid_generator(self.batch_size)
-
+                #valid_gen = dataset.valid_generator(self.batch_size)
+                #fetched = sess.run({'out_len': sequence_length, 'out': outputs})
+                #print(fetched['out_len'])
+                #print(fetched['out'])
                 print("_______________ NEW EPOCH: %d _______________" % i_epoch)
-                for encoder_batch, decoder_batch in train_gen:
+                while True:
+                #for encoder_batch, decoder_batch in train_gen:
                     start_time = time.time()
-                    summaries, step_loss, _ = self.step(encoder_batch, decoder_batch)
+                    #encoder_batch, decoder_batch = self.sess.run([self.encoder_inputs, self.decoder_inputs])
+                    summaries, step_loss, _ = self.step()
                     # Calculate running averages.
                     avg_step_time  += (time.time() - start_time) / self.steps_per_ckpt
                     avg_loss       += step_loss / self.steps_per_ckpt
@@ -266,15 +327,16 @@ class DynamicBot(Model):
                         self.save(summaries=summaries)
 
                         # Run validation step. If we are out of validation data, reset generator.
-                        with self.sess.graph.device('/cpu:0'):
-                            try:
-                                summaries, eval_loss, _ = self.step(*next(valid_gen))
-                            except StopIteration:
-                                valid_gen = dataset.valid_generator(self.batch_size)
-                                summaries, eval_loss, _ = self.step(*next(valid_gen))
+                        if False:
+                            with self.sess.graph.device('/cpu:0'):
+                                try:
+                                    summaries, eval_loss, _ = self.step(*next(valid_gen))
+                                except StopIteration:
+                                    valid_gen = dataset.valid_generator(self.batch_size)
+                                    summaries, eval_loss, _ = self.step(*next(valid_gen))
 
-                            print("\tValidation loss = %.3f" % eval_loss, end="; ")
-                            print("val perplexity = %.1f" % perplexity(eval_loss))
+                                print("\tValidation loss = %.3f" % eval_loss, end="; ")
+                                print("val perplexity = %.1f" % perplexity(eval_loss))
 
                         # Reset the running averages and exit checkpoint.
                         avg_loss = avg_step_time = 0.0
@@ -282,6 +344,8 @@ class DynamicBot(Model):
                     i_step += 1
 
         except (KeyboardInterrupt, SystemExit):
+            coord.request_stop()
+            coord.join(threads)
             print("Training halted. Cleaning up . . . ")
             self.close()
 
