@@ -11,7 +11,7 @@ from progressbar import ProgressBar
 _WORD_SPLIT = re.compile("([.,!?\"':;)(])")
 _DIGIT_RE   = re.compile(r"\d")
 
-DATA_ROOT = '/home/brandon/terabyte/Datasets/reddit_data'
+DATA_ROOT = '/home/brandon/terabyte/Datasets/reddit'
 # Determine if this directory exists, if not use Ivan's directory.
 if (os.path.isdir(DATA_ROOT)):
     pass
@@ -20,7 +20,7 @@ else:
 
 FROM_FILE = os.path.join(DATA_ROOT, 'processed_data', 'from_file.txt')
 TO_FILE = os.path.join(DATA_ROOT, 'processed_data', 'to_file.txt')
-DATA_YEARS = ['2007', '2008']
+DATA_YEARS = ['2007']#, '2008']
 # Use os.path.join; it will figure out the '/' in between.
 RAW_DATA_FILES = [os.listdir(os.path.join(DATA_ROOT, 'raw_data', year)) for year in DATA_YEARS]
 
