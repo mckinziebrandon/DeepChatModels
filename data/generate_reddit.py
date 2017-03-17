@@ -6,7 +6,7 @@ import enchant
 import re
 from itertools import chain
 from collections import Counter
-
+from progressbar import ProgressBar
 
 _WORD_SPLIT = re.compile("([.,!?\"':;)(])")
 _DIGIT_RE   = re.compile(r"\d")
@@ -184,6 +184,7 @@ def load_data():
     df = pd.read_json(RAW_DATA_ABS_FILES[0], lines=True)
     for i in range(len(RAW_DATA_ABS_FILES) - 1):
         df = df.append(pd.read_json(RAW_DATA_ABS_FILES[i + 1], lines=True), ignore_index=True)
+        print("Finished reading in %s" % RAW_DATA_ABS_FILES[i+1])
     df = df.reset_index(drop=True)
     init_num_rows = len(df)
     print("Number of lines in raw data file", init_num_rows)
@@ -291,7 +292,8 @@ def sentence_score(sentence):
 
 def add_sentence_scores(df):
     scores = []
-    for sentence in df.body:
+    pbar = ProgressBar()
+    for sentence in pbar(df.body):
         scores.append(sentence_score(basic_tokenizer(sentence)))
     df['score'] = scores
 
@@ -337,17 +339,30 @@ def generate_files(from_file_path, to_file_path):
 
 
 df = load_data()
+print("All data files have been read.")
 df = initial_clean(df)
+print("Initial clean done.")
 df,total_mods = clean_with_tracking(df)
+print("Clean with tracking done.")
 df = remove_large_comments(60, df)
+print("Removal of large comments done.")
 df = contraction_replacer(df)
+print("Replacement of contractions done.")
 
+print("Starting tokenization of sentences")
 sentences = [basic_tokenizer(sentence) for sentence in df['body']]
-words= [word for sentence in sentences for word in sentence]
+print("Tokenization of sentences done with length: %d", len(sentences))
+words = [word for sentence in sentences for word in sentence]
+print("Word list created with length: %d" % len(words))
 word_freq = Counter(chain(words))
-sorted_word_freq = sorted(word_freq.items(), key=lambda x: -x[1])
+print("Word frequency created")
 add_sentence_scores(df)
+print("Done Generating sentence scores")
 df = df.loc[df.score < 0.005]
+print("value dictionary generating")
 values_dict = pd.Series(df.body.values, index=df.name).to_dict()
+print("value dictionary generated")
 children = children_dict(df)
+print("Children dictionary generating")
+print("Starting file generation")
 generate_files(FROM_FILE, TO_FILE)
