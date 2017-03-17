@@ -79,7 +79,8 @@ class Dataset(DatasetABC):
         _, self._idx_to_word = io_utils.get_vocab_dicts(self.paths['to_vocab'])
 
     def train_generator(self, batch_size):
-        """Returns a generator function. Each call to next() yields a batch
+        """[Note: not needed by DynamicBot since InputPipeline]
+            Returns a generator function. Each call to next() yields a batch
             of size batch_size data as numpy array of shape [batch_size, max_seq_len],
             where max_seq_len is the longest sentence in the returned batch.
         """

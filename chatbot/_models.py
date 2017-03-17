@@ -81,7 +81,7 @@ class Model(object):
             self.saver = tf.train.Saver(tf.global_variables())
             self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
         else:
-            print("Created model with fresh parameters.")
+            print("Created model with fresh parameters:\n", self.ckpt_dir)
             # Recursively delete all files in output but keep directories.
             os.popen("find {0}".format(self.ckpt_dir)+" -type f -exec rm {} \;")
             self.file_writer    = tf.summary.FileWriter(self.ckpt_dir)

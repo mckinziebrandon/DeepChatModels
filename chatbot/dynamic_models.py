@@ -59,8 +59,7 @@ class DynamicBot(Model):
         self.embed_size  = embed_size
         self.vocab_size  = dataset.vocab_size
         # FIXME: Not sure how I feel about dataset as instance attribute.
-        # It's quite helpful in the decoding/chat sessions, but it feels even more odd
-        # passing it as an argument there.
+        # It's helpful in the decoding/chat session, but shouldn't be an arg there either.
         self.dataset = dataset
         self.dropout_prob = dropout_prob
         self.num_layers = num_layers
@@ -70,8 +69,6 @@ class DynamicBot(Model):
             self.pipeline = InputPipeline(dataset.paths, batch_size, is_chatting=is_chatting)
             self.encoder_inputs = self.pipeline.encoder_inputs
             self.decoder_inputs = self.pipeline.decoder_inputs
-            print(self.encoder_inputs)
-            print(self.decoder_inputs)
 
         self.embedder = Embedder(self.vocab_size, embed_size)
         with tf.variable_scope("encoder") as encoder_scope:
@@ -128,13 +125,14 @@ class DynamicBot(Model):
         """
 
         if not self.is_chatting:
-            # Define ops/variables related to loss computation.
             with tf.name_scope("evaluation"):
-
                 # Loss - target is to predict, as output, the next decoder input.
+                # target_labels has shape [batch_size, dec_inp_seq_len - 1]
                 target_labels = self.decoder_inputs[:, 1:]
+                target_weights = tf.cast(self.decoder_inputs > 0, self.decoder_inputs.dtype)
                 self.loss = tf.losses.sparse_softmax_cross_entropy(
-                    labels=target_labels, logits=self.outputs[:, :-1, :])
+                    labels=target_labels, logits=self.outputs[:, :-1, :],
+                    weights=target_weights[:, 1:])
 
                 # Define the training portion of the graph.
                 if optimizer is None:
@@ -144,14 +142,12 @@ class DynamicBot(Model):
                 clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, max_gradient)
                 grads = list(zip(clipped_gradients, params))
                 self.apply_gradients = optimizer.apply_gradients(grads, global_step=self.global_step)
-
                 correct_pred = tf.equal(
                     tf.argmax(self.outputs[:, :-1, :], axis=2), tf.argmax(target_labels)
                 )
                 accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
             # Creating a summar.scalar tells TF that we want to track the value for visualization.
-            # It is the responsibility of the bot to save these via file_writer after each step.
             # We can view plots of how they change over training in TensorBoard.
             tf.summary.scalar('accuracy', accuracy)
             tf.summary.scalar('loss', self.loss),
@@ -166,28 +162,12 @@ class DynamicBot(Model):
         """Run forward and backward pass on single data batch.
 
         Args:
-            encoder_batch: integer numpy array with shape [batch_size, seq_len].
-            decoder_batch: None, or numpy array with shape [batch_size, seq_len].
             forward_only: if True, don't perform backward pass (gradient updates).
 
         Returns:
             summaries, step_loss, step_outputs.
             If forward_only == False, then outputs is None
         """
-        #if decoder_batch is None and not forward_only:
-        #    self.log.error("Can't perform gradient updates without a decoder_batch.")
-
-        #else:
-        #    # Prepend GO token to each sample in decoder_batch.
-        #    decoder_batch   = np.insert(decoder_batch, 0, [GO_ID], axis=1)
-        #    target_weights  = np.ones(shape=decoder_batch.shape)
-        #    pad_indices = np.where(decoder_batch == io_utils.PAD_ID)
-        #    # Define weights to be 0 if next decoder input is PAD.
-        #    for batch_idx, time_idx in np.stack(pad_indices, axis=1):
-        #        target_weights[batch_idx, time_idx-1] = 0.0
-        #    # Last element should never be accessed anyway, since the target for a given
-        #    # decoder input is defined as the next decoder input, but better to be safe.
-        #    target_weights[:, -1] = 0.0
 
         if not forward_only:
             fetches = [self.merged, self.loss, self.apply_gradients]
@@ -208,7 +188,6 @@ class DynamicBot(Model):
         Args:
             dataset: any instance of the Dataset class.
             nb_epoch: (int) Number of times to train over all entries in inputs.
-            save_dir: (str) Path to save ckpt files. If None, defaults to self.ckpt_dir.
         """
 
         def perplexity(loss):
@@ -224,17 +203,16 @@ class DynamicBot(Model):
 
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=self.sess, coord=coord)
-        print('QUEUE RUNNERS RELEASED.')
-        time.sleep(1)
-        print('CAN THEY ENQUEUE IN TIME?')
-        time.sleep(2)
-        print('AND')
-        time.sleep(1)
-        print('HERE')
-        time.sleep(1)
-        print('WE')
-        time.sleep(1)
+        # This is needed because apparently TensorFlow's coordinator isn't all that
+        # great at, well, coordinating. If this makes you sad, it also makes me sad.
+        # Feel free to email me for emotional support.
+        print('QUEUE RUNNERS RELEASED.'); time.sleep(1)
+        print('CAN THEY ENQUEUE IN TIME?'); time.sleep(2)
+        print('AND'); time.sleep(1)
+        print('HERE'); time.sleep(1)
+        print('WE'); time.sleep(1)
         print('GO!!!!!')
+
         try:
             i_step = 0
             avg_loss = avg_step_time = 0.0
@@ -248,20 +226,19 @@ class DynamicBot(Model):
 
                 # Print updates in desired intervals (steps_per_ckpt).
                 if i_step % self.steps_per_ckpt == 0:
-
+                    # Display averged-training updates and save.
                     print("Step %d:" % i_step, end=" ")
                     print("step time = %.3f" % avg_step_time)
                     print("\ttraining loss = %.3f" % avg_loss, end="; ")
                     print("training perplexity = %.1f" % perplexity(avg_loss))
                     self.save(summaries=summaries)
 
-                    if i_step == 0:
-                        self.pipeline.toggle_active()
-                        summaries, eval_loss, _ = self.step(forward_only=True)
-                        self.pipeline.toggle_active()
-                        print("\tValidation loss = %.3f" % eval_loss, end="; ")
-                        print("val perplexity = %.1f" % perplexity(eval_loss))
-
+                    # Toggle data switch and led the validation flow!
+                    self.pipeline.toggle_active()
+                    summaries, eval_loss, _ = self.step(forward_only=True)
+                    self.pipeline.toggle_active()
+                    print("\tValidation loss = %.3f" % eval_loss, end="; ")
+                    print("val perplexity = %.1f" % perplexity(eval_loss))
                     # Reset the running averages and exit checkpoint.
                     avg_loss = avg_step_time = 0.0
 
@@ -270,7 +247,7 @@ class DynamicBot(Model):
             print("Training halted. Cleaning up . . . ")
             coord.request_stop()
         except tf.errors.OutOfRangeError:
-            print("Sigh. OutOfRangeError. Queues closed for business.")
+            print("OutOfRangeError. You have run out of data. Get some more.")
             coord.request_stop()
         finally:
             coord.join(threads)
@@ -301,12 +278,54 @@ class DynamicBot(Model):
         encoder_inputs = io_utils.sentence_to_token_ids(
             tf.compat.as_bytes(sentence),self.dataset.word_to_idx)
 
-        assert self.is_chatting
         encoder_inputs = np.array([encoder_inputs[::-1]])
         self.pipeline.feed_user_input(encoder_inputs)
         # Get output sentence from the chatbot.
         a, b, response = self.step(forward_only=True)
-        assert a is None
-        assert b is None
-        # response has shape [1, response_length] and it's last element is EOS_ID. :)
+        assert a is None and b is None
+        # response has shape [1, response_length] and it's last elemeot is EOS_ID. :)
         return self.dataset.as_words(response[0][:-1])
+
+    def _sampled_softmax(self):
+        """UNDER CONSTRUCTION: (buggy as-is, do not use)."""
+
+        self.log.warning("Called unstable method. Use with caution.")
+
+        def sampled_loss(labels, inputs):
+            """Ported from legacy_models.ChatBot."""
+            w, b = self.decoder.get_projection_tensors()
+            labels = tf.reshape(labels, [-1, 1])
+            return tf.nn.sampled_softmax_loss(
+                    weights=tf.transpose(w),
+                    biases=b,
+                    labels=labels,
+                    inputs=inputs,
+                    num_sampled=16,
+                    num_classes=self.vocab_size)
+
+        target_labels = self.decoder_inputs[:, 1:]
+        m  = tf.shape(self.outputs)[1]
+        labels_len = tf.shape(target_labels)[1]
+
+        labels_array = tf.TensorArray(target_labels.dtype, size=labels_len)
+        outputs_array = tf.TensorArray(self.outputs.dtype, size=m)
+        losses_array = tf.TensorArray(tf.float32, size=labels_len, dynamic_size=True, name='lossarray')
+
+        labels_array = labels_array.unstack(tf.transpose(target_labels), name='labarray')
+        reshaped_state = tf.reshape(self.outputs, [m, -1, self.state_size])
+        outputs_array = outputs_array.unstack(reshaped_state, name='outarray')
+
+        def cond(i, labels_array, ouputs_array, losses_array):
+            return tf.not_equal(losses_array.size(), labels_len)
+
+        def body(i, labels_array, outputs_array, losses_array):
+            losses_array.write(i, sampled_loss(labels_array.read(i), outputs_array.read(i)))
+            return (i + 1, labels_array, outputs_array, losses_array)
+
+        i = tf.constant(0)
+        i, labels_array, outputs_array, losses_array = tf.while_loop(
+            cond, body, (i, labels_array, outputs_array, losses_array), parallel_iterations=1
+        )
+
+        return tf.reshape(losses_array.stack(), [self.batch_size, -1])
+

@@ -54,7 +54,6 @@ if __name__ == "__main__":
             FLAGS.reset_model = False
 
     assert FLAGS.data_dir is not None, "You must specify --data_dir [path] as an argument."
-
     # If not given specific ckpt_dir, it will build a directory structure
     # rooted at out that makes for great TensorBoard visualizations.
     if FLAGS.ckpt_dir == 'out':

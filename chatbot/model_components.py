@@ -13,13 +13,22 @@ SEQUENCES = {'encoder_sequence': tf.FixedLenSequenceFeature([], dtype=tf.int64),
 
 
 class InputPipeline:
-    """Manages the new input pipeline and all nodes therein."""
-    # TODO: This class needs a logger.
+    """ [NEW] TensorFlow-only input pipeline with parallel enqueuing,
+        dynamic bucketed-batching, and more.
+
+        Overview of pipeline construction:
+            1. Create ops for reading protobuf tfrecords line-by-line.
+            2. Enqueue raw outputs, attach to threads, and parse sequences.
+            3. Organize sequences into buckets of similar lengths, pad, and batch.
+    """
 
     def __init__(self, file_paths, batch_size, capacity=None, is_chatting=False):
         """
         Args:
-            file_paths: returned by instance of Dataset via Dataset.paths.
+            file_paths: (dict) returned by instance of Dataset via Dataset.paths.
+            batch_size: number of examples returned by dequeue op.
+            capacity: maximum number of examples allowed in the input queue at a time.
+            is_chatting: (bool) determines whether we're feeding user input or file inputs.
         """
         if capacity is None:
             self.capacity = 10 * batch_size
@@ -32,27 +41,27 @@ class InputPipeline:
         self._user_input = tf.placeholder(tf.int32, [1, None], name='user_input_ph')
         self._feed_dict = None
 
-        # =======================================================================
-        # Begin: Pipeline Construction. Steps:
-        # 1. Create ops for reading protobuf tfrecords line-by-line.
-        # 2. Enqueue raw outputs, attach to threads, and parse sequences.
-        # 3. Organize sequences into buckets of similar lengths, pad, and batch.
-        # ======================================================================
-
         if not is_chatting:
-            self.train_batches = self.build_pipeline('train')
-            self.valid_batches = self.build_pipeline('valid')
-
-    def toggle_active(self):
-        def to_valid(): return tf.constant(self.control['valid'])
-        def to_train(): return tf.constant(self.control['train'])
-        self.active_data =  tf.cond(tf.equal(self.active_data, self.control['train']),
-                                    to_valid, to_train)
+            # Create tensors that will store input batches at runtime.
+            self._train_lengths, self.train_batches = self.build_pipeline('train')
+            self._valid_lengths, self.valid_batches = self.build_pipeline('valid')
 
     def build_pipeline(self, name):
-        """
+        """Creates a new input subgraph composed of the following components:
+            - Reader queue that feeds protobuf data files.
+            - RandomShuffleQueue assigned parallel-thread queuerunners.
+            - Dynamic padded-bucketed-batching queue for organizing batches in a time and
+              space-efficient manner.
+
         Args:
-            name: 'train', 'valid', etc.
+            name: filename prefix for desired set of data. See Dataset class for naming conventions.
+
+        Returns:
+            2-tuple (lengths, sequences):
+                lengths: (dict) parsed context feature from protobuf file.
+                Supports keys in LENGTHS.
+                sequences: (dict) parsed feature_list from protobuf file.
+                Supports keys in SEQUENCES.
         """
         with tf.variable_scope(name + '_pipeline'):
             proto_text = self._read_line(self.paths[name + '_tfrecords'])
@@ -64,35 +73,45 @@ class InputPipeline:
 
     @property
     def encoder_inputs(self):
-        # Note: This would be a good place to manage warnings on whether or not
-        # inputs are ready for dequeueing.
-
+        """Determines, via tensorflow control structures, which part of the pipeline to run
+           and retrieve inputs to a Model encoder component. """
         if not self.is_chatting:
             def train(): return self.train_batches['encoder_sequence']
             def valid(): return self.valid_batches['encoder_sequence']
             return tf.cond(tf.equal(self.active_data, self.control['train']),
                            train, valid)
         else:
-            assert self._user_input is not None
+            assert self._feed_dict is not None, \
+                "Need to request user input from stdin before running chat session."
             return self._user_input
 
     @property
     def decoder_inputs(self):
+        """Determines, via tensorflow control structures, which part of the pipeline to run
+           and retrieve inputs to a Model decoder component. """
         if not self.is_chatting:
             train = lambda : self.train_batches['decoder_sequence']
             valid = lambda : self.valid_batches['decoder_sequence']
             return tf.cond(tf.equal(self.active_data, self.control['train']),
                            train, valid)
         else:
+            # In a chat session, we just give the bot the go-ahead to respond!
             return tf.convert_to_tensor([[GO_ID]])
-
-    def feed_user_input(self, user_input):
-        self._feed_dict = {self._user_input.name: user_input}
 
     @property
     def feed_dict(self):
-        assert self._feed_dict is not None
         return self._feed_dict
+
+    def feed_user_input(self, user_input):
+        """Called by Model instances upon receiving input from stdin."""
+        self._feed_dict = {self._user_input.name: user_input}
+
+    def toggle_active(self):
+        """Simple callable that toggles the input data pointer between training and validation."""
+        def to_valid(): return tf.constant(self.control['valid'])
+        def to_train(): return tf.constant(self.control['train'])
+        self.active_data = tf.cond(tf.equal(self.active_data, self.control['train']),
+                                    to_valid, to_train)
 
     def _read_line(self, file):
         """Create ops for extracting lines from files.
@@ -127,7 +146,7 @@ class InputPipeline:
 
     def _padded_bucket_batches(self, input_length, data):
         with tf.variable_scope('bucket_batch'):
-            _, sequences = bucket_by_sequence_length(
+            lengths, sequences = bucket_by_sequence_length(
                 input_length=tf.to_int32(input_length),
                 tensors=data,
                 batch_size=self.batch_size,
@@ -135,7 +154,8 @@ class InputPipeline:
                 capacity=self.capacity,
                 dynamic_pad=True,
             )
-        return sequences
+        return lengths, sequences
+
 
 class Embedder:
     """Acts on tensors with integer elements, embedding them in a higher-dimensional
@@ -155,15 +175,15 @@ class Embedder:
         Returns:
           Output tensor of shape [batch_size, max_time, embed_size]
         """
-        #assert len(inputs.shape) == 2, "Expected inputs rank 2 but found rank %r" % len(inputs.shape)
+        assert len(inputs.shape) == 2, "Expected inputs rank 2 but found rank %r" % len(inputs.shape)
         with tf.variable_scope(scope or "embedding_inputs"):
             params = tf.get_variable("embed_tensor", [self.vocab_size, self.embed_size],
                                      initializer=tf.contrib.layers.xavier_initializer())
             embedded_inputs = tf.nn.embedding_lookup(params, inputs, name=name)
             if not isinstance(embedded_inputs, tf.Tensor):
                 raise TypeError("Embedded inputs should be of type Tensor.")
-            #if len(embedded_inputs.shape) != 3:
-            #    raise ValueError("Embedded sentence has incorrect shape.")
+            if len(embedded_inputs.shape) != 3:
+                raise ValueError("Embedded sentence has incorrect shape.")
         return embedded_inputs
 
     def get_embed_tensor(self, scope):
@@ -191,6 +211,7 @@ class Cell(tf.contrib.rnn.RNNCell):
 
     def __init__(self, state_size, num_layers, dropout_prob=1.0):
         self._state_size = state_size
+        # TODO: Address decoding issue when using MultiRNNCell.
         #f num_layers == 1:
         self._cell = tf.contrib.rnn.GRUCell(self._state_size)
         #else:
@@ -265,7 +286,10 @@ class Encoder(RNN):
 
 
 class Decoder(RNN):
-    """TODO
+    """Dynamic decoding class that supports both training and inference without
+       requiring superfluous helper objects as in tensorflow's development branch.
+       Based on simple boolean parameters, handles the decoder sub-graph construction
+       dynamically in its entirety.
     """
 
     def __init__(self, state_size, output_size, embed_size,
@@ -316,6 +340,7 @@ class Decoder(RNN):
                                                dtype=tf.float32,
                                                scope=dec_call_scope)
             # Outputs has shape [batch_size, max_time, output_size].
+            # NOTE: uncomment below if can't figure out sampled softmax.
             outputs = self.apply_projection(outputs)
 
             if not is_chatting:
