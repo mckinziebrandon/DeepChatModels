@@ -3,7 +3,7 @@
 import time
 import tensorflow as tf
 from chatbot import DynamicBot
-from data import Cornell, Ubuntu, WMT, Reddit
+from data import Cornell, Ubuntu, WMT, Reddit, TestData
 from utils import io_utils
 
 # ==================================================================================================
@@ -27,8 +27,8 @@ flags.DEFINE_boolean("decode", False, "If true, initiates chat session.")
 flags.DEFINE_integer("steps_per_ckpt", 200, "How many training steps to do per checkpoint.")
 flags.DEFINE_integer("batch_size", 64, "Batch size to use during training.")
 flags.DEFINE_integer("vocab_size", 40000, "Number of unique words/tokens to use.")
-flags.DEFINE_integer("state_size", 256, "Number of units in the RNN cell.")
-flags.DEFINE_integer("embed_size", 25, "Size of word embedding dimension.")
+flags.DEFINE_integer("state_size", 512, "Number of units in the RNN cell.")
+flags.DEFINE_integer("embed_size", 32, "Size of word embedding dimension.")
 flags.DEFINE_integer("nb_epoch", 4, "Number of epochs over full train set to run.")
 flags.DEFINE_integer("num_layers", 3, "Num layers in underlying MultiRNNCell.")
 flags.DEFINE_integer("max_seq_len", 80, "Num layers in underlying MultiRNNCell.")
@@ -36,14 +36,15 @@ flags.DEFINE_integer("max_seq_len", 80, "Num layers in underlying MultiRNNCell."
 flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
 flags.DEFINE_float("lr_decay", 0.98, "Decay factor applied to learning rate.")
 flags.DEFINE_float("max_gradient", 5.0, "Clip gradients to this value.")
-flags.DEFINE_float("temperature", 0.01, "Sampling temperature.")
+flags.DEFINE_float("temperature", 0.02, "Sampling temperature.")
 flags.DEFINE_float("dropout_prob", 0.2, "Dropout rate before each layer.")
 FLAGS = flags.FLAGS
 
 DATASET = {'ubuntu': Ubuntu,
            'cornell': Cornell,
            'wmt': WMT,
-           'reddit': Reddit}
+           'reddit': Reddit,
+           'test_data': TestData}
 
 if __name__ == "__main__":
 

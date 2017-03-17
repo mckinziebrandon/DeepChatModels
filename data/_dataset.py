@@ -159,6 +159,10 @@ class Dataset(DatasetABC):
             Args:
                 prefix: either 'encoder' or 'decoder', typically.
             """
+            space_needed = max(len(encoder_line.split()), len(decoder_line.split()))
+            if space_needed > self.max_seq_len:
+                return None
+
             example  = tf.train.SequenceExample()
             encoder_list = [int(x) for x in encoder_line.split()]
             decoder_list = [io_utils.GO_ID] + [int(x) for x in decoder_line.split()] + [EOS_ID]
@@ -180,7 +184,8 @@ class Dataset(DatasetABC):
                     encoder_line, decoder_line = encoder_file.readline(), decoder_file.readline()
                     while encoder_line and decoder_line:
                         sequence_example = get_sequence_example(encoder_line, decoder_line)
-                        writer.write(sequence_example.SerializeToString())
+                        if sequence_example is not None:
+                            writer.write(sequence_example.SerializeToString())
                         encoder_line, decoder_line = encoder_file.readline(), decoder_file.readline()
 
         self.log.info("Converted text files %s and %s into tfrecords file %s" \

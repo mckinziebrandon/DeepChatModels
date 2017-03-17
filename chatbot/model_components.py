@@ -81,8 +81,8 @@ class InputPipeline:
             return tf.cond(tf.equal(self.active_data, self.control['train']),
                            train, valid)
         else:
-            assert self._feed_dict is not None, \
-                "Need to request user input from stdin before running chat session."
+            #assert self._feed_dict is not None, \
+            #    "Need to request user input from stdin before running chat session."
             return self._user_input
 
     @property
@@ -150,7 +150,7 @@ class InputPipeline:
                 input_length=tf.to_int32(input_length),
                 tensors=data,
                 batch_size=self.batch_size,
-                bucket_boundaries=[16, 64],
+                bucket_boundaries=[16, 32, 64],
                 capacity=self.capacity,
                 dynamic_pad=True,
             )
@@ -212,11 +212,12 @@ class Cell(tf.contrib.rnn.RNNCell):
     def __init__(self, state_size, num_layers, dropout_prob=1.0):
         self._state_size = state_size
         # TODO: Address decoding issue when using MultiRNNCell.
-        #f num_layers == 1:
-        self._cell = tf.contrib.rnn.GRUCell(self._state_size)
-        #else:
-        #    self._cell = tf.contrib.rnn.MultiRNNCell(
-        #        [tf.contrib.rnn.GRUCell(self._state_size) for _ in range(num_layers)])
+        if num_layers == 1:
+            self._cell = tf.contrib.rnn.LSTMCell(self._state_size)
+        else:
+            self._cell = tf.contrib.rnn.MultiRNNCell(
+                [tf.contrib.rnn.LSTMCell(self._state_size, state_is_tuple=False) for _ in range(num_layers)],
+                state_is_tuple=False)
         self._dropout_prob = dropout_prob
 
     @property
@@ -422,7 +423,7 @@ class Decoder(RNN):
         """
         # Protect against extra size-1 dimensions.
         projected_output = tf.squeeze(projected_output)
-        if self.temperature < 0.1:
+        if self.temperature < 0.02:
             return tf.argmax(projected_output, axis=0)
         projected_output = tf.div(projected_output, self.temperature)
         projected_output = tf.div(tf.exp(projected_output),
