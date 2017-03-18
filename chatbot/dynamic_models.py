@@ -30,7 +30,7 @@ class DynamicBot(Model):
                  lr_decay=0.99,
                  num_layers=2,
                  state_size=128,
-                 steps_per_ckpt=100,
+                 steps_per_ckpt=200,
                  temperature=0.0,
                  is_chatting=False):
         """
@@ -146,7 +146,8 @@ class DynamicBot(Model):
                 correct_pred = tf.equal(
                     tf.argmax(self.outputs[:, :-1, :], axis=2), tf.argmax(target_labels)
                 )
-                accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+                accuracy = tf.reduce_sum(tf.cast(correct_pred, tf.float32))
+                accuracy /= tf.cast(tf.size(correct_pred), tf.float32)
 
             # Creating a summar.scalar tells TF that we want to track the value for visualization.
             # We can view plots of how they change over training in TensorBoard.
@@ -231,7 +232,7 @@ class DynamicBot(Model):
                     print("Step %d:" % i_step, end=" ")
                     print("step time = %.3f" % avg_step_time)
                     print("\ttraining loss = %.3f" % avg_loss, end="; ")
-                    print("training perplexity = %.1f" % perplexity(avg_loss))
+                    print("training perplexity = %.2f" % perplexity(avg_loss))
                     self.save(summaries=summaries)
 
                     # Toggle data switch and led the validation flow!
@@ -239,7 +240,7 @@ class DynamicBot(Model):
                     summaries, eval_loss, _ = self.step(forward_only=True)
                     self.pipeline.toggle_active()
                     print("\tValidation loss = %.3f" % eval_loss, end="; ")
-                    print("val perplexity = %.1f" % perplexity(eval_loss))
+                    print("val perplexity = %.2f" % perplexity(eval_loss))
                     # Reset the running averages and exit checkpoint.
                     avg_loss = avg_step_time = 0.0
 

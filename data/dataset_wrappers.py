@@ -50,7 +50,7 @@ class Reddit(Dataset):
 class TestData(Dataset):
     """Mock dataset with a handful of sentences."""
 
-    def __init__(self, data_dir, vocab_size=1000, max_seq_len=80):
+    def __init__(self, data_dir, vocab_size=83, max_seq_len=80):
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('TestDataLogger')
         self._name = "test_data"
