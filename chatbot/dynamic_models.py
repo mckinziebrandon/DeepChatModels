@@ -7,6 +7,7 @@ from __future__ import print_function
 import sys
 import os
 import pdb
+from tqdm import tqdm
 import time
 import logging
 import numpy as np

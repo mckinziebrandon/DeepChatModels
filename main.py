@@ -67,6 +67,7 @@ if __name__ == "__main__":
     dataset = DATASET[FLAGS.dataset](FLAGS.data_dir, FLAGS.vocab_size,
                                      max_seq_len=FLAGS.max_seq_len)
 
+    # If user dataset in text format, reformat it into tensorflow protobuf
     dataset.convert_to_tf_records('train')
     dataset.convert_to_tf_records('valid')
 
@@ -106,8 +107,5 @@ if __name__ == "__main__":
             print("This should be interesting . . . ")
         else:
             print("Enjoy your gibberish!")
-        bot.decode()
-
-
-
+            bot.decode()
 

@@ -5,7 +5,7 @@ from abc import ABCMeta, abstractmethod, abstractproperty
 from utils import io_utils
 import os
 import random
-from utils.io_utils import EOS_ID, PAD_ID
+from utils.io_utils import EOS_ID, PAD_ID, GO_ID, UNK_ID
 import logging
 
 
@@ -78,6 +78,7 @@ class Dataset(DatasetABC):
         self._word_to_idx, _ = io_utils.get_vocab_dicts(self.paths['from_vocab'])
         _, self._idx_to_word = io_utils.get_vocab_dicts(self.paths['to_vocab'])
 
+
     def train_generator(self, batch_size):
         """[Note: not needed by DynamicBot since InputPipeline]
             Returns a generator function. Each call to next() yields a batch
@@ -89,6 +90,7 @@ class Dataset(DatasetABC):
 
     def valid_generator(self, batch_size):
         return self._generator(self.paths['from_valid'], self.paths['to_valid'], batch_size)
+
 
     def _generator(self, from_path, to_path, batch_size):
         """Returns a generator function that reads data from file, an d
@@ -191,6 +193,14 @@ class Dataset(DatasetABC):
         self.log.info("Converted text files %s and %s into tfrecords file %s" \
                       % (from_path, to_path, output_path))
         self.paths[prefix + '_tfrecords'] = output_path
+
+    def sentence_generator(self):
+        """Yields (as words) single sentences from training data, for testing purposes."""
+        with tf.gfile.GFile(self.data_dir + '/train_from.txt', mode="r") as text_file:
+            sentence = text_file.readline().strip()
+            while sentence:
+                yield sentence
+                sentence = text_file.readline().strip()
 
     @property
     def word_to_idx(self):

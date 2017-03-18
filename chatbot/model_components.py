@@ -213,7 +213,7 @@ class Cell(tf.contrib.rnn.RNNCell):
         self._state_size = state_size
         # TODO: Address decoding issue when using MultiRNNCell.
         if num_layers == 1:
-            self._cell = tf.contrib.rnn.LSTMCell(self._state_size)
+            self._cell = tf.contrib.rnn.LSTMCell(self._state_size, state_is_tuple=False)
         else:
             self._cell = tf.contrib.rnn.MultiRNNCell(
                 [tf.contrib.rnn.LSTMCell(self._state_size, state_is_tuple=False) for _ in range(num_layers)],
@@ -306,12 +306,6 @@ class Decoder(RNN):
         w = tf.get_variable("w", [state_size, output_size], dtype=tf.float32)
         b = tf.get_variable("b", [output_size], dtype=tf.float32)
         self._projection = (w, b)
-        if temperature < 0.1:
-            self.max_seq_len = 50
-        elif temperature < 0.8:
-            self.max_seq_len = 40
-        else:
-            self.max_seq_len = 20
         super(Decoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
 
     def __call__(self, inputs, initial_state=None, is_chatting=False,
@@ -368,7 +362,7 @@ class Decoder(RNN):
             def cond(response, s):
                 """Input callable for tf.while_loop. See below."""
                 return tf.logical_and(
-                    tf.not_equal(response[-1], EOS_ID), tf.less(tf.size(response), self.max_seq_len))
+                    tf.not_equal(response[-1], EOS_ID), tf.less(tf.size(response), 1000))
 
             # Create integer (tensor) list of output ID responses.
             response = tf.stack([self.sample(outputs)])
