@@ -12,6 +12,21 @@ from chatbot import DynamicBot
 from utils import io_utils
 
 
+def _sparse_to_dense(sampled_logits, labels, sampled):
+    acc_hits = tf.nn.compute_accidental_hits(labels, sampled, num_true=1)
+    acc_indices, acc_ids, acc_weights = acc_hits
+    # This is how SparseToDense expects the indices.
+    acc_indices_2d = tf.reshape(acc_indices, [-1, 1])
+    acc_ids_2d_int32 = tf.reshape(tf.cast(acc_ids, tf.int32), [-1, 1])
+    sparse_indices = tf.concat([acc_indices_2d, acc_ids_2d_int32], 1, "sparse_indices")
+    # Create sampled_logits_shape = [batch_size, num_sampled]
+    sampled_logits_shape = tf.concat([tf.shape(labels)[:1], tf.expand_dims(num_sampled, 0)], 0)
+    if sampled_logits.dtype != acc_weights.dtype:
+        acc_weights = tf.cast(acc_weights, sampled_logits.dtype)
+    return tf.sparse_to_dense(sparse_indices, sampled_logits_shape, acc_weights,
+                              default_value=0.0,validate_indices=False)
+
+
 class TestDynamicModels(unittest.TestCase):
 
 
@@ -64,89 +79,94 @@ class TestDynamicModels(unittest.TestCase):
                 print('Bleep bloop. Goodbye.')
 
 
+
     def test_sampled_softmax(self):
-        """Comparing behavior of sparse_softmax... with sampled_softmax...."""
+        """Comparing behavior of sparse_softmax... with sampled_softmax....
+
+        Goal: Construct a sampling loss function that can accept the following tensors:
+            1. Outputs. [batch_size, None, state_size] Floats.
+            2. Labels.  [batch_size, None]. Integers.
+            3. Weights. [batch_size, None].
+
+            Constraints:
+                DynamicBot.compile must pass in these arguments such that
+                    tf.shape(outputs[:, :, i]) == tf.shape(labels) for all/arbitrary i.
+                    tf.shape(labels) == tf.shape(weights).
+        """
 
         # 1. Here is a subset of the source code with all the irrelevant parts removed,
-        #   with the aim of understanding the implementation.
-        def sampled_softmax_loss(weights,
-                                 biases,
-                                 labels,
-                                 inputs,
-                                 num_sampled,
-                                 num_classes):
+        # with the aim of understanding the implementation.
+        # Changes:
+        # - Replacing weights, biases with output_projection for clarity.
+        # - Changed num_classes to vocab_size to more accurately reflect it's meaning.
+        def sampled_softmax_loss(output_projection, labels, state_outputs, num_sampled, vocab_size):
+            """
+            Args:
+                output_projection: (tuple) returned by any Decoder.get_projections_tensors()
+                    - output_projection[0] == w tensor. [state_size, vocab_size]
+                    - output_projection[0] == b tensor. [vocab_size]
+                labels: 2D Integer tensor. [batch_size, None]
+                state_outputs: 3D float Tensor [batch_size, None, state_size].
+                    - In this project, usually is the decoder batch output sequence (NOT projected).
+                num_sampled: number of classes out of vocab_size possible to use.
+                vocab_size: total number of classes.
+            """
 
-            weights = [weights]
-            with tf.name_scope("compute_sampled_logits", weights + [biases, inputs, labels]):
+            # Extract transpose weights, now shape is [vocab_size, state_size].
+            # Use tf.reshape which is dynamic as opposed to static (i.e. slow) tf.transpose.
+            weights = tf.reshape(output_projection[0], [vocab_size, -1])
+            state_size = tf.shape(weights)[-1]
+            biases  = output_projection[1]
+
+            with tf.name_scope("compute_sampled_logits", [weights, biases, state_outputs, labels]):
                 labels = tf.cast(labels, tf.int64)
-                labels_flat = tf.reshape(labels, [-1])
-
-                # Sample the negative labels.
-                #   sampled shape: [num_sampled] tensor
-                #   true_expected_count shape = [batch_size, 1] tensor
-                #   sampled_expected_count shape = [num_sampled] tensor
+                # Smush tensors so we can use them with tensorflow methods.
+                # Question: Docs suggest we should reshape to [-1, 1] so I'm keeping.
+                # but original code had it as just [-1].
+                labels_flat = tf.reshape(labels, [-1, 1])
+                # Sample the negative labels. Returns 3-tuple:
+                #   1. sampled_candidates: [num_sampled] tensor
+                #   2. true_expected_count shape = [batch_size*None, 1] tensor
+                #   ---- Entries associated 1-to-1 with smushed labels.
+                #   3. sampled_expected_count shape = [num_sampled] tensor
+                #   ---- Entries associated 1-to-1 with sampled_candidates.
                 sampled_values = tf.nn.log_uniform_candidate_sampler(
-                    true_classes=labels,
-                    num_true=1,
-                    num_sampled=num_sampled,
-                    unique=True,
-                    range_max=num_classes)
-                sampled, true_expected_count, sampled_expected_count = (tf.stop_gradient(s) for s in sampled_values)
+                    true_classes=labels, num_true=1, num_sampled=num_sampled,
+                    unique=True, range_max=vocab_size)
+                sampled, true_expected_count, sampled_expected_count = (
+                    tf.stop_gradient(s) for s in sampled_values
+                )
                 sampled = tf.cast(sampled, tf.int64)
 
-                # labels_flat is a [batch_size * num_true] tensor
-                # sampled is a [num_sampled] int tensor
+                # Casting this back to actually be flat.
+                batch_times_none = tf.shape(labels_flat)[0]
+                labels_flat = tf.reshape(labels, [-1])
+                # Get concatenated 1D tensor of shape [batch_size * None + num_samples],
                 all_ids = tf.concat([labels_flat, sampled], 0)
 
-                # weights shape is [num_classes, dim]
+                # The embedding_lookup here should be thought of as embedding
+                # the integer label and sampled IDs in the state space.
+                # all_w has shape [batch_size * None + num_samples, state_size]
                 all_w = tf.nn.embedding_lookup(weights, all_ids, partition_strategy='div')
+                # all_b has shape [batch_size * None + num_samples]
                 all_b = tf.nn.embedding_lookup(biases, all_ids)
-                # true_w shape is [batch_size * num_true, dim]
-                # true_b is a [batch_size * num_true] tensor
-                true_w = tf.slice(all_w, [0, 0], tf.stack([tf.shape(labels_flat)[0], -1]))
-                true_b = tf.slice(all_b, [0], tf.shape(labels_flat))
 
-                # inputs shape is [batch_size, dim]
-                # true_w shape is [batch_size * num_true, dim]
-                # row_wise_dots is [batch_size, num_true, dim]
-                dim = tf.shape(true_w)[1:2]
-                new_true_w_shape = tf.concat([[-1, 1], dim], 0)
-                row_wise_dots = tf.multiply(
-                tf.expand_dims(inputs, 1),
-                tf.reshape(true_w, new_true_w_shape))
-                # We want the row-wise dot plus biases which yields a
-                # [batch_size, num_true] tensor of true_logits.
-                dots_as_matrix = tf.reshape(row_wise_dots,
-                tf.concat([[-1], dim], 0))
-                true_logits = tf.reshape(_sum_rows(dots_as_matrix), [-1, 1])
-                true_b = tf.reshape(true_b, [-1, 1])
+                # Split into true and sampled projection matrices.
+                true_w      = tf.slice(all_w, begin=[0, 0], size=[batch_times_none, state_size])
+                true_b      = tf.slice(all_b, begin=[0], size=batch_times_none)
+                sampled_w   = tf.slice(all_w, begin=[batch_times_none, 0], size=[num_sampled, state_size])
+                sampled_b   = tf.slice(all_b, begin=[batch_times_none], size=[num_sampled])
+
+                state_outputs = tf.reshape(state_outputs, [batch_times_none, state_size])
+                true_logits  = tf.reduce_sum(tf.multiply(state_outputs, true_w), 1)
                 true_logits += true_b
 
-                # Lookup weights and biases for sampled labels.
-                #   sampled_w shape is [num_sampled, dim]
-                #   sampled_b is a [num_sampled] float tensor
-                sampled_w = tf.slice(all_w, tf.stack([tf.shape(labels_flat)[0], 0]), [-1, -1])
-                sampled_b = tf.slice(all_b, tf.shape(labels_flat), [-1])
-
-                # inputs has shape [batch_size, dim]
-                # sampled_w has shape [num_sampled, dim]
+                # sampled_w has shape [num_sampled, state_size]
                 # sampled_b has shape [num_sampled]
-                # Apply X*W'+B, which yields [batch_size, num_sampled]
-                sampled_logits = tf.matmul(inputs, sampled_w, transpose_b=True) + sampled_b
+                # Apply X*W'+B, which yields [batch_size * None, num_sampled]
+                sampled_logits = tf.matmul(state_outputs, sampled_w, transpose_b=True) + sampled_b
 
-                # Default is to do this [Brandon].
-                acc_hits = tf.nn.compute_accidental_hits(labels, sampled, num_true=1)
-                acc_indices, acc_ids, acc_weights = acc_hits
-
-                # This is how SparseToDense expects the indices.
-                acc_indices_2d = tf.reshape(acc_indices, [-1, 1])
-                acc_ids_2d_int32 = tf.reshape(tf.cast(acc_ids, tf.int32), [-1, 1])
-                sparse_indices = tf.concat([acc_indices_2d, acc_ids_2d_int32], 1, "sparse_indices")
-                # Create sampled_logits_shape = [batch_size, num_sampled]
-                sampled_logits_shape = tf.concat([tf.shape(labels)[:1], tf.expand_dims(num_sampled, 0)], 0)
-                if sampled_logits.dtype != acc_weights.dtype:
-                    acc_weights = tf.cast(acc_weights, sampled_logits.dtype)
-                sampled_logits += tf.sparse_to_dense(sparse_indices,sampled_logits_shape,acc_weights,default_value=0.0,validate_indices=False)
+                sampled_logits += _sparse_to_dense(sampled_logits, labels, sampled)
 
                 # Subtract log of Q(l), prior probability that l appears in sampled.
                 true_logits -= tf.log(true_expected_count)

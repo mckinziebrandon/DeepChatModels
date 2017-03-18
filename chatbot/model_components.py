@@ -398,19 +398,17 @@ class Decoder(RNN):
             Tensor of shape [batch_size, max_time, output_size] representing the projected outputs.
         """
 
-        def single_proj(single_batch):
-            """Function passed to tf.map_fn below. PEP8 discourages lambda functions, so use def."""
-            return tf.matmul(single_batch, self._projection[0]) + self._projection[1]
-
         with tf.variable_scope(scope or "proj_scope"):
             # Swap 1st and 2nd indices to match expected input of map_fn.
-            m  = tf.shape(outputs)[1]
-            s  = tf.shape(outputs)[2]
-            reshaped_state = tf.reshape(outputs, [m, -1, s])
-            # Get projected output states; 3D Tensor.
-            projected_state = tf.map_fn(single_proj, reshaped_state)
+            seq_len  = tf.shape(outputs)[1]
+            st_size  = tf.shape(outputs)[2]
+            time_major_outputs = tf.reshape(outputs, [seq_len, -1, st_size])
+            # Project batch at single timestep from state space to output space.
+            def proj_op(b): return tf.matmul(b, self._projection[0]) + self._projection[1]
+            # Get projected output states; 3D Tensor with shape [batch_size, seq_len, ouput_size].
+            projected_state = tf.map_fn(proj_op, time_major_outputs)
             # Return projected outputs reshaped in same general ordering as input outputs.
-        return tf.reshape(projected_state, [-1, m, self.output_size])
+        return tf.reshape(projected_state, [-1, seq_len, self.output_size])
 
     def sample(self, projected_output):
         """Return integer ID tensor representing the sampled word.
