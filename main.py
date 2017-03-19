@@ -36,7 +36,7 @@ flags.DEFINE_integer("max_seq_len", 80, "Num layers in underlying MultiRNNCell."
 flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
 flags.DEFINE_float("lr_decay", 0.98, "Decay factor applied to learning rate.")
 flags.DEFINE_float("max_gradient", 5.0, "Clip gradients to this value.")
-flags.DEFINE_float("temperature", 0.02, "Sampling temperature.")
+flags.DEFINE_float("temperature", 0.0, "Sampling temperature.")
 flags.DEFINE_float("dropout_prob", 0.5, "Dropout rate before each layer.")
 FLAGS = flags.FLAGS
 
@@ -108,5 +108,5 @@ if __name__ == "__main__":
             print("This should be interesting . . . ")
         else:
             print("Enjoy your gibberish!")
-            bot.decode()
+        bot.decode()
 
