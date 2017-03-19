@@ -29,9 +29,9 @@ flags.DEFINE_integer("batch_size", 64, "Batch size to use during training.")
 flags.DEFINE_integer("vocab_size", 40000, "Number of unique words/tokens to use.")
 flags.DEFINE_integer("state_size", 512, "Number of units in the RNN cell.")
 flags.DEFINE_integer("embed_size", None, "Models will set this to state_size if None.")
-flags.DEFINE_integer("nb_epoch", 4, "Number of epochs over full train set to run.")
 flags.DEFINE_integer("num_layers", 3, "Num layers in underlying MultiRNNCell.")
 flags.DEFINE_integer("max_seq_len", 80, "Num layers in underlying MultiRNNCell.")
+flags.DEFINE_integer("num_samples", 512, "subset of vocabulary_size for sampled softmax.")
 # Float flags -- hyperparameters.
 flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
 flags.DEFINE_float("lr_decay", 0.98, "Decay factor applied to learning rate.")
@@ -59,18 +59,15 @@ if __name__ == "__main__":
     # rooted at out that makes for great TensorBoard visualizations.
     if FLAGS.ckpt_dir == 'out':
         FLAGS.ckpt_dir += '/' + FLAGS.dataset
-        FLAGS.ckpt_dir += '/lr%d_st%d_nlay%d_drop%d' % (
+        FLAGS.ckpt_dir += '/lr_%d_st_%d_nlay_%d_drop_%d' % (
             int(1e2*FLAGS.learning_rate), FLAGS.state_size,
-        FLAGS.num_layers, int(1e2 * FLAGS.dropout_prob))
+            FLAGS.num_layers, int(1e2 * FLAGS.dropout_prob))
 
     # All datasets follow the same API, found in data/_dataset.py
     print("Setting up %s dataset." % FLAGS.dataset)
     dataset = DATASET[FLAGS.dataset](FLAGS.data_dir, FLAGS.vocab_size,
                                      max_seq_len=FLAGS.max_seq_len)
 
-    # If user dataset in text format, reformat it into tensorflow protobuf
-    dataset.convert_to_tf_records('train')
-    dataset.convert_to_tf_records('valid')
 
     # Create chat model of choice. Pass in FLAGS values in case you want to change from defaults.
     print("Creating DynamicBot.")
@@ -88,17 +85,14 @@ if __name__ == "__main__":
                      is_chatting=FLAGS.decode)
 
 
-    # Don't forget to compile!
     print("Compiling DynamicBot.")
     bot.compile(max_gradient=FLAGS.max_gradient, reset=FLAGS.reset_model)
 
     # Train an epoch on the data. CTRL-C at any time to safely stop training.
     # Model saved in FLAGS.ckpt_dir if specified, else "./out"
-
     if not FLAGS.decode:
         print("Training bot. CTRL-C to stop training.")
-        bot.train(dataset, nb_epoch=FLAGS.nb_epoch)
-
+        bot.train(dataset)
     else:
         print("Initiating chat session.")
         print("Your bot has a temperature of %.2f." % FLAGS.temperature, end=" ")

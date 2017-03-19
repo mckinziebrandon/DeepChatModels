@@ -78,6 +78,10 @@ class Dataset(DatasetABC):
         self._word_to_idx, _ = io_utils.get_vocab_dicts(self.paths['from_vocab'])
         _, self._idx_to_word = io_utils.get_vocab_dicts(self.paths['to_vocab'])
 
+        # Create tfrecords file if not located in data_dir.
+        self.convert_to_tf_records('train')
+        self.convert_to_tf_records('valid')
+
 
     def train_generator(self, batch_size):
         """[Note: not needed by DynamicBot since InputPipeline]

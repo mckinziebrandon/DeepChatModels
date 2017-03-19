@@ -78,6 +78,55 @@ class TestDynamicModels(unittest.TestCase):
             except (KeyboardInterrupt, StopIteration):
                 print('Bleep bloop. Goodbye.')
 
+    def test_sampled_chat(self):
+        """Same as test_chat but trains on new custom dynamic sampled softmax loss."""
+
+        data_dir = '/home/brandon/terabyte/Datasets/test_data'
+        dataset = TestData(data_dir)
+        dataset.convert_to_tf_records('train')
+        dataset.convert_to_tf_records('valid')
+
+        print("Should I train first?")
+        should_train = io_utils.get_sentence()
+        is_chatting = False if should_train == 'y' else True
+        print("is chatting is ", is_chatting)
+
+        state_size = 256
+        embed_size = 64
+        num_layers = 3
+        learning_rate = 0.1
+        dropout_prob = 0.5
+        ckpt_dir = 'out/sampled_st_%d_nl_%d_emb_%d_lr_%d_drop_5' % (
+            state_size, num_layers, embed_size, int(100 * learning_rate)
+        )
+
+        num_samples = 40
+        bot = DynamicBot(dataset,
+                         num_samples=num_samples,
+                         ckpt_dir=ckpt_dir,
+                         batch_size=4,
+                         learning_rate=learning_rate,
+                         state_size=state_size,
+                         embed_size=embed_size,
+                         num_layers=num_layers,
+                         dropout_prob=dropout_prob,
+                         is_chatting=is_chatting)
+        bot.compile(reset=(not is_chatting), sampled_loss=True)
+        if not is_chatting:
+            print("ENTERING TRAINING")
+            bot.train(dataset)
+        else:
+            sentence_generator = dataset.sentence_generator()
+            try:
+                while True:
+                    sentence = next(sentence_generator)
+                    print("Human:\t", sentence)
+                    print("Bot:  \t", bot(sentence))
+                    print()
+                    time.sleep(1)
+            except (KeyboardInterrupt, StopIteration):
+                print('Bleep bloop. Goodbye.')
+
 
     def test_sampled_bot(self):
         data_dir = '/home/brandon/terabyte/Datasets/cornell'
@@ -107,8 +156,11 @@ class TestDynamicModels(unittest.TestCase):
         bot.compile(reset=(not is_chatting))
         bot.train(dataset)
 
-    def test_sampled_softmax(self):
-        """Comparing behavior of sparse_softmax... with sampled_softmax....
+    def test_sampled_softmax_from_scratch(self):
+        """Comparing behavior of new dynamic_sampled_softmax_loss with a completely
+        transparent version 'from scratch'. Why? Because there doesn't seem any way
+        to incorporate target-weights attached to padded inputs while also using tensorflow's
+        sampled_softmax_loss, as opposed to the much cleaner tf.loss.sparse_softmax_cross_entropy.
 
         Goal: Construct a sampling loss function that can accept the following tensors:
             1. Outputs. [batch_size, None, state_size] Floats.

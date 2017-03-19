@@ -4,18 +4,15 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import sys
-import os
-import pdb
-from tqdm import tqdm
 import time
 import logging
 import numpy as np
 import tensorflow as tf
+from chatbot import bot_ops
 from chatbot._models import Model
-from chatbot.model_components import *
+from chatbot.recurrent_components import *
+from chatbot.input_components import *
 from utils import io_utils
-from utils.io_utils import GO_ID
 
 
 class DynamicBot(Model):
@@ -122,7 +119,7 @@ class DynamicBot(Model):
                                          steps_per_ckpt,
                                          is_chatting)
 
-    def compile(self, optimizer=None, max_gradient=5.0, reset=False):
+    def compile(self, optimizer=None, max_gradient=5.0, reset=False, sampled_loss=True):
         """ Configure training process and initialize model. Inspired by Keras.
 
         Args:
@@ -130,36 +127,40 @@ class DynamicBot(Model):
             max_gradient: float. Gradients will be clipped to be below this value.
             reset: boolean. Tells Model superclass whether or not we wish to compile
                             a model from scratch or load existing parameters from ckpt_dir.
+            sampled_loss: (bool) gives user the option to toggle sampled_loss
+                          on/off post-initialization.
         """
 
         if not self.is_chatting:
-            with tf.name_scope("evaluation"):
+            with tf.variable_scope("evaluation") as scope:
                 # Loss - target is to predict, as output, the next decoder input.
                 # target_labels has shape [batch_size, dec_inp_seq_len - 1]
                 target_labels = self.decoder_inputs[:, 1:]
                 target_weights = tf.cast(self.decoder_inputs > 0, self.decoder_inputs.dtype)
-                #self.loss = tf.losses.sparse_softmax_cross_entropy(
-                #    labels=target_labels, logits=self.outputs[:, :-1, :],
-                #    weights=target_weights[:, 1:])
-                self.loss = self.dynamic_sampled_softmax_loss(
-                    labels=target_labels, logits=self.outputs[:, :-1, :])
+                if sampled_loss and 0 < self.num_samples < self.vocab_size:
+                    self.loss = bot_ops.dynamic_sampled_softmax_loss(
+                        target_labels, self.outputs[:, :-1, :],
+                        self.decoder.get_projection_tensors(), self.vocab_size)
+                else:
+                    self.loss = tf.losses.sparse_softmax_cross_entropy(
+                        labels=target_labels, logits=self.outputs[:, :-1, :],
+                        weights=target_weights[:, 1:])
 
                 # Define the training portion of the graph.
                 if optimizer is None:
-                    optimizer = tf.train.AdagradOptimizer(self.learning_rate)
+                    optimizer = tf.train.RMSPropOptimizer(self.learning_rate)
                 params = tf.trainable_variables()
                 gradients = tf.gradients(self.loss, params)
                 clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, max_gradient)
                 grads = list(zip(clipped_gradients, params))
                 self.apply_gradients = optimizer.apply_gradients(grads, global_step=self.global_step)
-                correct_pred = tf.equal(
-                    tf.argmax(self.outputs[:, :-1, :], axis=2), tf.argmax(target_labels)
-                )
-                accuracy = tf.reduce_sum(tf.cast(correct_pred, tf.float32))
-                accuracy /= tf.cast(tf.size(correct_pred), tf.float32)
 
+            # Computed accuracy, ensuring we use fully projected outputs.
+            proj = self.outputs if not sampled_loss else self.decoder.apply_projection(self.outputs, scope)
+            correct_pred = tf.equal(tf.round(tf.argmax(proj[:, :-1, :], axis=2)),
+                                    tf.round(tf.argmax(target_labels)))
+            accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
             # Creating a summar.scalar tells TF that we want to track the value for visualization.
-            # We can view plots of how they change over training in TensorBoard.
             tf.summary.scalar('accuracy', accuracy)
             tf.summary.scalar('loss', self.loss),
             tf.summary.scalar('learning_rate', self.learning_rate),
@@ -170,7 +171,11 @@ class DynamicBot(Model):
         super(DynamicBot, self).compile(reset=reset)
 
     def step(self, forward_only=False):
-        """Run forward and backward pass on single data batch.
+        """Run one step of the model, which can mean 1 of the following:
+            1. forward_only == False. This means we are training, so we should do both a
+               forward and a backward pass.
+            2. self.is_chatting. When chatting, we just get the response (word ID sequence).
+            3. default to inference. Do a forward pass, but also compute loss(es) and summaries.
 
         Args:
             forward_only: if True, don't perform backward pass (gradient updates).
@@ -182,46 +187,41 @@ class DynamicBot(Model):
 
         if not forward_only:
             fetches = [self.merged, self.loss, self.apply_gradients]
-            summaries,step_loss, _ = self.sess.run(fetches)
+            summaries, step_loss, _ = self.sess.run(fetches)
             return summaries, step_loss, None
-        if self.is_chatting:
-            step_outputs = self.sess.run(self.outputs,
-                                         feed_dict=self.pipeline.feed_dict)
-            return None, None, step_outputs
+        elif self.is_chatting:
+            response = self.sess.run(self.outputs, feed_dict=self.pipeline.feed_dict)
+            return None, None, response
         else:
             fetches = [self.merged, self.loss, self.outputs]
             summaries, step_loss, step_outputs = self.sess.run(fetches)
             return summaries, step_loss, step_outputs
 
-    def train(self, dataset, nb_epoch=1):
-        """Train bot on inputs for nb_epoch epochs, or until user types CTRL-C.
+    def train(self, dataset):
+        """Train bot on inputs until user types CTRL-C or queues run out of data.
 
         Args:
             dataset: any instance of the Dataset class.
-            nb_epoch: (int) Number of times to train over all entries in inputs.
         """
 
-        def perplexity(loss):
-            """Common alternative to loss in NLP models."""
-            return np.exp(float(loss)) if loss < 300 else float("inf")
+        def perplexity(loss): return np.exp(float(loss)) if loss < 300 else float("inf")
 
-        self.embedder.assign_visualizer(self.file_writer,
-                                        self.encoder_scope,
-                                        dataset.paths['from_vocab'])
-        self.embedder.assign_visualizer(self.file_writer,
-                                        self.decoder_scope,
-                                        dataset.paths['to_vocab'])
-
-        coord = tf.train.Coordinator()
+        coord   = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=self.sess, coord=coord)
-        # This is needed because apparently TensorFlow's coordinator isn't all that
-        # great at, well, coordinating. If this makes you sad, it also makes me sad.
-        # Feel free to email me for emotional support.
-        print('QUEUE RUNNERS RELEASED.'); time.sleep(1)
-        print('CAN THEY ENQUEUE IN TIME?'); time.sleep(2)
-        print('HERE'); time.sleep(1)
-        print('WE'); time.sleep(1)
-        print('GO!!!!!')
+
+        # Tell embedder to coordinate with TensorBoard's embedding visualization.
+        # This allows to view, e.g., our words in 3D-projected embedding space (with labels!).
+        label_paths = [dataset.paths['from_vocab'], dataset.paths['to_vocab']]
+        self.embedder.assign_visualizer(self.file_writer, self.encoder_scope, label_paths[0])
+        self.embedder.assign_visualizer(self.file_writer, self.decoder_scope, label_paths[1])
+
+        # Note: Calling sleep(...) appears to allow sustained GPU utilization across training.
+        # Without it, looks like GPU has to wait for data to be enqueued more often. Strange.
+        print('QUEUE RUNNERS RELEASED.'); time.sleep(4)
+        print('GO!'); time.sleep(1)
+        print('GO!'); time.sleep(1)
+        print('GO!'); time.sleep(1)
+        print('GO! (Go)')
 
         try:
             i_step = 0
@@ -291,37 +291,6 @@ class DynamicBot(Model):
         encoder_inputs = np.array([encoder_inputs[::-1]])
         self.pipeline.feed_user_input(encoder_inputs)
         # Get output sentence from the chatbot.
-        a, b, response = self.step(forward_only=True)
-        assert a is None and b is None
+        _, _, response = self.step(forward_only=True)
         # response has shape [1, response_length] and it's last elemeot is EOS_ID. :)
         return self.dataset.as_words(response[0][:-1])
-
-    # TODO: Figure out how this accurately gets loss without requiring weights,
-    # like sparse_softmax_cross_entropy requires.
-    def dynamic_sampled_softmax_loss(self, labels, logits):
-        """IT'S HERE! IT'S ACTUALLY HERE! YEEEESSSSSS.
-        Oh, and "TODO: documentation" :)
-        """
-        seq_len  = tf.shape(logits)[1]
-        st_size  = tf.shape(logits)[2]
-        time_major_outputs  = tf.reshape(logits, [seq_len, -1, st_size])
-        time_major_labels   = tf.reshape(labels, [seq_len, -1])
-        # Project batch at single timestep from state space to output space.
-        output_projection = self.decoder.get_projection_tensors()
-        # Reshape is apparently faster (dynamic) than transpose.
-        w_t = tf.reshape(output_projection[0], [self.vocab_size, -1])
-        b = output_projection[1]
-        def proj_op(elem):
-            logits, lab = elem
-            lab = tf.reshape(lab, [-1, 1])
-            return tf.reduce_mean(
-                tf.nn.sampled_softmax_loss(
-                    weights=w_t,
-                    biases=b,
-                    labels=lab,
-                    inputs=logits,
-                    num_sampled=self.num_samples,
-                    num_classes=self.vocab_size,
-                    partition_strategy='div'))
-        batch_losses = tf.map_fn(proj_op, (time_major_outputs, time_major_labels), dtype=tf.float32)
-        return tf.reduce_mean(batch_losses)
