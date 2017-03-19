@@ -208,7 +208,6 @@ class ChatBot(BucketModel):
         output_projection = (w, b)
 
         def sampled_loss(labels, inputs):
-            # Question: Why reshape?
             labels = tf.reshape(labels, [-1, 1])
             return tf.nn.sampled_softmax_loss(
                     weights=w_t,

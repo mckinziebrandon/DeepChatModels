@@ -80,8 +80,8 @@ class TestDynamicModels(unittest.TestCase):
 
 
     def test_sampled_bot(self):
-        data_dir = '/home/brandon/terabyte/Datasets/test_data'
-        dataset = TestData(data_dir)
+        data_dir = '/home/brandon/terabyte/Datasets/cornell'
+        dataset = Cornell(data_dir, 40000)
         dataset.convert_to_tf_records('train')
         dataset.convert_to_tf_records('valid')
 
@@ -89,13 +89,14 @@ class TestDynamicModels(unittest.TestCase):
         state_size = 128
         embed_size = state_size
         num_layers = 3
-        learning_rate = 0.01
+        learning_rate = 0.1
         dropout_prob = 0.5
         ckpt_dir = 'out'
 
         bot = DynamicBot(dataset,
                          ckpt_dir=ckpt_dir,
-                         batch_size=1,
+                         batch_size=32,
+                         steps_per_ckpt=10,
                          learning_rate=learning_rate,
                          state_size=state_size,
                          embed_size=embed_size,
@@ -104,7 +105,6 @@ class TestDynamicModels(unittest.TestCase):
                          is_chatting=is_chatting)
         print('compiling')
         bot.compile(reset=(not is_chatting))
-
         bot.train(dataset)
 
     def test_sampled_softmax(self):
