@@ -1,6 +1,6 @@
 import tensorflow as tf
 import pdb
-from utils.io_utils import EOS_ID, UNK_ID, GO_ID
+from utils.io_utils import EOS_ID, UNK_ID, GO_ID, PAD_ID
 from tensorflow.contrib.tensorboard.plugins import projector
 from tensorflow.contrib.training import bucket_by_sequence_length
 from tensorflow.contrib.rnn import GRUCell, LSTMCell, MultiRNNCell
@@ -123,8 +123,7 @@ class Decoder(RNN):
             self._projection = (w, b)
         super(Decoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
 
-    def __call__(self, inputs, initial_state=None, is_chatting=False,
-                 loop_embedder=None):
+    def __call__(self, inputs, initial_state=None, is_chatting=False, loop_embedder=None):
         """Run the inputs on the decoder. If we are chatting, then conduct dynamic sampling,
             which is the process of generating a response given inputs == GO_ID.
 
@@ -135,8 +134,6 @@ class Decoder(RNN):
                          returned Tensor shape.
             loop_embedder: required if is_chatting=False.
                            Embedder instance needed to feed decoder outputs as next inputs.
-            scope: (optional) variable scope name to use.
-
         Returns:
             outputs: if not is_chatting, tensor of shape [batch_size, max_time, output_size].
                      else, tensor of response IDs with shape [batch_size, max_time].
@@ -172,8 +169,8 @@ class Decoder(RNN):
 
             def cond(response, s):
                 """Input callable for tf.while_loop. See below."""
-                return tf.logical_and(tf.not_equal(response[-1], EOS_ID),
-                                      tf.less(tf.size(response), 100))
+                return tf.logical_or(tf.not_equal(response[-1], EOS_ID),
+                                     tf.not_equal(response[-1], PAD_ID))
 
             # Create integer (tensor) list of output ID responses.
             response = tf.stack([self.sample(outputs)])

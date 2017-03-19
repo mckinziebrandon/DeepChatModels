@@ -19,7 +19,7 @@ def dynamic_sampled_softmax_loss(labels, logits, output_projection, vocab_size,
         Returns:
             loss as a scalar Tensor, computed as the mean over all batches and sequences.
     """
-    with tf.name_scope(name, "dynamic_sampled_softmax_loss", [labels, logits]):
+    with tf.name_scope(name, "dynamic_sampled_softmax_loss", [labels, logits, output_projection]):
         seq_len  = tf.shape(logits)[1]
         st_size  = tf.shape(logits)[2]
         time_major_outputs  = tf.reshape(logits, [seq_len, -1, st_size])
@@ -27,19 +27,19 @@ def dynamic_sampled_softmax_loss(labels, logits, output_projection, vocab_size,
         # Reshape is apparently faster (dynamic) than transpose.
         w_t = tf.reshape(output_projection[0], [vocab_size, -1])
         b = output_projection[1]
-        def proj_op(elem):
+        def sampled_loss(elem):
             logits, lab = elem
-            lab = tf.reshape(lab, [-1, 1])
             # TODO: Figure out how this accurately gets loss without requiring weights,
             # like sparse_softmax_cross_entropy requires.
             return tf.reduce_mean(
                 tf.nn.sampled_softmax_loss(
                     weights=w_t,
                     biases=b,
-                    labels=lab,
+                    labels=tf.expand_dims(lab, -1),
                     inputs=logits,
                     num_sampled=num_samples,
                     num_classes=vocab_size,
                     partition_strategy='div'))
-        batch_losses = tf.map_fn(proj_op, (time_major_outputs, time_major_labels), dtype=tf.float32)
-    return tf.reduce_mean(batch_losses)
+        batch_losses = tf.map_fn(sampled_loss, (time_major_outputs, time_major_labels), dtype=tf.float32)
+        loss = tf.reduce_mean(batch_losses)
+    return loss

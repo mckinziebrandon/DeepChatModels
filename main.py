@@ -82,6 +82,7 @@ if __name__ == "__main__":
                      temperature=FLAGS.temperature,
                      num_layers=FLAGS.num_layers,
                      dropout_prob=FLAGS.dropout_prob,
+                     num_samples=FLAGS.num_samples,
                      is_chatting=FLAGS.decode)
 
 

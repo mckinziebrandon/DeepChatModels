@@ -138,7 +138,8 @@ class DynamicBot(Model):
                 if sampled_loss and 0 < self.num_samples < self.vocab_size:
                     self.loss = bot_ops.dynamic_sampled_softmax_loss(
                         target_labels, self.outputs[:, :-1, :],
-                        self.decoder.get_projection_tensors(), self.vocab_size)
+                        self.decoder.get_projection_tensors(), self.vocab_size,
+                        num_samples=self.num_samples)
                 else:
                     self.loss = tf.losses.sparse_softmax_cross_entropy(
                         labels=target_labels, logits=self.outputs[:, :-1, :],
@@ -158,11 +159,11 @@ class DynamicBot(Model):
                 correct_pred = tf.equal(tf.round(tf.argmax(proj[:, :-1, :], axis=2)),
                                         tf.round(tf.argmax(target_labels)))
                 accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
-            # Creating a summar.scalar tells TF that we want to track the value for visualization.
-            tf.summary.scalar('accuracy', accuracy)
-            tf.summary.scalar('loss', self.loss),
-            tf.summary.scalar('learning_rate', self.learning_rate),
-            self.merged = tf.summary.merge_all()
+                # Creating a summar.scalar tells TF that we want to track the value for visualization.
+                tf.summary.scalar('accuracy', accuracy)
+                tf.summary.scalar('loss', self.loss),
+                tf.summary.scalar('learning_rate', self.learning_rate),
+                self.merged = tf.summary.merge_all()
 
         # Next, let superclass load param values from file (if not reset), otherwise
         # initialize newly created model.
@@ -239,7 +240,8 @@ class DynamicBot(Model):
 
                     # Toggle data switch and led the validation flow!
                     self.pipeline.toggle_active()
-                    summaries, eval_loss, _ = self.step(forward_only=True)
+                    with self.graph.device('/cpu:0'):
+                        summaries, eval_loss, _ = self.step(forward_only=True)
                     self.pipeline.toggle_active()
                     print("\tValidation loss = %.3f" % eval_loss, end="; ")
                     print("val perplexity = %.2f" % perplexity(eval_loss))
