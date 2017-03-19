@@ -336,7 +336,7 @@ class Decoder(RNN):
                                                scope=dec_call_scope)
             # Outputs has shape [batch_size, max_time, output_size].
             # NOTE: uncomment below if can't figure out sampled softmax.
-            outputs = self.apply_projection(outputs)
+            #outputs = self.apply_projection(outputs)
 
             if not is_chatting:
                 # Dynamic sampling is not needed unless in interactive chat session, so we're done.
@@ -407,7 +407,6 @@ class Decoder(RNN):
             def proj_op(b): return tf.matmul(b, self._projection[0]) + self._projection[1]
             # Get projected output states; 3D Tensor with shape [batch_size, seq_len, ouput_size].
             projected_state = tf.map_fn(proj_op, time_major_outputs)
-            # Return projected outputs reshaped in same general ordering as input outputs.
         return tf.reshape(projected_state, [-1, seq_len, self.output_size])
 
     def sample(self, projected_output):
