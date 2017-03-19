@@ -249,7 +249,6 @@ class TestDynamicModels(unittest.TestCase):
                 # shape(out_logits) == [batch_times_none, 1 + num_sampled]. I'M SURE.
                 out_logits = tf.concat([true_logits, sampled_logits], 1)
                 # true_logits is a float tensor, ones_like(true_logits) is a float tensor of ones.
-                # Question: wtf??
                 out_labels = tf.concat([tf.ones_like(true_logits), tf.zeros_like(sampled_logits)], 1)
 
             return tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=out_labels, logits=out_logits))

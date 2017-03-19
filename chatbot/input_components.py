@@ -74,10 +74,7 @@ class InputPipeline:
         """Determines, via tensorflow control structures, which part of the pipeline to run
            and retrieve inputs to a Model encoder component. """
         if not self.is_chatting:
-            def train(): return self.train_batches['encoder_sequence']
-            def valid(): return self.valid_batches['encoder_sequence']
-            return tf.cond(tf.equal(self.active_data, self.control['train']),
-                           train, valid)
+            return self._cond_input('encoder')
         else:
             return self._user_input
 
@@ -86,10 +83,7 @@ class InputPipeline:
         """Determines, via tensorflow control structures, which part of the pipeline to run
            and retrieve inputs to a Model decoder component. """
         if not self.is_chatting:
-            def train(): return self.train_batches['decoder_sequence']
-            def valid(): return self.valid_batches['decoder_sequence']
-            return tf.cond(tf.equal(self.active_data, self.control['train']),
-                           train, valid)
+            return self._cond_input('decoder')
         else:
             # In a chat session, we just give the bot the go-ahead to respond!
             return tf.convert_to_tensor([[GO_ID]])
@@ -109,6 +103,13 @@ class InputPipeline:
         self.active_data = tf.cond(tf.equal(self.active_data, self.control['train']),
                                     to_valid, to_train)
 
+    def _cond_input(self, prefix):
+        with tf.variable_scope(prefix + '_cond_input'):
+            def train(): return self.train_batches[prefix + '_sequence']
+            def valid(): return self.valid_batches[prefix + '_sequence']
+            return tf.cond(tf.equal(self.active_data, self.control['train']),
+                           train, valid)
+
     def _read_line(self, file):
         """Create ops for extracting lines from files.
 
@@ -120,7 +121,7 @@ class InputPipeline:
             filename_queue = tf.train.string_input_producer([tfrecords_fname])
             reader = tf.TFRecordReader(name='tfrecord_reader')
             _, next_raw = reader.read(filename_queue, name='read_records')
-            return next_raw
+        return next_raw
 
     def _assign_queue(self, data):
         """
@@ -138,7 +139,7 @@ class InputPipeline:
             tf.train.add_queue_runner(qr)
             _sequence_lengths, _sequences = tf.parse_single_sequence_example(
                 serialized=example_dq, context_features=LENGTHS, sequence_features=SEQUENCES)
-            return _sequence_lengths, _sequences
+        return _sequence_lengths, _sequences
 
     def _padded_bucket_batches(self, input_length, data):
         with tf.variable_scope('bucket_batch'):
@@ -152,6 +153,7 @@ class InputPipeline:
             )
         return lengths, sequences
 
+
 class Embedder:
     """Acts on tensors with integer elements, embedding them in a higher-dimensional
     vector space. A single Embedder instance can embed both encoder and decoder by associating them with
@@ -161,7 +163,7 @@ class Embedder:
         self.vocab_size = vocab_size
         self.embed_size = embed_size
 
-    def __call__(self, inputs, name=None, scope=None):
+    def __call__(self, inputs, scope=None):
         """Embeds integers in inputs and returns the embedded inputs.
 
         Args:
@@ -171,20 +173,15 @@ class Embedder:
           Output tensor of shape [batch_size, max_time, embed_size]
         """
         assert len(inputs.shape) == 2, "Expected inputs rank 2 but found rank %r" % len(inputs.shape)
-        with tf.variable_scope(scope or "embedding_inputs"):
+        with tf.variable_scope(scope, default_name="embedding_inputs", values=[inputs]):
             params = tf.get_variable("embed_tensor", [self.vocab_size, self.embed_size],
                                      initializer=tf.contrib.layers.xavier_initializer())
-            embedded_inputs = tf.nn.embedding_lookup(params, inputs, name=name)
+            embedded_inputs = tf.nn.embedding_lookup(params, inputs)
             if not isinstance(embedded_inputs, tf.Tensor):
                 raise TypeError("Embedded inputs should be of type Tensor.")
             if len(embedded_inputs.shape) != 3:
                 raise ValueError("Embedded sentence has incorrect shape.")
-        return embedded_inputs
-
-    def get_embed_tensor(self, scope):
-        """Returns the embedding tensor used for the given scope. """
-        with tf.variable_scope(scope, reuse=True):
-            return tf.get_variable("embed_tensor")
+        return embedded_inputs, params
 
     def assign_visualizer(self, writer, scope, metadata_path):
         """Setup the tensorboard embedding visualizer.
@@ -192,10 +189,10 @@ class Embedder:
         Args:
             writer: instance of tf.summary.FileWriter
         """
+        config = tf.contrib.tensorboard.plugins.projector.ProjectorConfig()
+        emb = config.embeddings.add()
         with tf.variable_scope(scope, reuse=True):
-            config = tf.contrib.tensorboard.plugins.projector.ProjectorConfig()
-            emb = config.embeddings.add()
-            emb.tensor_name = tf.get_variable("embed_tensor").name
-            emb.metadata_path = metadata_path
-            tf.contrib.tensorboard.plugins.projector.visualize_embeddings(writer, config)
+            emb.tensor_name = tf.get_variable("embedding_inputs/embed_tensor").name
+        emb.metadata_path = metadata_path
+        tf.contrib.tensorboard.plugins.projector.visualize_embeddings(writer, config)
 

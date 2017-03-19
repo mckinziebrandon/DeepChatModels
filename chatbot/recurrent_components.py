@@ -58,29 +58,27 @@ class RNN(object):
         self.embed_size = embed_size
         self.num_layers = num_layers
         self.cell = Cell(state_size, num_layers, dropout_prob=dropout_prob)
-        #self.cudnn_gru = cudnn_rnn_ops.CudnnGRU(
-        #    num_layers=num_layers, num_units=state_size, input_size=state_size,
-        #    dropout=dropout_prob)
 
 
 class Encoder(RNN):
-    def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2):
+    def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2,
+                 scope=None):
         """
         Args:
             state_size: number of units in underlying rnn cell.
             output_size: dimension of output space for projections.
             embed_size: dimension size of word-embedding space.
         """
+        self.scope = scope if scope is not None else 'encoder_component'
         super(Encoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
 
-    def __call__(self, inputs, return_sequence=False, initial_state=None, scope=None):
+    def __call__(self, inputs, return_sequence=False, initial_state=None):
         """Run the inputs on the encoder and return the output(s).
 
         Args:
             inputs: Tensor with shape [batch_size, max_time, embed_size].
             return_sequence: if True, also return the outputs at each time step.
             initial_state: (optional) Tensor with shape [batch_size, state_size] to initialize decoder cell.
-            scope: (optional) variable scope name to use.
 
         Returns:
             outputs: (only if return_sequence is True)
@@ -88,11 +86,9 @@ class Encoder(RNN):
             state:   The final encoder state. Tensor of shape [batch_size, state_size].
         """
 
-        with tf.variable_scope(scope or "encoder_call") as enc_call_scope:
-            outputs, state = tf.nn.dynamic_rnn(self.cell, inputs,
-                                               initial_state=initial_state,
-                                               dtype=tf.float32,
-                                               scope=enc_call_scope)
+        outputs, state = tf.nn.dynamic_rnn(self.cell, inputs,
+                                           initial_state=initial_state,
+                                           dtype=tf.float32)
 
         if return_sequence:
             return outputs, state
@@ -108,24 +104,27 @@ class Decoder(RNN):
     """
 
     def __init__(self, state_size, output_size, embed_size,
-                 dropout_prob=1.0, num_layers=2, temperature=1.0):
+                 dropout_prob=1.0, num_layers=2, temperature=1.0,
+                 scope=None):
         """
         Args:
             state_size: number of units in underlying rnn cell.
             output_size: dimension of output space for projections.
             embed_size: dimension size of word-embedding space.
         """
+        self.scope = scope if scope is not None else 'decoder_component'
         self.temperature = temperature
         self.output_size = output_size
-        w = tf.get_variable("w", [state_size, output_size], dtype=tf.float32,
-                            initializer=tf.contrib.layers.xavier_initializer())
-        b = tf.get_variable("b", [output_size], dtype=tf.float32,
-                            initializer=tf.contrib.layers.xavier_initializer())
-        self._projection = (w, b)
+        with tf.variable_scope('projection_tensors'):
+            w = tf.get_variable("w", [state_size, output_size], dtype=tf.float32,
+                                initializer=tf.contrib.layers.xavier_initializer())
+            b = tf.get_variable("b", [output_size], dtype=tf.float32,
+                                initializer=tf.contrib.layers.xavier_initializer())
+            self._projection = (w, b)
         super(Decoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
 
     def __call__(self, inputs, initial_state=None, is_chatting=False,
-                 loop_embedder=None, scope=None):
+                 loop_embedder=None):
         """Run the inputs on the decoder. If we are chatting, then conduct dynamic sampling,
             which is the process of generating a response given inputs == GO_ID.
 
@@ -145,10 +144,10 @@ class Decoder(RNN):
                      else, None.
         """
 
-        with tf.variable_scope(scope or "dynamic_rnn_call") as dec_call_scope:
+        with tf.name_scope("decoder_call") as name_scope:
             outputs, state = tf.nn.dynamic_rnn(
-                self.cell, inputs, initial_state=initial_state,
-                dtype=tf.float32, scope=dec_call_scope)
+                self.cell, inputs, initial_state=initial_state, dtype=tf.float32
+            )
 
             if not is_chatting:
                 return outputs, state
@@ -160,22 +159,19 @@ class Decoder(RNN):
 
             def body(response, state):
                 """Input callable for tf.while_loop. See below."""
-                dec_call_scope.reuse_variables()
+                name_scope.reuse_variables()
                 decoder_input = loop_embedder(tf.reshape(response[-1], (1, 1)),
-                                              scope=dec_call_scope)
+                                              scope=name_scope)
                 outputs, state = tf.nn.dynamic_rnn(self.cell,
                                              inputs=decoder_input,
                                              initial_state=state,
                                              sequence_length=[1],
-                                             dtype=tf.float32,
-                                                   scope=dec_call_scope)
+                                             dtype=tf.float32)
                 next_id = self.sample(self.apply_projection(outputs))
                 return tf.concat([response, tf.stack([next_id])], axis=0), state
 
             def cond(response, s):
                 """Input callable for tf.while_loop. See below."""
-                # TODO: remove need for checking response length. This wasn't needed before
-                # sampled softmax and it isn't as natural.
                 return tf.logical_and(tf.not_equal(response[-1], EOS_ID),
                                       tf.less(tf.size(response), 100))
 
@@ -183,7 +179,7 @@ class Decoder(RNN):
             response = tf.stack([self.sample(outputs)])
             # Note: This is needed so the while_loop ahead knows the shape of response.
             response = tf.reshape(response, [1,])
-            dec_call_scope.reuse_variables()
+            name_scope.reuse_variables()
 
             # ================== BEHOLD: The tensorflow while loop. =======================
             # This allows us to sample dynamically. It also makes me happy!
@@ -212,7 +208,7 @@ class Decoder(RNN):
             Tensor of shape [batch_size, max_time, output_size] representing the projected outputs.
         """
 
-        with tf.variable_scope(scope or "proj_scope"):
+        with tf.name_scope(scope, "proj_scope", [outputs]):
             # Swap 1st and 2nd indices to match expected input of map_fn.
             seq_len  = tf.shape(outputs)[1]
             st_size  = tf.shape(outputs)[2]
@@ -226,14 +222,15 @@ class Decoder(RNN):
     def sample(self, projected_output):
         """Return integer ID tensor representing the sampled word.
         """
-        # Protect against extra size-1 dimensions.
-        projected_output = tf.squeeze(projected_output)
-        if self.temperature < 0.02:
-            return tf.argmax(projected_output, axis=0)
-        projected_output = tf.div(projected_output, self.temperature)
-        projected_output = tf.div(tf.exp(projected_output),
-                                  tf.reduce_sum(tf.exp(projected_output), axis=0))
-        sample_ID = tf.squeeze(tf.multinomial(tf.expand_dims(projected_output, 0), 1))
+        with tf.name_scope('decoder_sampler', values=[projected_output]):
+            # Protect against extra size-1 dimensions.
+            projected_output = tf.squeeze(projected_output)
+            if self.temperature < 0.02:
+                return tf.argmax(projected_output, axis=0)
+            projected_output = tf.div(projected_output, self.temperature)
+            projected_output = tf.div(tf.exp(projected_output),
+                                      tf.reduce_sum(tf.exp(projected_output), axis=0))
+            sample_ID = tf.squeeze(tf.multinomial(tf.expand_dims(projected_output, 0), 1))
         return sample_ID
 
     def get_projection_tensors(self):

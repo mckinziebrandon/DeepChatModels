@@ -57,53 +57,51 @@ class DynamicBot(Model):
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('DynamicBotLogger')
 
-        self.state_size  = state_size
         if embed_size is None:
             embed_size = state_size
-        self.embed_size  = embed_size
-        self.vocab_size  = dataset.vocab_size
         # FIXME: Not sure how I feel about dataset as instance attribute.
-        # It's helpful in the decoding/chat session, but shouldn't be an arg there either.
-        self.dataset = dataset
-        self.dropout_prob = dropout_prob
-        self.num_layers = num_layers
-        self.num_samples = num_samples
-        self.batch_size = batch_size
+        self.dataset        = dataset
+        self.batch_size     = batch_size
+        self.embed_size     = embed_size
+        self.vocab_size     = dataset.vocab_size
+        self.dropout_prob   = dropout_prob
+        self.num_layers     = num_layers
+        self.num_samples    = num_samples
+        self.state_size     = state_size
 
         with tf.variable_scope("input_pipeline"):
             self.pipeline = InputPipeline(dataset.paths, batch_size, is_chatting=is_chatting)
             self.encoder_inputs = self.pipeline.encoder_inputs
             self.decoder_inputs = self.pipeline.decoder_inputs
+            self.embedder = Embedder(self.vocab_size, embed_size)
 
-        self.embedder = Embedder(self.vocab_size, embed_size)
         with tf.variable_scope("encoder") as encoder_scope:
+            embedded_enc_inputs, embed_tensor = self.embedder(self.encoder_inputs)
             self.encoder = Encoder(state_size, self.embed_size,
                                    dropout_prob=dropout_prob,
-                                   num_layers=num_layers)
-            embedded_enc_inputs = self.embedder(self.encoder_inputs, scope=encoder_scope)
+                                   num_layers=num_layers,
+                                   scope=encoder_scope)
             # Get encoder state after feeding the sequence(s). Shape is [None, state_size].
-            encoder_state = self.encoder(embedded_enc_inputs, scope=encoder_scope)
+            encoder_state = self.encoder(embedded_enc_inputs)
+            # Note: Histogram names are chosen for nice splitting in TensorBoard.
+            tf.summary.histogram("embedding_encoder", embed_tensor)
 
         with tf.variable_scope("decoder") as decoder_scope:
+            # Decoder inputs in embedding space. Shape is [None, None, embed_size].
+            embedded_dec_inputs, embed_tensor = self.embedder(self.decoder_inputs)
             self.decoder = Decoder(state_size, self.vocab_size, self.embed_size,
                                    dropout_prob=dropout_prob,
                                    num_layers=num_layers,
-                                   temperature=temperature)
-            # Decoder inputs in embedding space. Shape is [None, None, embed_size].
-            embedded_dec_inputs = self.embedder(self.decoder_inputs, scope=decoder_scope)
+                                   temperature=temperature,
+                                   scope=decoder_scope)
             # For decoder, we want the full sequence of output states, not simply the last.
             decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
                                                           initial_state=encoder_state,
                                                           is_chatting=is_chatting,
-                                                          loop_embedder=self.embedder,
-                                                          scope=decoder_scope)
+                                                          loop_embedder=self.embedder)
+            tf.summary.histogram("embedding_decoder", embed_tensor)
 
-        tf.summary.histogram("encoder_embedding", self.embedder.get_embed_tensor(encoder_scope))
-        tf.summary.histogram("decoder_embedding", self.embedder.get_embed_tensor(decoder_scope))
         self.merged = tf.summary.merge_all()
-        self.encoder_scope = encoder_scope
-        self.decoder_scope = decoder_scope
-
         # If in chat session, need _projection from state space to vocab space.
         # Note: The decoder handles this for us (as it should).
         self.outputs = decoder_outputs
@@ -132,7 +130,7 @@ class DynamicBot(Model):
         """
 
         if not self.is_chatting:
-            with tf.variable_scope("evaluation") as scope:
+            with tf.name_scope("evaluation") as scope:
                 # Loss - target is to predict, as output, the next decoder input.
                 # target_labels has shape [batch_size, dec_inp_seq_len - 1]
                 target_labels = self.decoder_inputs[:, 1:]
@@ -155,11 +153,11 @@ class DynamicBot(Model):
                 grads = list(zip(clipped_gradients, params))
                 self.apply_gradients = optimizer.apply_gradients(grads, global_step=self.global_step)
 
-            # Computed accuracy, ensuring we use fully projected outputs.
-            proj = self.outputs if not sampled_loss else self.decoder.apply_projection(self.outputs, scope)
-            correct_pred = tf.equal(tf.round(tf.argmax(proj[:, :-1, :], axis=2)),
-                                    tf.round(tf.argmax(target_labels)))
-            accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+                # Computed accuracy, ensuring we use fully projected outputs.
+                proj = self.outputs if not sampled_loss else self.decoder.apply_projection(self.outputs, scope)
+                correct_pred = tf.equal(tf.round(tf.argmax(proj[:, :-1, :], axis=2)),
+                                        tf.round(tf.argmax(target_labels)))
+                accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
             # Creating a summar.scalar tells TF that we want to track the value for visualization.
             tf.summary.scalar('accuracy', accuracy)
             tf.summary.scalar('loss', self.loss),
@@ -212,8 +210,8 @@ class DynamicBot(Model):
         # Tell embedder to coordinate with TensorBoard's embedding visualization.
         # This allows to view, e.g., our words in 3D-projected embedding space (with labels!).
         label_paths = [dataset.paths['from_vocab'], dataset.paths['to_vocab']]
-        self.embedder.assign_visualizer(self.file_writer, self.encoder_scope, label_paths[0])
-        self.embedder.assign_visualizer(self.file_writer, self.decoder_scope, label_paths[1])
+        self.embedder.assign_visualizer(self.file_writer, 'encoder', label_paths[0])
+        self.embedder.assign_visualizer(self.file_writer, 'decoder', label_paths[1])
 
         # Note: Calling sleep(...) appears to allow sustained GPU utilization across training.
         # Without it, looks like GPU has to wait for data to be enqueued more often. Strange.
