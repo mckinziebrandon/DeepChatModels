@@ -163,7 +163,7 @@ class Embedder:
         self.vocab_size = vocab_size
         self.embed_size = embed_size
 
-    def __call__(self, inputs, scope=None):
+    def __call__(self, inputs, reuse=None):
         """Embeds integers in inputs and returns the embedded inputs.
 
         Args:
@@ -173,7 +173,7 @@ class Embedder:
           Output tensor of shape [batch_size, max_time, embed_size]
         """
         assert len(inputs.shape) == 2, "Expected inputs rank 2 but found rank %r" % len(inputs.shape)
-        with tf.variable_scope(scope, default_name="embedding_inputs", values=[inputs]):
+        with tf.variable_scope("embedding_inputs", values=[inputs], reuse=reuse):
             params = tf.get_variable("embed_tensor", [self.vocab_size, self.embed_size],
                                      initializer=tf.contrib.layers.xavier_initializer())
             embedded_inputs = tf.nn.embedding_lookup(params, inputs)

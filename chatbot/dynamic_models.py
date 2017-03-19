@@ -216,10 +216,6 @@ class DynamicBot(Model):
         # Note: Calling sleep(...) appears to allow sustained GPU utilization across training.
         # Without it, looks like GPU has to wait for data to be enqueued more often. Strange.
         print('QUEUE RUNNERS RELEASED.'); time.sleep(4)
-        print('GO!'); time.sleep(1)
-        print('GO!'); time.sleep(1)
-        print('GO!'); time.sleep(1)
-        print('GO! (Go)')
 
         try:
             i_step = 0

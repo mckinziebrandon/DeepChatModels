@@ -144,7 +144,7 @@ class Decoder(RNN):
                      else, None.
         """
 
-        with tf.name_scope("decoder_call") as name_scope:
+        with tf.variable_scope("decoder_call") as dec_scope:
             outputs, state = tf.nn.dynamic_rnn(
                 self.cell, inputs, initial_state=initial_state, dtype=tf.float32
             )
@@ -159,9 +159,9 @@ class Decoder(RNN):
 
             def body(response, state):
                 """Input callable for tf.while_loop. See below."""
-                name_scope.reuse_variables()
-                decoder_input = loop_embedder(tf.reshape(response[-1], (1, 1)),
-                                              scope=name_scope)
+                dec_scope.reuse_variables()
+                with tf.variable_scope(self.scope):
+                    decoder_input, _ = loop_embedder(tf.reshape(response[-1], (1, 1)), reuse=True)
                 outputs, state = tf.nn.dynamic_rnn(self.cell,
                                              inputs=decoder_input,
                                              initial_state=state,
@@ -178,8 +178,8 @@ class Decoder(RNN):
             # Create integer (tensor) list of output ID responses.
             response = tf.stack([self.sample(outputs)])
             # Note: This is needed so the while_loop ahead knows the shape of response.
-            response = tf.reshape(response, [1,])
-            name_scope.reuse_variables()
+            response = tf.reshape(response, [1,], name='response')
+            dec_scope.reuse_variables()
 
             # ================== BEHOLD: The tensorflow while loop. =======================
             # This allows us to sample dynamically. It also makes me happy!
