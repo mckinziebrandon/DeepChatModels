@@ -10,7 +10,7 @@ from utils import io_utils
 class Cornell(Dataset):
     """Movie dialogs."""
 
-    def __init__(self, data_dir, vocab_size=20000, max_seq_len=80):
+    def __init__(self, data_dir, vocab_size=40000, max_seq_len=80):
         self._name = "cornell"
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('CornellLogger')
@@ -20,7 +20,7 @@ class Cornell(Dataset):
 class Ubuntu(Dataset):
     """Technical support chat logs from IRC."""
 
-    def __init__(self, data_dir, vocab_size=20000, max_seq_len=80):
+    def __init__(self, data_dir, vocab_size=40000, max_seq_len=80):
         self._name = "ubuntu"
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('UbuntuLogger')

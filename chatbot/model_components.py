@@ -334,14 +334,13 @@ class Decoder(RNN):
                                                initial_state=initial_state,
                                                dtype=tf.float32,
                                                scope=dec_call_scope)
-            # Outputs has shape [batch_size, max_time, output_size].
-            # NOTE: uncomment below if can't figure out sampled softmax.
-            #outputs = self.apply_projection(outputs)
 
             if not is_chatting:
                 # Dynamic sampling is not needed unless in interactive chat session, so we're done.
                 return outputs, state
 
+            # Project to full output state during inference time.
+            outputs = self.apply_projection(outputs)
             if loop_embedder is None:
                 raise ValueError("Loop function is required to feed decoder outputs as inputs.")
 

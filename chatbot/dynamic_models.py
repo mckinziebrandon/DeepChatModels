@@ -25,10 +25,11 @@ class DynamicBot(Model):
                  batch_size=64,
                  ckpt_dir="out",
                  dropout_prob=0.0,
-                 embed_size=32,
+                 embed_size=None,
                  learning_rate=0.5,
                  lr_decay=0.99,
                  num_layers=2,
+                 num_samples=512,
                  state_size=128,
                  steps_per_ckpt=200,
                  temperature=0.0,
@@ -41,6 +42,7 @@ class DynamicBot(Model):
             batch_size: number of samples per training step.
             state_size: number of nodes in the underlying RNN cell state.
             embed_size: size of embedding dimension that integer IDs get mapped into.
+                        If None, will be set to state_size.
             learning_rate: float, typically in range [0, 1].
             lr_decay: weight decay factor, not strictly necessary since default optimizer is adagrad.
             steps_per_ckpt: (int) Specifies step interval for testing on validation data.
@@ -48,6 +50,8 @@ class DynamicBot(Model):
                             applied before each layer in the model.
             num_layers: in the underlying MultiRNNCell. Total layers in model, not counting
                         recurrence/loop unrolliwng is then 2 * num_layers (encoder + decoder).
+            num_samples: (int) size of subset of vocabulary_size to use for sampled softmax.
+                         Require that 0 < num_samples < vocab size.
             temperature: determines how varied the bot responses will be when chatting.
                          The default (0.0) just results in deterministic argmax.
             is_chatting: boolean, should be False when training and True when chatting.
@@ -57,16 +61,16 @@ class DynamicBot(Model):
         self.log = logging.getLogger('DynamicBotLogger')
 
         self.state_size  = state_size
+        if embed_size is None:
+            embed_size = state_size
         self.embed_size  = embed_size
         self.vocab_size  = dataset.vocab_size
-        print("\n\nVOC IS ", self.vocab_size)
-        print('PATHS', dataset.paths)
-        print('\n\n')
         # FIXME: Not sure how I feel about dataset as instance attribute.
         # It's helpful in the decoding/chat session, but shouldn't be an arg there either.
         self.dataset = dataset
         self.dropout_prob = dropout_prob
         self.num_layers = num_layers
+        self.num_samples = num_samples
         self.batch_size = batch_size
 
         with tf.variable_scope("input_pipeline"):
@@ -137,7 +141,8 @@ class DynamicBot(Model):
                 #self.loss = tf.losses.sparse_softmax_cross_entropy(
                 #    labels=target_labels, logits=self.outputs[:, :-1, :],
                 #    weights=target_weights[:, 1:])
-                self.loss = self.mapped_sampled_loss(num_sampled=512)
+                self.loss = self.dynamic_sampled_softmax_loss(
+                    labels=target_labels, logits=self.outputs[:, :-1, :])
 
                 # Define the training portion of the graph.
                 if optimizer is None:
@@ -291,28 +296,32 @@ class DynamicBot(Model):
         # response has shape [1, response_length] and it's last elemeot is EOS_ID. :)
         return self.dataset.as_words(response[0][:-1])
 
-    def mapped_sampled_loss(self, num_sampled):
-
-        state_outputs = self.outputs[:, :-1, :]
-        labels = self.decoder_inputs[:, 1:]
-        output_projection = self.decoder.get_projection_tensors()
-
-        seq_len = tf.shape(state_outputs)[1]
-        st_size  = tf.shape(state_outputs)[2]
-        time_major_outputs = tf.reshape(state_outputs, [seq_len, -1, st_size])
-        time_major_labels = tf.reshape(labels, [seq_len, -1])
-
+    # TODO: Figure out how this accurately gets loss without requiring weights,
+    # like sparse_softmax_cross_entropy requires.
+    def dynamic_sampled_softmax_loss(self, labels, logits):
+        """IT'S HERE! IT'S ACTUALLY HERE! YEEEESSSSSS.
+        Oh, and "TODO: documentation" :)
+        """
+        seq_len  = tf.shape(logits)[1]
+        st_size  = tf.shape(logits)[2]
+        time_major_outputs  = tf.reshape(logits, [seq_len, -1, st_size])
+        time_major_labels   = tf.reshape(labels, [seq_len, -1])
         # Project batch at single timestep from state space to output space.
+        output_projection = self.decoder.get_projection_tensors()
+        # Reshape is apparently faster (dynamic) than transpose.
+        w_t = tf.reshape(output_projection[0], [self.vocab_size, -1])
+        b = output_projection[1]
         def proj_op(elem):
-            b, lab = elem
+            logits, lab = elem
             lab = tf.reshape(lab, [-1, 1])
-            return tf.reduce_mean(tf.nn.sampled_softmax_loss(
-                    weights=tf.transpose(output_projection[0]),
-                    biases=output_projection[1],
+            return tf.reduce_mean(
+                tf.nn.sampled_softmax_loss(
+                    weights=w_t,
+                    biases=b,
                     labels=lab,
-                    inputs=b,
-                    num_sampled=num_sampled,
-                    num_classes=self.vocab_size))
-
+                    inputs=logits,
+                    num_sampled=self.num_samples,
+                    num_classes=self.vocab_size,
+                    partition_strategy='div'))
         batch_losses = tf.map_fn(proj_op, (time_major_outputs, time_major_labels), dtype=tf.float32)
         return tf.reduce_mean(batch_losses)

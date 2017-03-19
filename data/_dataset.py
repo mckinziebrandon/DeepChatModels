@@ -150,7 +150,7 @@ class Dataset(DatasetABC):
     def convert_to_tf_records(self, prefix='train'):
         from_path = self.paths['from_'+prefix]
         to_path = self.paths['to_'+prefix]
-        output_path = os.path.join(self._data_dir, prefix + '.tfrecords')
+        output_path = os.path.join(self._data_dir, prefix + str(self.vocab_size) + '.tfrecords')
         if os.path.isfile(output_path):
             self.log.info('Using tfrecords file %s' % output_path)
             self.paths[prefix + '_tfrecords'] = output_path
