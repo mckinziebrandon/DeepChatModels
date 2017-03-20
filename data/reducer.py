@@ -3,6 +3,7 @@ import pandas as pd
 import json
 import os
 from progressbar import ProgressBar
+import subprocess as sp
 
 class Reducer:
 
@@ -19,6 +20,7 @@ class Reducer:
             data_frame: pandas DataFrame with contents of files in it.
         """
         data_frame = pd.read_json(file, lines=True)
+        print(file + " read in with " + str(len(data_frame)) + " lines.")
 
         return data_frame
 
@@ -29,7 +31,12 @@ class Reducer:
             data_frame: DataFrame to be saved
             original_file: filepath of original JSON data.
         """
-        data_frame.to_json(new_file, orient='records', lines=True)
+        data_frame.to_json(new_file, orient='records')
+        # Replace all ',{' with ,\n{
+        args = ["awk", r'{ gsub(",{","\n{"); {print substr($0, 2, length($0) - 2)} }', new_file]
+        result = sp.run(args, stdout=sp.PIPE)
+        with open(new_file, 'w') as f:
+            f.write(result.stdout.decode('utf-8'))
 
     def remove_faulty_row(self, data_frame, column='body', value='[deleted]'):
         """Remove faulty rows form pandas DataFrame data_frame.
@@ -44,6 +51,7 @@ class Reducer:
 
         for val in value:
             data_frame = data_frame.loc[data_frame[column] != val]
+        return data_frame
 
     def remove_extraneous_columns(self, data_frame, columns):
         """Remove columns from a data_frame which are unnecessary in place.
@@ -55,3 +63,19 @@ class Reducer:
         if type(columns) == str:
             columns = [columns]
         data_frame.drop(columns, 1, inplace=True)
+
+
+    def add_atribute(self, data_frame, attribute, function):
+        """Applies a function to all of the rows of the data_frame and adds it
+        as a new column named attribute.
+
+        Args:
+            data_frame: The data frame which the function will be applied to to
+            generate a new attribute.
+            attribute: The name of the new attribute.
+            function: The mapping applied to each row.
+        """
+        new_attribute = [True] * len(data_frame)
+        for idx, row in enumerate(data_frame.itertuples()):
+            new_attribute[idx] = function(row)
+        data_frame[attribute] = new_attribute
