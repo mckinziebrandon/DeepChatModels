@@ -9,9 +9,9 @@ import logging
 import numpy as np
 import tensorflow as tf
 from chatbot import bot_ops
-from chatbot._models import Model
-from chatbot.recurrent_components import *
-from chatbot.input_components import *
+from chatbot._models import Model, OPTIMIZERS
+from chatbot.recurrent_components import Encoder, Decoder
+from chatbot.input_components import InputPipeline, Embedder
 from utils import io_utils
 
 
@@ -121,7 +121,7 @@ class DynamicBot(Model):
         """ Configure training process and initialize model. Inspired by Keras.
 
         Args:
-            optimizer: object that inherits from tf.train.Optimizer.
+            optimizer: (str)
             max_gradient: float. Gradients will be clipped to be below this value.
             reset: boolean. Tells Model superclass whether or not we wish to compile
                             a model from scratch or load existing parameters from ckpt_dir.
@@ -136,6 +136,7 @@ class DynamicBot(Model):
                 target_labels = self.decoder_inputs[:, 1:]
                 target_weights = tf.cast(self.decoder_inputs > 0, self.decoder_inputs.dtype)
                 if sampled_loss and 0 < self.num_samples < self.vocab_size:
+                    self.log.info("Training with dynamic sampled softmax loss.")
                     self.loss = bot_ops.dynamic_sampled_softmax_loss(
                         target_labels, self.outputs[:, :-1, :],
                         self.decoder.get_projection_tensors(), self.vocab_size,
@@ -146,8 +147,15 @@ class DynamicBot(Model):
                         weights=target_weights[:, 1:])
 
                 # Define the training portion of the graph.
-                if optimizer is None:
-                    optimizer = tf.train.RMSPropOptimizer(self.learning_rate)
+                if optimizer is not None:
+                    assert optimizer in OPTIMIZERS, \
+                        "Optimizer %s not supported. Choice are:\n%r" \
+                    % (optimizer, OPTIMIZERS.keys())
+                    optimizer = OPTIMIZERS[optimizer](self.learning_rate)
+                else:
+                    self.log.info("Using default AdagradOptimizer.")
+                    optimizer = tf.train.AdagradOptimizer(self.learning_rate)
+
                 params = tf.trainable_variables()
                 gradients = tf.gradients(self.loss, params)
                 clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, max_gradient)

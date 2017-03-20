@@ -11,7 +11,6 @@ from tensorflow.contrib.legacy_seq2seq import embedding_attention_seq2seq
 from tensorflow.contrib.legacy_seq2seq import model_with_buckets
 from tensorflow.contrib.rnn.python.ops import core_rnn
 from tensorflow.python.ops import embedding_ops
-
 from chatbot._models import BucketModel
 
 

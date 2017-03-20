@@ -2,8 +2,34 @@
 
 import tensorflow as tf
 
-
 def dynamic_sampled_softmax_loss(labels, logits, output_projection, vocab_size,
+                                 from_scratch=True, num_samples=512, name=None):
+    """Sampled softmax loss function able to accept 3D Tensors as input,
+       as opposed to the official TensorFlow support for <= 2D. This is
+       dynamic because it can be applied across variable-length sequences,
+       which are unspecified at initialization with size 'None'.
+
+       Args:
+           labels: 2D integer tensor of shape [batch_size, None] containing
+                the word ID labels for each individual rnn state from logits.
+            logits: 3D float tensor of shape [batch_size, None, state_size] as
+                ouput by a Decoder instance.
+            from_scratch: (bool) Whether to use the version I wrote from scratch, or to use
+                          the version I wrote that applies map_fn(sampled_softmax) across timeslices, which
+                          is probably less efficient. (Currently testing)
+        Returns:
+            loss as a scalar Tensor, computed as the mean over all batches and sequences.
+    """
+
+    if from_scratch:
+        return _dynamic_sampled_from_scratch(labels, logits, output_projection, vocab_size,
+                                    num_samples=num_samples, name=name)
+    else:
+        return _dynamic_sampled_map(labels, logits, output_projection, vocab_size,
+                                    num_samples=num_samples, name=name)
+
+
+def _dynamic_sampled_map(labels, logits, output_projection, vocab_size,
                                  num_samples=512, name=None):
     """Sampled softmax loss function able to accept 3D Tensors as input,
        as opposed to the official TensorFlow support for <= 2D. This is
@@ -40,6 +66,100 @@ def dynamic_sampled_softmax_loss(labels, logits, output_projection, vocab_size,
                     num_sampled=num_samples,
                     num_classes=vocab_size,
                     partition_strategy='div'))
-        batch_losses = tf.map_fn(sampled_loss, (time_major_outputs, time_major_labels), dtype=tf.float32)
+        batch_losses = tf.map_fn(sampled_loss,
+                                 (time_major_outputs, time_major_labels),
+                                 dtype=tf.float32)
         loss = tf.reduce_mean(batch_losses)
     return loss
+
+
+def _dynamic_sampled_from_scratch(labels, logits, output_projection,
+                                  num_samples, vocab_size, name=None):
+    """Note: I closely follow the notation from Tensorflow's Candidate Sampling reference.
+       - Link: https://www.tensorflow.org/extras/candidate_sampling.pdf
+
+    Args:
+        output_projection: (tuple) returned by any Decoder.get_projections_tensors()
+            - output_projection[0] == w tensor. [state_size, vocab_size]
+            - output_projection[0] == b tensor. [vocab_size]
+        labels: 2D Integer tensor. [batch_size, None]
+        logits: 3D float Tensor [batch_size, None, state_size].
+            - In this project, usually is the decoder batch output sequence (NOT projected).
+        num_samples: number of classes out of vocab_size possible to use.
+        vocab_size: total number of classes.
+    """
+    with tf.name_scope(name, "dynamic_sampled_softmax_loss", [labels, logits, output_projection]):
+        batch_size, seq_len, state_size  = tf.unstack(tf.shape(logits))
+        time_major_outputs  = tf.reshape(logits, [seq_len, batch_size, state_size])
+        time_major_labels   = tf.reshape(labels, [seq_len, batch_size])
+
+        weights = tf.transpose(output_projection[0])
+        biases = output_projection[1]
+        def sampled_loss_single_timestep(args):
+            """
+            Args: 2-tuple (because map_fn below)
+                targets: 1D tensor (sighs loudly) of shape [batch_size]
+                logits: 2D tensor (sighs intensify) of shape [batch_size, state_size].
+            """
+            targets, logits = args
+            with tf.name_scope("compute_sampled_logits", [weights, biases, logits, targets]):
+
+                targets = tf.cast(targets, tf.int64)
+                sampled_values = tf.nn.log_uniform_candidate_sampler(
+                    true_classes=tf.expand_dims(targets, -1), num_true=1, num_sampled=num_samples,
+                    unique=True, range_max=vocab_size)
+                S, Q_true, Q_samp = (tf.stop_gradient(s) for s in sampled_values)
+
+
+                # Get concatenated 1D tensor of shape [batch_size * None + num_samples],
+                all_ids = tf.concat([targets, S], 0)
+
+                _W       = tf.nn.embedding_lookup(weights, all_ids, partition_strategy='div')
+                _b       = tf.nn.embedding_lookup(biases, all_ids)
+
+                W = {'targets': tf.slice(_W, begin=[0, 0], size=[batch_size, state_size]),
+                     'samples': tf.slice(_W, begin=[batch_size, 0], size=[num_samples, state_size])}
+
+                b = {'targets': tf.slice(_b, begin=[0], size=[batch_size]),
+                     'samples': tf.slice(_b, begin=[batch_size], size=[num_samples])}
+
+                true_logits  = tf.reduce_sum(tf.multiply(logits, W['targets']), 1)
+                true_logits += b['targets'] - tf.log(Q_true)
+
+                sampled_logits  = tf.matmul(logits, W['samples'], transpose_b=True)
+                sampled_logits += b['samples'] - tf.log(Q_samp)
+
+                F = tf.concat([true_logits, sampled_logits], 1)
+                def fn(s_i): return tf.cast(targets == s_i, dtype=tf.int64)
+                sample_labels = tf.map_fn(fn, S, dtype=tf.int64)
+                out_targets = tf.concat([tf.ones_like(true_logits), sample_labels], 1)
+
+
+            # TODO: Apply weights-zero if next target in sequence is PAD.
+            return tf.losses.sparse_softmax_cross_entropy(labels=out_targets, logits=F)
+
+        return tf.reduce_mean(tf.map_fn(sampled_loss_single_timestep,
+                                        (time_major_outputs, time_major_labels),
+                                        dtype=tf.float32))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

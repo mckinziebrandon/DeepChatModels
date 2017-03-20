@@ -9,6 +9,7 @@ import sys
 sys.path.append("..")
 from data import *
 from chatbot import DynamicBot
+from chatbot import bot_ops
 from utils import io_utils
 
 
@@ -173,92 +174,13 @@ class TestDynamicModels(unittest.TestCase):
                     tf.shape(labels) == tf.shape(weights).
         """
 
-        # 1. Here is a subset of the source code with all the irrelevant parts removed,
-        # with the aim of understanding the implementation.
-        # Changes:
-        # - Replacing weights, biases with output_projection for clarity.
-        # - Changed num_classes to vocab_size to more accurately reflect it's meaning.
-        def sampled_softmax_loss(output_projection, labels, state_outputs, num_sampled, vocab_size, sess=None):
-            """
-            Args:
-                output_projection: (tuple) returned by any Decoder.get_projections_tensors()
-                    - output_projection[0] == w tensor. [state_size, vocab_size]
-                    - output_projection[0] == b tensor. [vocab_size]
-                labels: 2D Integer tensor. [batch_size, None]
-                state_outputs: 3D float Tensor [batch_size, None, state_size].
-                    - In this project, usually is the decoder batch output sequence (NOT projected).
-                num_sampled: number of classes out of vocab_size possible to use.
-                vocab_size: total number of classes.
-            """
-
-            # Extract transpose weights, now shape is [vocab_size, state_size].
-            # Use tf.reshape which is dynamic as opposed to static (i.e. slow) tf.transpose.
-            weights = tf.reshape(output_projection[0], [vocab_size, -1])
-            state_size = tf.shape(weights)[-1]
-            biases  = output_projection[1]
-
-            with tf.name_scope("compute_sampled_logits", [weights, biases, state_outputs, labels]):
-                labels = tf.cast(labels, tf.int64)
-                # Smush tensors so we can use them with tensorflow methods.
-                # Question: Docs suggest we should reshape to [-1, 1] so I'm keeping.
-                # but original code had it as just [-1].
-                labels_flat = tf.reshape(labels, [-1, 1])
-                # Sample the negative labels. Returns 3-tuple:
-                #   1. sampled_candidates: [num_sampled] tensor
-                #   2. true_expected_count shape = [batch_size*None, 1] tensor
-                #   ---- Entries associated 1-to-1 with smushed labels.
-                #   3. sampled_expected_count shape = [num_sampled] tensor
-                #   ---- Entries associated 1-to-1 with sampled_candidates.
-                sampled_values = tf.nn.log_uniform_candidate_sampler(
-                    true_classes=labels_flat, num_true=1, num_sampled=num_sampled,
-                    unique=True, range_max=vocab_size)
-                sampled, Q_true, Q_samp = (tf.stop_gradient(s) for s in sampled_values)
-                sampled = tf.cast(sampled, tf.int64)
-
-                # Casting this back to actually be flat.
-                batch_times_none = tf.shape(labels_flat)[0]
-                labels_flat = tf.reshape(labels, [-1])
-                # Get concatenated 1D tensor of shape [batch_size * None + num_samples],
-                all_ids = tf.concat([labels_flat, sampled], 0)
-
-                # The embedding_lookup here should be thought of as embedding
-                # the integer label and sampled IDs in the state space.
-                # all_w has shape [batch_size * None + num_samples, state_size]
-                # all_b has shape [batch_size * None + num_samples]
-                all_w       = tf.nn.embedding_lookup(weights, all_ids, partition_strategy='div')
-                all_b       = tf.nn.embedding_lookup(biases, all_ids)
-                true_w      = tf.slice(all_w, begin=[0, 0], size=[batch_times_none, state_size])
-                true_b      = tf.slice(all_b, begin=[0], size=[batch_times_none])
-                sampled_w   = tf.slice(all_w, begin=[batch_times_none, 0], size=[num_sampled, state_size])
-                sampled_b   = tf.slice(all_b, begin=[batch_times_none], size=[num_sampled])
-
-                if sess is not None:
-                    print('batch_times_none:', sess.run(batch_times_none))
-                    print('state_size', sess.run(state_size))
-                    print('shape(state_outputs)', sess.run(tf.shape(state_outputs)))
-                state_outputs    = tf.reshape(state_outputs, [batch_times_none, state_size])
-                state_outputs = tf.cast(state_outputs, tf.float32)
-                true_logits      = tf.reduce_sum(tf.multiply(state_outputs, true_w), 1)
-                true_logits     += true_b - tf.log(Q_true)
-                # Matmul shapes [batch_times_none, state_size] * [state_size, num_sampled].
-                sampled_logits   = tf.matmul(state_outputs, sampled_w, transpose_b=True) + sampled_b
-                sampled_logits  += _sparse_to_dense(sampled_logits, tf.expand_dims(labels_flat, -1), sampled, num_sampled) - tf.log(Q_samp)
-                sampled_logits  -= tf.log(Q_samp)
-
-                # Construct output logits and labels. The true labels/logits start at col 0.
-                # shape(out_logits) == [batch_times_none, 1 + num_sampled]. I'M SURE.
-                out_logits = tf.concat([true_logits, sampled_logits], 1)
-                # true_logits is a float tensor, ones_like(true_logits) is a float tensor of ones.
-                out_labels = tf.concat([tf.ones_like(true_logits), tf.zeros_like(sampled_logits)], 1)
-
-            return tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=out_labels, logits=out_logits))
 
 
         # Test it works:
         seq_len = 20
         batch_size = 32
         state_size = 128
-        num_sampled = 512
+        num_samples = 512
         vocab_size = 1024
         w = tf.get_variable("w", [state_size, vocab_size], dtype=tf.float32)
         b = tf.get_variable("b", [vocab_size], dtype=tf.float32)
@@ -274,9 +196,13 @@ class TestDynamicModels(unittest.TestCase):
 
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
-            loss = sampled_softmax_loss(output_projection, labels, state_outputs, num_sampled, vocab_size, sess=sess)
-            loss = sess.run(loss)
+            loss = bot_ops.dynamic_sampled_softmax_loss(labels=labels,
+                                                        logits=state_outputs,
+                                                        vocab_size=vocab_size,
+                                                        from_scratch=False,
+                                                        num_samples=num_samples)
 
+            loss = sess.run(loss)
             print('loss:\n', loss)
 
 

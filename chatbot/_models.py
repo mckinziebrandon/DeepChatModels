@@ -8,14 +8,19 @@ from __future__ import print_function
 import os
 import random
 import logging
-
 # ML/DL-specific imports.
 import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.tensorboard.plugins import projector
-
 # User-defined imports.
 from utils import io_utils
+
+OPTIMIZERS = {
+    'adagrad':  tf.train.AdagradOptimizer,
+    'adam':     tf.train.AdamOptimizer,
+    'sgd':      tf.train.GradientDescentOptimizer,
+    'rmsprop':  tf.train.RMSPropOptimizer,
+}
 
 
 class Model(object):
