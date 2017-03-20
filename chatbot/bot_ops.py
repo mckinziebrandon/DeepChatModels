@@ -10,20 +10,21 @@ def dynamic_sampled_softmax_loss(labels, logits, output_projection, vocab_size,
        which are unspecified at initialization with size 'None'.
 
        Args:
-           labels: 2D integer tensor of shape [batch_size, None] containing
-                the word ID labels for each individual rnn state from logits.
-            logits: 3D float tensor of shape [batch_size, None, state_size] as
-                ouput by a Decoder instance.
-            from_scratch: (bool) Whether to use the version I wrote from scratch, or to use
-                          the version I wrote that applies map_fn(sampled_softmax) across timeslices, which
-                          is probably less efficient. (Currently testing)
+        labels: 2D integer tensor of shape [batch_size, None] containing
+            the word ID labels for each individual rnn state from logits.
+        logits: 3D float tensor of shape [batch_size, None, state_size] as
+            ouput by a Decoder instance.
+        from_scratch: (bool) Whether to use the version I wrote from scratch, or to use
+                      the version I wrote that applies map_fn(sampled_softmax) across timeslices, which
+                      is probably less efficient. (Currently testing)
+        num
         Returns:
             loss as a scalar Tensor, computed as the mean over all batches and sequences.
     """
 
     if from_scratch:
         return _dynamic_sampled_from_scratch(labels, logits, output_projection, vocab_size,
-                                    num_samples=num_samples, name=name)
+                                             num_samples=num_samples, name=name)
     else:
         return _dynamic_sampled_map(labels, logits, output_projection, vocab_size,
                                     num_samples=num_samples, name=name)
@@ -55,13 +56,14 @@ def _dynamic_sampled_map(labels, logits, output_projection, vocab_size,
         b = output_projection[1]
         def sampled_loss(elem):
             logits, lab = elem
+            lab = tf.reshape(lab, [-1, 1])
             # TODO: Figure out how this accurately gets loss without requiring weights,
             # like sparse_softmax_cross_entropy requires.
             return tf.reduce_mean(
                 tf.nn.sampled_softmax_loss(
                     weights=w_t,
                     biases=b,
-                    labels=tf.expand_dims(lab, -1),
+                    labels=lab,
                     inputs=logits,
                     num_sampled=num_samples,
                     num_classes=vocab_size,
@@ -73,8 +75,8 @@ def _dynamic_sampled_map(labels, logits, output_projection, vocab_size,
     return loss
 
 
-def _dynamic_sampled_from_scratch(labels, logits, output_projection,
-                                  num_samples, vocab_size, name=None):
+def _dynamic_sampled_from_scratch(labels, logits, output_projection, vocab_size,
+                                  num_samples, name=None):
     """Note: I closely follow the notation from Tensorflow's Candidate Sampling reference.
        - Link: https://www.tensorflow.org/extras/candidate_sampling.pdf
 
@@ -88,7 +90,7 @@ def _dynamic_sampled_from_scratch(labels, logits, output_projection,
         num_samples: number of classes out of vocab_size possible to use.
         vocab_size: total number of classes.
     """
-    with tf.name_scope(name, "dynamic_sampled_softmax_loss", [labels, logits, output_projection]):
+    with tf.name_scope(name, "dynamic_sampled_from_scratch", [labels, logits, output_projection]):
         batch_size, seq_len, state_size  = tf.unstack(tf.shape(logits))
         time_major_outputs  = tf.reshape(logits, [seq_len, batch_size, state_size])
         time_major_labels   = tf.reshape(labels, [seq_len, batch_size])
@@ -101,7 +103,7 @@ def _dynamic_sampled_from_scratch(labels, logits, output_projection,
                 targets: 1D tensor (sighs loudly) of shape [batch_size]
                 logits: 2D tensor (sighs intensify) of shape [batch_size, state_size].
             """
-            targets, logits = args
+            logits, targets = args
             with tf.name_scope("compute_sampled_logits", [weights, biases, logits, targets]):
 
                 targets = tf.cast(targets, tf.int64)
@@ -130,13 +132,16 @@ def _dynamic_sampled_from_scratch(labels, logits, output_projection,
                 sampled_logits += b['samples'] - tf.log(Q_samp)
 
                 F = tf.concat([true_logits, sampled_logits], 1)
-                def fn(s_i): return tf.cast(targets == s_i, dtype=tf.int64)
-                sample_labels = tf.map_fn(fn, S, dtype=tf.int64)
-                out_targets = tf.concat([tf.ones_like(true_logits), sample_labels], 1)
+                def fn(s_i):
+                    return tf.cast(tf.where(targets == s_i, tf.ones_like(targets), tf.zeros_like(targets)), tf.float32)
+                sample_labels = tf.transpose(tf.map_fn(fn, S, dtype=tf.float32))
 
+                out_targets = tf.concat([tf.ones_like(true_logits), tf.cast(sample_labels, F.dtype)], 1)
+                #out_targets = tf.nn.l2_normalize(out_targets, 1)
+                #out_targets = tf.concat([tf.ones_like(true_logits), tf.zeros_like(sampled_logits)], 1)
 
             # TODO: Apply weights-zero if next target in sequence is PAD.
-            return tf.losses.sparse_softmax_cross_entropy(labels=out_targets, logits=F)
+            return tf.losses.softmax_cross_entropy(out_targets, logits=F)
 
         return tf.reduce_mean(tf.map_fn(sampled_loss_single_timestep,
                                         (time_major_outputs, time_major_labels),

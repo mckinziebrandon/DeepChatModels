@@ -178,15 +178,16 @@ class TestDynamicModels(unittest.TestCase):
 
         # Test it works:
         seq_len = 20
-        batch_size = 32
+        batch_size = 64
         state_size = 128
-        num_samples = 512
-        vocab_size = 1024
+        num_samples = 10
+        vocab_size = 2000
         w = tf.get_variable("w", [state_size, vocab_size], dtype=tf.float32)
         b = tf.get_variable("b", [vocab_size], dtype=tf.float32)
         output_projection = (w, b)
         labels = np.random.randint(0, vocab_size, size=(batch_size, seq_len))
         state_outputs = np.random.random(size=(batch_size, seq_len, state_size))
+        state_outputs=tf.cast(state_outputs, tf.float32)
 
         print("\nExpected quantities:")
         print("\tbatch_times_none:", batch_size * seq_len)
@@ -196,14 +197,38 @@ class TestDynamicModels(unittest.TestCase):
 
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
+            print('\n=========== FROM SCRATCH ============')
             loss = bot_ops.dynamic_sampled_softmax_loss(labels=labels,
                                                         logits=state_outputs,
+                                                        output_projection=output_projection,
                                                         vocab_size=vocab_size,
-                                                        from_scratch=False,
+                                                        from_scratch=True,
+                                                        name="map_version",
                                                         num_samples=num_samples)
-
             loss = sess.run(loss)
             print('loss:\n', loss)
 
+            print('\n=========== MAP VERSION ============')
+            loss = bot_ops.dynamic_sampled_softmax_loss(labels=labels,
+                                            logits=state_outputs,
+                                            output_projection=output_projection,
+                                            vocab_size=vocab_size,
+                                            from_scratch=False,
+                                            name="from_scratch",
+                                            num_samples=num_samples)
 
+            loss = sess.run(loss)
+            print('loss:\n', loss)
+            time_major_outputs = tf.reshape(state_outputs, [seq_len, batch_size, state_size])
+            # Project batch at single timestep from state space to output space.
+            def proj_op(bo): return tf.matmul(bo, w) + b
+            # Get projected output states; 3D Tensor with shape [batch_size, seq_len, ouput_size].
+            projected_state = tf.map_fn(proj_op, time_major_outputs)
+            proj_out = tf.reshape(projected_state, [batch_size, seq_len, vocab_size])
+
+            print('\n=========== ACTUAL ============')
+            loss = tf.losses.sparse_softmax_cross_entropy(
+                labels=labels, logits=proj_out)
+            loss = sess.run(loss)
+            print('loss:\n', loss)
 
