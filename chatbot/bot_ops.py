@@ -2,8 +2,9 @@
 
 import tensorflow as tf
 
+
 def dynamic_sampled_softmax_loss(labels, logits, output_projection, vocab_size,
-                                 from_scratch=True, num_samples=512, name=None):
+                                 from_scratch=False, num_samples=512, name=None):
     """Sampled softmax loss function able to accept 3D Tensors as input,
        as opposed to the official TensorFlow support for <= 2D. This is
        dynamic because it can be applied across variable-length sequences,
@@ -105,23 +106,19 @@ def _dynamic_sampled_from_scratch(labels, logits, output_projection, vocab_size,
             """
             logits, targets = args
             with tf.name_scope("compute_sampled_logits", [weights, biases, logits, targets]):
-
                 targets = tf.cast(targets, tf.int64)
                 sampled_values = tf.nn.log_uniform_candidate_sampler(
                     true_classes=tf.expand_dims(targets, -1), num_true=1, num_sampled=num_samples,
                     unique=True, range_max=vocab_size)
                 S, Q_true, Q_samp = (tf.stop_gradient(s) for s in sampled_values)
 
-
                 # Get concatenated 1D tensor of shape [batch_size * None + num_samples],
                 all_ids = tf.concat([targets, S], 0)
-
                 _W       = tf.nn.embedding_lookup(weights, all_ids, partition_strategy='div')
                 _b       = tf.nn.embedding_lookup(biases, all_ids)
 
                 W = {'targets': tf.slice(_W, begin=[0, 0], size=[batch_size, state_size]),
                      'samples': tf.slice(_W, begin=[batch_size, 0], size=[num_samples, state_size])}
-
                 b = {'targets': tf.slice(_b, begin=[0], size=[batch_size]),
                      'samples': tf.slice(_b, begin=[batch_size], size=[num_samples])}
 
@@ -132,15 +129,9 @@ def _dynamic_sampled_from_scratch(labels, logits, output_projection, vocab_size,
                 sampled_logits += b['samples'] - tf.log(Q_samp)
 
                 F = tf.concat([true_logits, sampled_logits], 1)
-                def fn(s_i):
-                    return tf.cast(tf.where(targets == s_i, tf.ones_like(targets), tf.zeros_like(targets)), tf.float32)
-                sample_labels = tf.transpose(tf.map_fn(fn, S, dtype=tf.float32))
-
-                out_targets = tf.concat([tf.ones_like(true_logits), tf.cast(sample_labels, F.dtype)], 1)
-                #out_targets = tf.nn.l2_normalize(out_targets, 1)
-                #out_targets = tf.concat([tf.ones_like(true_logits), tf.zeros_like(sampled_logits)], 1)
-
-            # TODO: Apply weights-zero if next target in sequence is PAD.
+                def fn(s_i): return tf.where(targets == s_i, tf.ones_like(targets), tf.zeros_like(targets))
+                sample_labels = tf.transpose(tf.map_fn(fn, S))
+                out_targets = tf.concat([tf.ones_like(true_logits, dtype=tf.int64), sample_labels], 1)
             return tf.losses.softmax_cross_entropy(out_targets, logits=F)
 
         return tf.reduce_mean(tf.map_fn(sampled_loss_single_timestep,
