@@ -22,7 +22,7 @@ class DynamicBot(Model):
                  batch_size=64,
                  ckpt_dir="out",
                  dropout_prob=0.0,
-                 embed_size=None,
+                 embed_size=64,
                  learning_rate=0.5,
                  lr_decay=0.99,
                  num_layers=2,
@@ -69,41 +69,28 @@ class DynamicBot(Model):
         self.num_samples    = num_samples
         self.state_size     = state_size
 
-        with tf.variable_scope("input_pipeline"):
-            self.pipeline = InputPipeline(dataset.paths, batch_size, is_chatting=is_chatting)
-            self.encoder_inputs = self.pipeline.encoder_inputs
-            self.decoder_inputs = self.pipeline.decoder_inputs
-            self.embedder = Embedder(self.vocab_size, embed_size)
+        self.pipeline = InputPipeline(dataset.paths, batch_size, is_chatting=is_chatting)
+        self.encoder_inputs = self.pipeline.encoder_inputs
+        self.decoder_inputs = self.pipeline.decoder_inputs
 
-        with tf.variable_scope("encoder") as encoder_scope:
-            embedded_enc_inputs, embed_tensor = self.embedder(self.encoder_inputs)
-            self.encoder = Encoder(state_size, self.embed_size,
-                                   dropout_prob=dropout_prob,
-                                   num_layers=num_layers,
-                                   scope=encoder_scope)
-            # Get encoder state after feeding the sequence(s). Shape is [None, state_size].
-            encoder_state = self.encoder(embedded_enc_inputs)
-            # Note: Histogram names are chosen for nice splitting in TensorBoard.
-            tf.summary.histogram("embedding_encoder", embed_tensor)
+        self.embedder = Embedder(self.vocab_size, embed_size)
+        embedded_enc_inputs = self.embedder(self.encoder_inputs, scope="encoder")
+        embedded_dec_inputs = self.embedder(self.decoder_inputs, scope='decoder')
 
-        with tf.variable_scope("decoder") as decoder_scope:
-            # Decoder inputs in embedding space. Shape is [None, None, embed_size].
-            embedded_dec_inputs, embed_tensor = self.embedder(self.decoder_inputs)
-            self.decoder = Decoder(state_size, self.vocab_size, self.embed_size,
-                                   dropout_prob=dropout_prob,
-                                   num_layers=num_layers,
-                                   temperature=temperature,
-                                   scope=decoder_scope)
-            # For decoder, we want the full sequence of output states, not simply the last.
-            decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
-                                                          initial_state=encoder_state,
-                                                          is_chatting=is_chatting,
-                                                          loop_embedder=self.embedder)
-            tf.summary.histogram("embedding_decoder", embed_tensor)
+        self.encoder  = Encoder(state_size, self.embed_size, dropout_prob=dropout_prob, num_layers=num_layers)
+        encoder_state = self.encoder(embedded_enc_inputs)
+
+        self.decoder = Decoder(state_size, self.vocab_size, self.embed_size,
+                               dropout_prob=dropout_prob,
+                               num_layers=num_layers,
+                               temperature=temperature)
+        # For decoder, we want the full sequence of output states, not simply the last.
+        decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
+                                                      initial_state=encoder_state,
+                                                      is_chatting=is_chatting,
+                                                      loop_embedder=self.embedder)
 
         self.merged = tf.summary.merge_all()
-        # If in chat session, need _projection from state space to vocab space.
-        # Note: The decoder handles this for us (as it should).
         self.outputs = decoder_outputs
 
         # Let superclass handle the boring stuff (dirs/more instance variables).
@@ -225,6 +212,7 @@ class DynamicBot(Model):
         # Note: Calling sleep(...) appears to allow sustained GPU utilization across training.
         # Without it, looks like GPU has to wait for data to be enqueued more often. Strange.
         print('QUEUE RUNNERS RELEASED.'); time.sleep(4)
+        print('GO!')
 
         try:
             i_step = 0

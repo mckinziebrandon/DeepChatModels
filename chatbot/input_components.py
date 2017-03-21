@@ -20,7 +20,7 @@ class InputPipeline:
             3. Organize sequences into buckets of similar lengths, pad, and batch.
     """
 
-    def __init__(self, file_paths, batch_size, capacity=None, is_chatting=False):
+    def __init__(self, file_paths, batch_size, capacity=None, is_chatting=False, scope=None):
         """
         Args:
             file_paths: (dict) returned by instance of Dataset via Dataset.paths.
@@ -28,21 +28,22 @@ class InputPipeline:
             capacity: maximum number of examples allowed in the input queue at a time.
             is_chatting: (bool) determines whether we're feeding user input or file inputs.
         """
-        if capacity is None:
-            self.capacity = 20 * batch_size
-        self.batch_size = batch_size
-        self.paths = file_paths
-        self.num_threads = 4
-        self.control = {'train': 0, 'valid': 1}
-        self.active_data = tf.convert_to_tensor(self.control['train'])
-        self.is_chatting = is_chatting
-        self._user_input = tf.placeholder(tf.int32, [1, None], name='user_input_ph')
-        self._feed_dict = None
+        with tf.variable_scope(scope, 'input_pipeline'):
+            if capacity is None:
+                self.capacity = 20 * batch_size
+            self.batch_size = batch_size
+            self.paths = file_paths
+            self.num_threads = 4
+            self.control = {'train': 0, 'valid': 1}
+            self.active_data = tf.convert_to_tensor(self.control['train'])
+            self.is_chatting = is_chatting
+            self._user_input = tf.placeholder(tf.int32, [1, None], name='user_input_ph')
+            self._feed_dict = None
 
-        if not is_chatting:
-            # Create tensors that will store input batches at runtime.
-            self._train_lengths, self.train_batches = self.build_pipeline('train')
-            self._valid_lengths, self.valid_batches = self.build_pipeline('valid')
+            if not is_chatting:
+                # Create tensors that will store input batches at runtime.
+                self._train_lengths, self.train_batches = self.build_pipeline('train')
+                self._valid_lengths, self.valid_batches = self.build_pipeline('valid')
 
     def build_pipeline(self, name):
         """Creates a new input subgraph composed of the following components:
@@ -163,7 +164,7 @@ class Embedder:
         self.vocab_size = vocab_size
         self.embed_size = embed_size
 
-    def __call__(self, inputs, reuse=None):
+    def __call__(self, inputs, scope=None, reuse=None):
         """Embeds integers in inputs and returns the embedded inputs.
 
         Args:
@@ -173,7 +174,7 @@ class Embedder:
           Output tensor of shape [batch_size, max_time, embed_size]
         """
         assert len(inputs.shape) == 2, "Expected inputs rank 2 but found rank %r" % len(inputs.shape)
-        with tf.variable_scope("embedding_inputs", values=[inputs], reuse=reuse):
+        with tf.variable_scope(scope, "embedding_inputs", values=[inputs], reuse=reuse):
             params = tf.get_variable("embed_tensor", [self.vocab_size, self.embed_size],
                                      initializer=tf.contrib.layers.xavier_initializer())
             embedded_inputs = tf.nn.embedding_lookup(params, inputs)
@@ -181,7 +182,8 @@ class Embedder:
                 raise TypeError("Embedded inputs should be of type Tensor.")
             if len(embedded_inputs.shape) != 3:
                 raise ValueError("Embedded sentence has incorrect shape.")
-        return embedded_inputs, params
+            tf.summary.histogram('embedding_encoder', params)
+        return embedded_inputs
 
     def assign_visualizer(self, writer, scope, metadata_path):
         """Setup the tensorboard embedding visualizer.
@@ -192,7 +194,7 @@ class Embedder:
         config = tf.contrib.tensorboard.plugins.projector.ProjectorConfig()
         emb = config.embeddings.add()
         with tf.variable_scope(scope, reuse=True):
-            emb.tensor_name = tf.get_variable("embedding_inputs/embed_tensor").name
+            emb.tensor_name = tf.get_variable("embed_tensor").name
         emb.metadata_path = metadata_path
         tf.contrib.tensorboard.plugins.projector.visualize_embeddings(writer, config)
 

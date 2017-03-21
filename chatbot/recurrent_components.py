@@ -61,18 +61,16 @@ class RNN(object):
 
 
 class Encoder(RNN):
-    def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2,
-                 scope=None):
+    def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2):
         """
         Args:
             state_size: number of units in underlying rnn cell.
             output_size: dimension of output space for projections.
             embed_size: dimension size of word-embedding space.
         """
-        self.scope = scope if scope is not None else 'encoder_component'
         super(Encoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
 
-    def __call__(self, inputs, return_sequence=False, initial_state=None):
+    def __call__(self, inputs, return_sequence=False, scope=None, initial_state=None):
         """Run the inputs on the encoder and return the output(s).
 
         Args:
@@ -85,15 +83,16 @@ class Encoder(RNN):
                      Tensor of shape [batch_size, max_time, state_size].
             state:   The final encoder state. Tensor of shape [batch_size, state_size].
         """
+        with tf.variable_scope(scope, "encoder", values=[inputs]):
 
-        outputs, state = tf.nn.dynamic_rnn(self.cell, inputs,
-                                           initial_state=initial_state,
-                                           dtype=tf.float32)
+            outputs, state = tf.nn.dynamic_rnn(self.cell, inputs,
+                                               initial_state=initial_state,
+                                               dtype=tf.float32)
 
-        if return_sequence:
-            return outputs, state
-        else:
-            return state
+            if return_sequence:
+                return outputs, state
+            else:
+                return state
 
 
 class Decoder(RNN):
@@ -104,15 +103,13 @@ class Decoder(RNN):
     """
 
     def __init__(self, state_size, output_size, embed_size,
-                 dropout_prob=1.0, num_layers=2, temperature=1.0,
-                 scope=None):
+                 dropout_prob=1.0, num_layers=2, temperature=1.0):
         """
         Args:
             state_size: number of units in underlying rnn cell.
             output_size: dimension of output space for projections.
             embed_size: dimension size of word-embedding space.
         """
-        self.scope = scope if scope is not None else 'decoder_component'
         self.temperature = temperature
         self.output_size = output_size
         with tf.variable_scope('projection_tensors'):
@@ -123,7 +120,7 @@ class Decoder(RNN):
             self._projection = (w, b)
         super(Decoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
 
-    def __call__(self, inputs, initial_state=None, is_chatting=False, loop_embedder=None):
+    def __call__(self, inputs, initial_state=None, is_chatting=False, loop_embedder=None, scope=None):
         """Run the inputs on the decoder. If we are chatting, then conduct dynamic sampling,
             which is the process of generating a response given inputs == GO_ID.
 
@@ -141,7 +138,7 @@ class Decoder(RNN):
                      else, None.
         """
 
-        with tf.variable_scope("decoder_call") as dec_scope:
+        with tf.variable_scope(scope, "decoder", values=[inputs]) as dec_scope:
             outputs, state = tf.nn.dynamic_rnn(
                 self.cell, inputs, initial_state=initial_state, dtype=tf.float32
             )

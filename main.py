@@ -23,12 +23,13 @@ flags.DEFINE_string("dataset", "cornell", "Dataset to use. 'ubuntu', 'cornell', 
 # Boolean flags.
 flags.DEFINE_boolean("reset_model", False, "wipe output directory; new params")
 flags.DEFINE_boolean("decode", False, "If true, initiates chat session.")
+flags.DEFINE_boolean("sampled_loss", False, "If False, uses default sparse_softmax_cross_entropy.")
 # Integer flags.
 flags.DEFINE_integer("steps_per_ckpt", 200, "How many training steps to do per checkpoint.")
 flags.DEFINE_integer("batch_size", 64, "Batch size to use during training.")
 flags.DEFINE_integer("vocab_size", 40000, "Number of unique words/tokens to use.")
 flags.DEFINE_integer("state_size", 512, "Number of units in the RNN cell.")
-flags.DEFINE_integer("embed_size", None, "Models will set this to state_size if None.")
+flags.DEFINE_integer("embed_size", 64, "Size of embedding dimension.")
 flags.DEFINE_integer("num_layers", 3, "Num layers in underlying MultiRNNCell.")
 flags.DEFINE_integer("max_seq_len", 80, "Num layers in underlying MultiRNNCell.")
 flags.DEFINE_integer("num_samples", 512, "subset of vocabulary_size for sampled softmax.")
@@ -87,7 +88,9 @@ if __name__ == "__main__":
 
 
     print("Compiling DynamicBot.")
-    bot.compile(max_gradient=FLAGS.max_gradient, reset=FLAGS.reset_model)
+    bot.compile(max_gradient=FLAGS.max_gradient,
+                sampled_loss=FLAGS.sampled_loss,
+                reset=FLAGS.reset_model)
 
     # Train an epoch on the data. CTRL-C at any time to safely stop training.
     # Model saved in FLAGS.ckpt_dir if specified, else "./out"
