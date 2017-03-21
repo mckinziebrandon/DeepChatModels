@@ -16,10 +16,10 @@ from tensorflow.contrib.tensorboard.plugins import projector
 from utils import io_utils
 
 OPTIMIZERS = {
-    'adagrad':  tf.train.AdagradOptimizer,
-    'adam':     tf.train.AdamOptimizer,
-    'sgd':      tf.train.GradientDescentOptimizer,
-    'rmsprop':  tf.train.RMSPropOptimizer,
+    'Adagrad':  tf.train.AdagradOptimizer,
+    'Adam':     tf.train.AdamOptimizer,
+    'SGD':      tf.train.GradientDescentOptimizer,
+    'RMSProp':  tf.train.RMSPropOptimizer,
 }
 
 
@@ -49,7 +49,7 @@ class Model(object):
         self.sess = tf.Session()
         with self.graph.name_scope(tf.GraphKeys.SUMMARIES):
             self.global_step    = tf.Variable(initial_value=0, trainable=False)
-            self.learning_rate = tf.Variable(learning_rate)
+            self.learning_rate = tf.constant(learning_rate)
             #self.learning_rate = tf.train.exponential_deay(
             #    learning_rate, self.global_step, self.steps_per_ckpt, lr_decay, staircase=True)
 

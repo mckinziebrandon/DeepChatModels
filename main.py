@@ -20,6 +20,7 @@ flags = tf.app.flags
 flags.DEFINE_string("ckpt_dir", "out", "Directory in which checkpoint files will be saved.")
 flags.DEFINE_string("data_dir", None, "Directory containing the data files.")
 flags.DEFINE_string("dataset", "cornell", "Dataset to use. 'ubuntu', 'cornell', or 'wmt'.")
+flags.DEFINE_string("optimizer", None, "Defaults to AdagradOptimizer.")
 # Boolean flags.
 flags.DEFINE_boolean("reset_model", False, "wipe output directory; new params")
 flags.DEFINE_boolean("decode", False, "If true, initiates chat session.")
@@ -34,7 +35,7 @@ flags.DEFINE_integer("num_layers", 3, "Num layers in underlying MultiRNNCell.")
 flags.DEFINE_integer("max_seq_len", 80, "Num layers in underlying MultiRNNCell.")
 flags.DEFINE_integer("num_samples", 512, "subset of vocabulary_size for sampled softmax.")
 # Float flags -- hyperparameters.
-flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
+flags.DEFINE_float("learning_rate", 0.3, "Learning rate.")
 flags.DEFINE_float("lr_decay", 0.98, "Decay factor applied to learning rate.")
 flags.DEFINE_float("max_gradient", 5.0, "Clip gradients to this value.")
 flags.DEFINE_float("temperature", 0.0, "Sampling temperature.")
@@ -88,7 +89,8 @@ if __name__ == "__main__":
 
 
     print("Compiling DynamicBot.")
-    bot.compile(max_gradient=FLAGS.max_gradient,
+    bot.compile(optimizer=FLAGS.optimizer,
+                max_gradient=FLAGS.max_gradient,
                 sampled_loss=FLAGS.sampled_loss,
                 reset=FLAGS.reset_model)
 

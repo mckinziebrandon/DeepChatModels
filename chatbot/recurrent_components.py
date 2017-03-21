@@ -83,7 +83,7 @@ class Encoder(RNN):
                      Tensor of shape [batch_size, max_time, state_size].
             state:   The final encoder state. Tensor of shape [batch_size, state_size].
         """
-        with tf.variable_scope(scope, "encoder", values=[inputs]):
+        with tf.name_scope(scope, "encoder", values=[inputs]):
 
             outputs, state = tf.nn.dynamic_rnn(self.cell, inputs,
                                                initial_state=initial_state,
@@ -138,7 +138,7 @@ class Decoder(RNN):
                      else, None.
         """
 
-        with tf.variable_scope(scope, "decoder", values=[inputs]) as dec_scope:
+        with tf.name_scope(scope, "decoder", values=[inputs]) as dec_scope:
             outputs, state = tf.nn.dynamic_rnn(
                 self.cell, inputs, initial_state=initial_state, dtype=tf.float32
             )

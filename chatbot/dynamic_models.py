@@ -69,30 +69,32 @@ class DynamicBot(Model):
         self.num_samples    = num_samples
         self.state_size     = state_size
 
-        self.pipeline       = InputPipeline(dataset.paths, batch_size, is_chatting=is_chatting)
-        self.encoder_inputs = self.pipeline.encoder_inputs
-        self.decoder_inputs = self.pipeline.decoder_inputs
+        with tf.variable_scope("input_layer"):
+            self.pipeline       = InputPipeline(dataset.paths, batch_size, is_chatting=is_chatting)
+            self.encoder_inputs = self.pipeline.encoder_inputs
+            self.decoder_inputs = self.pipeline.decoder_inputs
 
-        self.embedder       = Embedder(self.vocab_size, embed_size)
-        embedded_enc_inputs = self.embedder(self.encoder_inputs, scope="encoder")
-        embedded_dec_inputs = self.embedder(self.decoder_inputs, scope='decoder')
+        self.embedder = Embedder(self.vocab_size, embed_size)
+        with tf.variable_scope("encoder") as scope:
+            embedded_enc_inputs = self.embedder(self.encoder_inputs, scope=scope)
+            # Create the encoder & decoder objects.
+            self.encoder  = Encoder(state_size, self.embed_size,
+                                    dropout_prob=dropout_prob,
+                                    num_layers=num_layers)
+            # Applying embedded inputs to encoder yields the final (context) state.
+            encoder_state = self.encoder(embedded_enc_inputs)
 
-        # Create the encoder & decoder objects.
-        self.encoder  = Encoder(state_size, self.embed_size,
-                                dropout_prob=dropout_prob,
-                                num_layers=num_layers)
-        self.decoder  = Decoder(state_size, self.vocab_size, self.embed_size,
-                                dropout_prob=dropout_prob,
-                                num_layers=num_layers,
-                                temperature=temperature)
-
-        # Applying embedded inputs to encoder yields the final (context) state.
-        encoder_state = self.encoder(embedded_enc_inputs)
-        # For decoder, we want the full sequence of output states, not simply the last.
-        decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
-                                                      initial_state=encoder_state,
-                                                      is_chatting=is_chatting,
-                                                      loop_embedder=self.embedder)
+        with tf.variable_scope("decoder") as scope:
+            embedded_dec_inputs = self.embedder(self.decoder_inputs, scope=scope)
+            self.decoder  = Decoder(state_size, self.vocab_size, self.embed_size,
+                                    dropout_prob=dropout_prob,
+                                    num_layers=num_layers,
+                                    temperature=temperature)
+            # For decoder, we want the full sequence of output states, not simply the last.
+            decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
+                                                          initial_state=encoder_state,
+                                                          is_chatting=is_chatting,
+                                                          loop_embedder=self.embedder)
 
         # Merge any summaries floating around in the aether into one object.
         self.merged = tf.summary.merge_all()
@@ -109,11 +111,11 @@ class DynamicBot(Model):
                                          steps_per_ckpt,
                                          is_chatting)
 
-    def compile(self, optimizer=None, max_gradient=5.0, reset=False, sampled_loss=True):
+    def compile(self, optimizer=None, max_gradient=5.0, reset=False, sampled_loss=False):
         """ Configure training process and initialize model. Inspired by Keras.
 
         Args:
-            optimizer: (str)
+            optimizer: (str). Supported: 'Adagrad', 'RMSProp', 'SGD', 'Adam'.
             max_gradient: float. Gradients will be clipped to be below this value.
             reset: boolean. Tells Model superclass whether or not we wish to compile
                             a model from scratch or load existing parameters from ckpt_dir.
@@ -122,7 +124,7 @@ class DynamicBot(Model):
         """
 
         if not self.is_chatting:
-            with tf.name_scope("evaluation") as scope:
+            with tf.variable_scope("evaluation") as scope:
                 # Loss - target is to predict, as output, the next decoder input.
                 # target_labels has shape [batch_size, dec_inp_seq_len - 1]
                 target_labels = self.decoder_inputs[:, 1:]
@@ -136,35 +138,33 @@ class DynamicBot(Model):
                         target_labels, self.outputs[:, :-1, :],
                         self.decoder.get_projection_tensors(), self.vocab_size,
                         num_samples=self.num_samples)
+                    preds = self.decoder.apply_projection(self.outputs)
                 else:
                     self.loss = tf.losses.sparse_softmax_cross_entropy(
                         labels=target_labels, logits=self.outputs[:, :-1, :],
                         weights=target_weights)
+                    preds = self.outputs
 
                 # Define the training portion of the graph.
                 if optimizer is not None:
                     assert optimizer in OPTIMIZERS, \
                         "Optimizer %s not supported. Choice are:\n%r" \
                     % (optimizer, OPTIMIZERS.keys())
-                    optimizer = OPTIMIZERS[optimizer](self.learning_rate)
                 else:
-                    self.log.info("Using default AdagradOptimizer.")
-                    optimizer = tf.train.AdagradOptimizer(self.learning_rate)
+                    optimizer = 'Adagrad'
 
-                params = tf.trainable_variables()
-                gradients = tf.gradients(self.loss, params)
-                clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, max_gradient)
-                grads = list(zip(clipped_gradients, params))
-                self.apply_gradients = optimizer.apply_gradients(grads, global_step=self.global_step)
+                self.log.info("Optimizing with %s." % optimizer)
+                self.apply_gradients = tf.contrib.layers.optimize_loss(
+                    loss=self.loss, global_step=self.global_step,
+                    learning_rate=self.learning_rate,
+                    optimizer=optimizer,
+                    clip_gradients=max_gradient,
+                    summaries=['loss', 'learning_rate', 'gradient_norm'])
 
                 # Computed accuracy, ensuring we use fully projected outputs.
-                proj = self.outputs if not sampled_loss else self.decoder.apply_projection(self.outputs, scope)
-                correct_pred = tf.equal(tf.round(tf.argmax(proj[:, :-1, :], axis=2)),
-                                        tf.round(tf.argmax(target_labels)))
+                correct_pred = tf.equal(tf.argmax(preds[:, :-1, :], axis=2), target_labels)
                 accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
                 tf.summary.scalar('accuracy', accuracy)
-                tf.summary.scalar('loss', self.loss),
-                tf.summary.scalar('learning_rate', self.learning_rate),
                 self.merged = tf.summary.merge_all()
 
         # Let superclass load param values from file (if reset==False), else initialize new model.
