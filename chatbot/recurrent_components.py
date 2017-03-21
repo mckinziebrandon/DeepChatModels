@@ -39,8 +39,7 @@ class Cell(tf.contrib.rnn.RNNCell):
             return tuple([tf.TensorShape([None, self._state_size]) for _ in range(self._num_layers)])
 
     def __call__(self, inputs, state, scope=None):
-        if self._dropout_prob > 0.1:
-            inputs = tf.layers.dropout(inputs, rate=self._dropout_prob, name="dropout")
+        inputs = tf.layers.dropout(inputs, rate=self._dropout_prob, name="dropout")
         output, new_state = self._cell(inputs, state, scope)
         return output, new_state
 

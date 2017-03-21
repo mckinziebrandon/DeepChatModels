@@ -35,7 +35,7 @@ flags.DEFINE_integer("num_layers", 3, "Num layers in underlying MultiRNNCell.")
 flags.DEFINE_integer("max_seq_len", 80, "Num layers in underlying MultiRNNCell.")
 flags.DEFINE_integer("num_samples", 512, "subset of vocabulary_size for sampled softmax.")
 # Float flags -- hyperparameters.
-flags.DEFINE_float("learning_rate", 0.3, "Learning rate.")
+flags.DEFINE_float("learning_rate", 0.4, "Learning rate.")
 flags.DEFINE_float("lr_decay", 0.98, "Decay factor applied to learning rate.")
 flags.DEFINE_float("max_gradient", 5.0, "Clip gradients to this value.")
 flags.DEFINE_float("temperature", 0.0, "Sampling temperature.")

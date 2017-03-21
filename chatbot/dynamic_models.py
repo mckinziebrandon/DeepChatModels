@@ -140,9 +140,11 @@ class DynamicBot(Model):
                         self.decoder.get_projection_tensors(), self.vocab_size,
                         num_samples=self.num_samples)
                 else:
+                    regLosses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+                    l1 = tf.reduce_sum(tf.abs(regLosses))
                     self.loss = tf.losses.sparse_softmax_cross_entropy(
                         labels=target_labels, logits=preds[:, :-1, :],
-                        weights=target_weights)
+                        weights=target_weights) + l1
 
                 # Define the training portion of the graph.
                 if optimizer is not None:
@@ -160,7 +162,7 @@ class DynamicBot(Model):
                     clip_gradients=max_gradient,
                     summaries=['loss', 'learning_rate', 'gradient_norm'])
 
-                # Computed accuracy, ensuring we use fully projected outputs.
+                # Compute accuracy, ensuring we use fully projected outputs.
                 correct_pred = tf.equal(tf.argmax(preds[:, :-1, :], axis=2), target_labels)
                 accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
                 tf.summary.scalar('accuracy', accuracy)
