@@ -3,3 +3,6 @@ This is a test. Trying to push to the repo.
 
 This is another test. Can I get Ivan and Mitch to have merge conflicts just by writing this? Probably. 
 -Brandon
+
+This is another test. Will Brandon notice that he's a massive fag?
+-Mitch
