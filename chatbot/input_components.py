@@ -177,7 +177,7 @@ class Embedder:
         with tf.variable_scope(scope, "embedding_inputs", values=[inputs], reuse=reuse):
             params = tf.get_variable("embed_tensor", [self.vocab_size, self.embed_size],
                                      initializer=tf.contrib.layers.xavier_initializer(),
-                                     regularizer=tf.contrib.layers.l1_regularizer(1e-3))
+                                     regularizer=tf.contrib.layers.l1_regularizer(1e-5))
             embedded_inputs = tf.nn.embedding_lookup(params, inputs)
             if not isinstance(embedded_inputs, tf.Tensor):
                 raise TypeError("Embedded inputs should be of type Tensor.")

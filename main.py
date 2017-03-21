@@ -61,7 +61,7 @@ if __name__ == "__main__":
     # rooted at out that makes for great TensorBoard visualizations.
     if FLAGS.ckpt_dir == 'out':
         FLAGS.ckpt_dir += '/' + FLAGS.dataset
-        FLAGS.ckpt_dir += '/lr_%d_st_%d_nlay_%d_drop_%d' % (
+        FLAGS.ckpt_dir += '/regularize_lr_%d_st_%d_nlay_%d_drop_%d' % (
             int(1e2*FLAGS.learning_rate), FLAGS.state_size,
             FLAGS.num_layers, int(1e2 * FLAGS.dropout_prob))
 

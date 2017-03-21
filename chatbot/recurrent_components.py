@@ -137,7 +137,7 @@ class Decoder(RNN):
                      else, None.
         """
 
-        with tf.name_scope(scope, "decoder", values=[inputs]) as dec_scope:
+        with tf.variable_scope(scope, "decoder", values=[inputs]) as dec_scope:
             outputs, state = tf.nn.dynamic_rnn(
                 self.cell, inputs, initial_state=initial_state, dtype=tf.float32
             )
@@ -153,8 +153,7 @@ class Decoder(RNN):
             def body(response, state):
                 """Input callable for tf.while_loop. See below."""
                 dec_scope.reuse_variables()
-                with tf.variable_scope(self.scope):
-                    decoder_input, _ = loop_embedder(tf.reshape(response[-1], (1, 1)), reuse=True)
+                decoder_input = loop_embedder(tf.reshape(response[-1], (1, 1)), scope=dec_scope, reuse=True)
                 outputs, state = tf.nn.dynamic_rnn(self.cell,
                                              inputs=decoder_input,
                                              initial_state=state,
@@ -165,8 +164,8 @@ class Decoder(RNN):
 
             def cond(response, s):
                 """Input callable for tf.while_loop. See below."""
-                return tf.logical_or(tf.not_equal(response[-1], EOS_ID),
-                                     tf.not_equal(response[-1], PAD_ID))
+                return tf.logical_and(tf.not_equal(response[-1], EOS_ID),
+                                      tf.less(tf.size(response), 100))
 
             # Create integer (tensor) list of output ID responses.
             response = tf.stack([self.sample(outputs)])
@@ -201,7 +200,7 @@ class Decoder(RNN):
             Tensor of shape [batch_size, max_time, output_size] representing the projected outputs.
         """
 
-        with tf.name_scope(scope, "proj_scope", [outputs]):
+        with tf.variable_scope(scope, "proj_scope", [outputs]):
             # Swap 1st and 2nd indices to match expected input of map_fn.
             seq_len  = tf.shape(outputs)[1]
             st_size  = tf.shape(outputs)[2]

@@ -94,7 +94,8 @@ class DynamicBot(Model):
             decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
                                                           initial_state=encoder_state,
                                                           is_chatting=is_chatting,
-                                                          loop_embedder=self.embedder)
+                                                          loop_embedder=self.embedder,
+                                                          scope=scope)
 
         # Merge any summaries floating around in the aether into one object.
         self.merged = tf.summary.merge_all()
@@ -130,6 +131,8 @@ class DynamicBot(Model):
                 target_labels = self.decoder_inputs[:, 1:]
                 target_weights = tf.cast(target_labels > 0, target_labels.dtype)
                 preds = self.decoder.apply_projection(self.outputs)
+                regLosses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+                l1 = tf.reduce_sum(tf.abs(regLosses))
                 if sampled_loss:
                     self.log.info("Training with dynamic sampled softmax loss.")
                     assert 0 < self.num_samples < self.vocab_size, \
@@ -138,10 +141,8 @@ class DynamicBot(Model):
                     self.loss = bot_ops.dynamic_sampled_softmax_loss(
                         target_labels, self.outputs[:, :-1, :],
                         self.decoder.get_projection_tensors(), self.vocab_size,
-                        num_samples=self.num_samples)
+                        num_samples=self.num_samples) + l1
                 else:
-                    regLosses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-                    l1 = tf.reduce_sum(tf.abs(regLosses))
                     self.loss = tf.losses.sparse_softmax_cross_entropy(
                         labels=target_labels, logits=preds[:, :-1, :],
                         weights=target_weights) + l1
@@ -160,7 +161,7 @@ class DynamicBot(Model):
                     learning_rate=self.learning_rate,
                     optimizer=optimizer,
                     clip_gradients=max_gradient,
-                    summaries=['loss', 'learning_rate', 'gradient_norm'])
+                    summaries=['loss', 'gradients'])
 
                 # Compute accuracy, ensuring we use fully projected outputs.
                 correct_pred = tf.equal(tf.argmax(preds[:, :-1, :], axis=2), target_labels)
@@ -239,12 +240,12 @@ class DynamicBot(Model):
                     print("step time = %.3f" % avg_step_time)
                     print("\ttraining loss = %.3f" % avg_loss, end="; ")
                     print("training perplexity = %.2f" % perplexity(avg_loss))
-                    self.save(summaries=summaries)
 
                     # Toggle data switch and led the validation flow!
                     self.pipeline.toggle_active()
                     with self.graph.device('/cpu:0'):
                         summaries, eval_loss, _ = self.step(forward_only=True)
+                        self.save(summaries=summaries)
                     self.pipeline.toggle_active()
                     print("\tValidation loss = %.3f" % eval_loss, end="; ")
                     print("val perplexity = %.2f" % perplexity(eval_loss))
