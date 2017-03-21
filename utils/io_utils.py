@@ -42,7 +42,7 @@ def get_sentence():
     """
     sys.stdout.write("> ")
     sys.stdout.flush()
-    return sys.stdin.readline()[:-1]
+    return sys.stdin.readline().strip()
 
 
 def basic_tokenizer(sentence):

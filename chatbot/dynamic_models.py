@@ -69,27 +69,32 @@ class DynamicBot(Model):
         self.num_samples    = num_samples
         self.state_size     = state_size
 
-        self.pipeline = InputPipeline(dataset.paths, batch_size, is_chatting=is_chatting)
+        self.pipeline       = InputPipeline(dataset.paths, batch_size, is_chatting=is_chatting)
         self.encoder_inputs = self.pipeline.encoder_inputs
         self.decoder_inputs = self.pipeline.decoder_inputs
 
-        self.embedder = Embedder(self.vocab_size, embed_size)
+        self.embedder       = Embedder(self.vocab_size, embed_size)
         embedded_enc_inputs = self.embedder(self.encoder_inputs, scope="encoder")
         embedded_dec_inputs = self.embedder(self.decoder_inputs, scope='decoder')
 
-        self.encoder  = Encoder(state_size, self.embed_size, dropout_prob=dropout_prob, num_layers=num_layers)
-        encoder_state = self.encoder(embedded_enc_inputs)
+        # Create the encoder & decoder objects.
+        self.encoder  = Encoder(state_size, self.embed_size,
+                                dropout_prob=dropout_prob,
+                                num_layers=num_layers)
+        self.decoder  = Decoder(state_size, self.vocab_size, self.embed_size,
+                                dropout_prob=dropout_prob,
+                                num_layers=num_layers,
+                                temperature=temperature)
 
-        self.decoder = Decoder(state_size, self.vocab_size, self.embed_size,
-                               dropout_prob=dropout_prob,
-                               num_layers=num_layers,
-                               temperature=temperature)
+        # Applying embedded inputs to encoder yields the final (context) state.
+        encoder_state = self.encoder(embedded_enc_inputs)
         # For decoder, we want the full sequence of output states, not simply the last.
         decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
                                                       initial_state=encoder_state,
                                                       is_chatting=is_chatting,
                                                       loop_embedder=self.embedder)
 
+        # Merge any summaries floating around in the aether into one object.
         self.merged = tf.summary.merge_all()
         self.outputs = decoder_outputs
 
@@ -121,9 +126,12 @@ class DynamicBot(Model):
                 # Loss - target is to predict, as output, the next decoder input.
                 # target_labels has shape [batch_size, dec_inp_seq_len - 1]
                 target_labels = self.decoder_inputs[:, 1:]
-                target_weights = tf.cast(self.decoder_inputs > 0, self.decoder_inputs.dtype)
-                if sampled_loss and 0 < self.num_samples < self.vocab_size:
+                target_weights = tf.cast(target_labels > 0, target_labels.dtype)
+                if sampled_loss:
                     self.log.info("Training with dynamic sampled softmax loss.")
+                    assert 0 < self.num_samples < self.vocab_size, \
+                        "num_samples is %d but should be between 0 and %d" \
+                        % (self.num_samples, self.vocab_size)
                     self.loss = bot_ops.dynamic_sampled_softmax_loss(
                         target_labels, self.outputs[:, :-1, :],
                         self.decoder.get_projection_tensors(), self.vocab_size,
@@ -131,7 +139,7 @@ class DynamicBot(Model):
                 else:
                     self.loss = tf.losses.sparse_softmax_cross_entropy(
                         labels=target_labels, logits=self.outputs[:, :-1, :],
-                        weights=target_weights[:, 1:])
+                        weights=target_weights)
 
                 # Define the training portion of the graph.
                 if optimizer is not None:
@@ -154,14 +162,12 @@ class DynamicBot(Model):
                 correct_pred = tf.equal(tf.round(tf.argmax(proj[:, :-1, :], axis=2)),
                                         tf.round(tf.argmax(target_labels)))
                 accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
-                # Creating a summar.scalar tells TF that we want to track the value for visualization.
                 tf.summary.scalar('accuracy', accuracy)
                 tf.summary.scalar('loss', self.loss),
                 tf.summary.scalar('learning_rate', self.learning_rate),
                 self.merged = tf.summary.merge_all()
 
-        # Next, let superclass load param values from file (if not reset), otherwise
-        # initialize newly created model.
+        # Let superclass load param values from file (if reset==False), else initialize new model.
         super(DynamicBot, self).compile(reset=reset)
 
     def step(self, forward_only=False):

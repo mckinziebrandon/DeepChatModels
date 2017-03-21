@@ -30,6 +30,10 @@ def _sparse_to_dense(sampled_logits, labels, sampled, num_sampled):
 
 class TestDynamicModels(unittest.TestCase):
 
+    def setUp(self):
+        logging.basicConfig(level=logging.INFO)
+        self.log = logging.getLogger('TestDynamicModelsLogger')
+
 
     def test_chat(self):
         """Feed the training sentences to the bot during conversation.
@@ -83,8 +87,6 @@ class TestDynamicModels(unittest.TestCase):
         """Make sure target weights set PAD targets to zero."""
         data_dir = '/home/brandon/terabyte/Datasets/test_data'
         dataset = TestData(data_dir)
-        dataset.convert_to_tf_records('train')
-        dataset.convert_to_tf_records('valid')
 
         is_chatting = False
         state_size = 256
@@ -92,13 +94,9 @@ class TestDynamicModels(unittest.TestCase):
         num_layers = 3
         learning_rate = 0.1
         dropout_prob = 0.5
-        ckpt_dir = 'out/sampled_st_%d_nl_%d_emb_%d_lr_%d_drop_5' % (
-            state_size, num_layers, embed_size, int(100 * learning_rate)
-        )
+        ckpt_dir = 'out/test_target_weights'
 
-        num_samples = 40
         bot = DynamicBot(dataset,
-                         num_samples=num_samples,
                          ckpt_dir=ckpt_dir,
                          batch_size=4,
                          learning_rate=learning_rate,
@@ -107,7 +105,30 @@ class TestDynamicModels(unittest.TestCase):
                          num_layers=num_layers,
                          dropout_prob=dropout_prob,
                          is_chatting=is_chatting)
-        bot.compile(reset=(not is_chatting), sampled_loss=True)
+
+        # Test the following two lines used by DynamicBot.compile().
+        target_labels = bot.decoder_inputs[:, 1:]
+        target_weights = tf.cast(target_labels > 0, target_labels.dtype)
+        super(DynamicBot, bot).compile(reset=True)
+        with bot.sess as sess:
+            answer = 'n'
+            while answer == 'n':
+
+                coord   = tf.train.Coordinator()
+                threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+                inp, weights = sess.run([target_labels, target_weights])
+                print("\ndec inp:")
+                print(inp)
+                print("target weights:")
+                print(weights)
+
+                print("Are you satisfied? [y/n]")
+                answer = io_utils.get_sentence()
+                if answer == 'y':
+                    coord.request_stop()
+                    coord.join(threads)
+                    bot.close()
+
     def test_sampled_chat(self):
         """Same as test_chat but trains on new custom dynamic sampled softmax loss."""
 
