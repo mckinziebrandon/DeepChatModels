@@ -183,6 +183,10 @@ class Dataset(DatasetABC):
             for d in decoder_list:
                 decoder_sequence.feature.add().int64_list.value.append(d)
 
+            encoder_sequence.feature.add().int64_list.value.append(len(encoder_list))
+            decoder_sequence.feature.add().int64_list.value.append(len(decoder_list))
+
+
             return example
 
         with tf.gfile.GFile(from_path, mode="r") as encoder_file:
