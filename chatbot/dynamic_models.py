@@ -129,6 +129,7 @@ class DynamicBot(Model):
                 # target_labels has shape [batch_size, dec_inp_seq_len - 1]
                 target_labels = self.decoder_inputs[:, 1:]
                 target_weights = tf.cast(target_labels > 0, target_labels.dtype)
+                preds = self.decoder.apply_projection(self.outputs)
                 if sampled_loss:
                     self.log.info("Training with dynamic sampled softmax loss.")
                     assert 0 < self.num_samples < self.vocab_size, \
@@ -138,12 +139,10 @@ class DynamicBot(Model):
                         target_labels, self.outputs[:, :-1, :],
                         self.decoder.get_projection_tensors(), self.vocab_size,
                         num_samples=self.num_samples)
-                    preds = self.decoder.apply_projection(self.outputs)
                 else:
                     self.loss = tf.losses.sparse_softmax_cross_entropy(
-                        labels=target_labels, logits=self.outputs[:, :-1, :],
+                        labels=target_labels, logits=preds[:, :-1, :],
                         weights=target_weights)
-                    preds = self.outputs
 
                 # Define the training portion of the graph.
                 if optimizer is not None:

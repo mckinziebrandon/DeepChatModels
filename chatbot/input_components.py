@@ -176,7 +176,8 @@ class Embedder:
         assert len(inputs.shape) == 2, "Expected inputs rank 2 but found rank %r" % len(inputs.shape)
         with tf.variable_scope(scope, "embedding_inputs", values=[inputs], reuse=reuse):
             params = tf.get_variable("embed_tensor", [self.vocab_size, self.embed_size],
-                                     initializer=tf.contrib.layers.xavier_initializer())
+                                     initializer=tf.contrib.layers.xavier_initializer(),
+                                     regularizer=tf.contrib.layers.l1_regularizer(0.1))
             embedded_inputs = tf.nn.embedding_lookup(params, inputs)
             if not isinstance(embedded_inputs, tf.Tensor):
                 raise TypeError("Embedded inputs should be of type Tensor.")
