@@ -102,7 +102,8 @@ class Decoder(RNN):
     """
 
     def __init__(self, state_size, output_size, embed_size,
-                 dropout_prob=1.0, num_layers=2, temperature=1.0):
+                 dropout_prob=1.0, num_layers=2, temperature=1.0,
+                 max_seq_len=100):
         """
         Args:
             state_size: number of units in underlying rnn cell.
@@ -111,6 +112,7 @@ class Decoder(RNN):
         """
         self.temperature = temperature
         self.output_size = output_size
+        self.max_seq_len = max_seq_len
         with tf.variable_scope('projection_tensors'):
             w = tf.get_variable("w", [state_size, output_size], dtype=tf.float32,
                                 initializer=tf.contrib.layers.xavier_initializer())
@@ -165,7 +167,7 @@ class Decoder(RNN):
             def cond(response, s):
                 """Input callable for tf.while_loop. See below."""
                 return tf.logical_and(tf.not_equal(response[-1], EOS_ID),
-                                      tf.less(tf.size(response), 100))
+                                      tf.less(tf.size(response), self.max_seq_len))
 
             # Create integer (tensor) list of output ID responses.
             response = tf.stack([self.sample(outputs)])

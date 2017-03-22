@@ -30,6 +30,7 @@ class DynamicBot(Model):
                  state_size=128,
                  steps_per_ckpt=200,
                  temperature=0.0,
+                 l1_reg=0.0,
                  is_chatting=False):
         """
         Args:
@@ -74,7 +75,7 @@ class DynamicBot(Model):
             self.encoder_inputs = self.pipeline.encoder_inputs
             self.decoder_inputs = self.pipeline.decoder_inputs
 
-        self.embedder = Embedder(self.vocab_size, embed_size)
+        self.embedder = Embedder(self.vocab_size, embed_size, l1_reg=l1_reg)
         with tf.variable_scope("encoder") as scope:
             embedded_enc_inputs = self.embedder(self.encoder_inputs, scope=scope)
             # Create the encoder & decoder objects.
@@ -89,6 +90,7 @@ class DynamicBot(Model):
             self.decoder  = Decoder(state_size, self.vocab_size, self.embed_size,
                                     dropout_prob=dropout_prob,
                                     num_layers=num_layers,
+                                    max_seq_len=dataset.max_seq_len,
                                     temperature=temperature)
             # For decoder, we want the full sequence of output states, not simply the last.
             decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
@@ -272,11 +274,11 @@ class DynamicBot(Model):
         assert self.is_chatting
         # Decode from standard input.
         print("Type \"exit\" to exit.")
-        print("Write stuff after the \">\" below and I, your robot friend, will respond.")
+        print("Hi human. Write stuff below and I, your robot friend, will respond.")
         sentence = io_utils.get_sentence()
         while sentence:
             response = self(sentence)
-            print(response)
+            print("Robot:", response)
             sentence = io_utils.get_sentence()
             if sentence == 'exit':
                 print("Farewell, human.")

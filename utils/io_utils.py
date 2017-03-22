@@ -40,7 +40,7 @@ def get_sentence():
     """Simple function to prompt user for input and return it w/o newline.
     Frequently used in chat sessions, of course.
     """
-    sys.stdout.write("> ")
+    sys.stdout.write("Human: ")
     sys.stdout.flush()
     return sys.stdin.readline().strip()
 

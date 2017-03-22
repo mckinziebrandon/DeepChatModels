@@ -40,6 +40,7 @@ flags.DEFINE_float("lr_decay", 0.98, "Decay factor applied to learning rate.")
 flags.DEFINE_float("max_gradient", 5.0, "Clip gradients to this value.")
 flags.DEFINE_float("temperature", 0.0, "Sampling temperature.")
 flags.DEFINE_float("dropout_prob", 0.5, "Dropout rate before each layer.")
+flags.DEFINE_float("l1_reg", 0.0, "l1")
 FLAGS = flags.FLAGS
 
 DATASET = {'ubuntu': Ubuntu,
@@ -61,9 +62,12 @@ if __name__ == "__main__":
     # rooted at out that makes for great TensorBoard visualizations.
     if FLAGS.ckpt_dir == 'out':
         FLAGS.ckpt_dir += '/' + FLAGS.dataset
-        FLAGS.ckpt_dir += '/regularize_lr_%d_st_%d_nlay_%d_drop_%d' % (
-            int(1e2*FLAGS.learning_rate), FLAGS.state_size,
-            FLAGS.num_layers, int(1e2 * FLAGS.dropout_prob))
+        # Split by directory for high-impact parameter decisions.
+        FLAGS.ckpt_dir += '/optimizer_%s' % FLAGS.optimizer
+        FLAGS.ckpt_dir += '/learning_rate_%.0e' % FLAGS.learning_rate
+        FLAGS.ckpt_dir += '/state%d_nlay%d_l1reg%.0e_maxlen%d_drop%.0e' % (
+            FLAGS.state_size, FLAGS.num_layers, FLAGS.l1_reg, FLAGS.max_seq_len, FLAGS.dropout_prob)
+
 
     # All datasets follow the same API, found in data/_dataset.py
     print("Setting up %s dataset." % FLAGS.dataset)
