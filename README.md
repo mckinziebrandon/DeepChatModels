@@ -1,5 +1,14 @@
 # Conversation Models in Tensorflow
 
+__Table of Contents__
+* [Brief Overview of Completed Work](#brief-overview-of-completed-work)
+* [Faster Embedding, Encoding, and Chatting](#faster-embedding-encoding-and-chatting)
+* [The Input Pipeline](#the-input-pipeline)
+    * [Graph Visualization with TensorBoard](#graph-visualization-with-tensorboard)
+* [Preliminary Testing](#preliminary-testing)
+    * [Overfitting](#check-1-ensure-a-large-dynamicbot-can-overfit-a-small-dataset)
+    * [Hyperparameter Search](#check-2-random--grid-search-plots)
+
 This project is still very much evolving each day, but the core goals are:
 * Create a cleaner user interface for tinkering with sequence-to-sequence models. This project will explore ways to make constructing such models feel more intuitive/customizable. The ideal result is a chatbot API with the readability of [Keras](https://keras.io/), but with a degree of flexibility closer to [TensorFlow](https://www.tensorflow.org/). For example, the following code is all that is needed (after imports, etc.) to create and train one of the models on the Cornell movie dialogs (All params with '=' are optional) :
 ```python
@@ -37,7 +46,7 @@ This project is still very much evolving each day, but the core goals are:
 * Explore how [personalities of chatbots](https://arxiv.org/pdf/1603.06155.pdf) change when trained on different datasets, and methods for improving speaker consistency.
 * Implement and improve "teacher mode": an interactive chat session where the user can tell the bot how well they're doing, and suggest better responses that the bot can learn from.
 
-### Brief Overview of Completed Work
+## Brief Overview of Completed Work
 
 
 __Encoder/Decoder-Based Models__:
