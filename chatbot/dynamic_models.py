@@ -155,7 +155,7 @@ class DynamicBot(Model):
                         "Optimizer %s not supported. Choice are:\n%r" \
                     % (optimizer, OPTIMIZERS.keys())
                 else:
-                    optimizer = 'Adagrad'
+                    optimizer = 'Adam'
 
                 self.log.info("Optimizing with %s." % optimizer)
                 self.apply_gradients = tf.contrib.layers.optimize_loss(
@@ -197,9 +197,9 @@ class DynamicBot(Model):
             response = self.sess.run(self.outputs, feed_dict=self.pipeline.feed_dict)
             return None, None, response
         else:
-            fetches = [self.merged, self.loss, self.outputs]
-            summaries, step_loss, step_outputs = self.sess.run(fetches)
-            return summaries, step_loss, step_outputs
+            fetches = [self.merged, self.loss] # , self.outputs]
+            summaries, step_loss = self.sess.run(fetches)
+            return summaries, step_loss, None
 
     def train(self, dataset):
         """Train bot on inputs until user types CTRL-C or queues run out of data.

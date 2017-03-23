@@ -102,8 +102,8 @@ class Decoder(RNN):
     """
 
     def __init__(self, state_size, output_size, embed_size,
-                 dropout_prob=1.0, num_layers=2, temperature=1.0,
-                 max_seq_len=100):
+                 dropout_prob=1.0, num_layers=2, temperature=0.0,
+                 max_seq_len=50):
         """
         Args:
             state_size: number of units in underlying rnn cell.

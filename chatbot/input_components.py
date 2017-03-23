@@ -148,7 +148,7 @@ class InputPipeline:
                 input_length=tf.to_int32(input_length),
                 tensors=data,
                 batch_size=self.batch_size,
-                bucket_boundaries=[16, 32, 64, 128],
+                bucket_boundaries=[8, 16, 32],
                 capacity=self.capacity,
                 dynamic_pad=True,
             )
