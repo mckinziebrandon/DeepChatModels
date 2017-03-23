@@ -21,7 +21,7 @@ if (os.path.isdir(DATA_ROOT)):
     pass
 else:
     DATA_ROOT = '/Users/ivan/Documents/sp_17/reddit_data'
-DATA_YEARS = ['2007']
+DATA_YEARS = ['2008']
 # Use os.path.join; it will figure out the '/' in between.
 RAW_DATA_FILES = [os.listdir(os.path.join(DATA_ROOT, 'raw_data', year)) for year in DATA_YEARS]
 
@@ -207,7 +207,7 @@ def generate_files(from_file_path, to_file_path):
     to_file.close()
 
 def children_dict(df):
-    """Returns a dictionary with keys being the root comments and values being their immediate children.
+    """Returns a dictionary with keys being the root comments and values being their immediate root_to_children.
         Assumes to have a 'root' column already.
         Go through all comments, if it is a root skip it since they wont have a parent_id corresponding
         to a comment.
