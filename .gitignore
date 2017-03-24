@@ -18,6 +18,9 @@ run.sh
 **/.cache/**
 **/notebooks/*.txt
 **/pretrained/**
+.DS*
+**/.DS*
+.gitignore
 
 # Ignore collection of useful tf files that once 
 # existed in tf repo but have since been removed. 

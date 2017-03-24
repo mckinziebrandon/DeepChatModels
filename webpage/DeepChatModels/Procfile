@@ -1,1 +1,1 @@
-web: gunicorn userinpu.wsgi --log-file -
+web: gunicorn DeepChatModels.wsgi --log-file -
