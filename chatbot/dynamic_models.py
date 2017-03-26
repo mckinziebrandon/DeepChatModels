@@ -25,7 +25,7 @@ class DynamicBot(Model):
         super(DynamicBot, self).__init__(self.log, dataset, model_params)
 
         with tf.variable_scope("input_layer"):
-            self.pipeline       = InputPipeline(dataset.paths, self.batch_size, is_chatting=self.is_chatting)
+            self.pipeline = InputPipeline(dataset.paths, self.batch_size, is_chatting=self.is_chatting)
             self.encoder_inputs = self.pipeline.encoder_inputs
             self.decoder_inputs = self.pipeline.decoder_inputs
 
@@ -59,6 +59,7 @@ class DynamicBot(Model):
         self.compile()
 
     def compile(self):
+
         if not self.is_chatting:
             with tf.variable_scope("evaluation") as scope:
                 # Loss - target is to predict, as output, the next decoder input.

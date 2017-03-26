@@ -156,34 +156,9 @@ class BucketModel(Model):
         directory, bucketed or not, r1.0 or r0.12.
     """
 
-    def __init__(self,
-                 buckets,
-                 losses,    # TODO: (low prio) find less clunky way of doing this.
-                 log,
-                 data_name,
-                 ckpt_dir,
-                 vocab_size,
-                 batch_size,
-                 learning_rate,
-                 lr_decay,
-                 steps_per_ckpt,
-                 is_chatting=False):
-
-        print("Temporarily not supported. Try DynamicBot in the meantime. DynamicBot is awesome.")
-        raise NotImplementedError
-
+    def __init__(self, logger, buckets, dataset, model_params):
+        super(BucketModel, self).__init__(logger, dataset, model_params)
         self.buckets = buckets
-        self.losses = losses
-        super(BucketModel, self).__init__(log,
-                                         data_name=data_name,
-                                         ckpt_dir=ckpt_dir,
-                                         vocab_size=vocab_size,
-                                         batch_size=batch_size,
-                                         learning_rate=learning_rate,
-                                         lr_decay=lr_decay,
-                                         steps_per_ckpt=steps_per_ckpt,
-                                         is_decoding=is_chatting)
-
 
     def compile(self, optimizer=None, max_gradient=5.0, reset=False):
         """ Configure training process. Name was inspired by Keras. <3 """

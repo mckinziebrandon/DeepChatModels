@@ -33,39 +33,11 @@ class ChatBot(BucketModel):
                         (when training) or we feed its previous output as its next input (chatting).
     """
 
-    def __init__(self,
-                 buckets,
-                 data_name,
-                 ckpt_dir="out",
-                 steps_per_ckpt=100,
-                 vocab_size=40000,
-                 state_size=512,
-                 num_layers=3,
-                 max_gradient=5.0,
-                 batch_size=64,
-                 learning_rate=0.5,
-                 lr_decay=0.98,
-                 num_softmax_samp=512,
-                 temperature=0.0,
-                 is_chatting=False):
-        """Create the model.
-
-        Args:
-            vocab_size: number of unique tokens in the dataset vocabulary.
-            buckets: a list of pairs (I, O), where I (O) specifies maximum input (output) length
-                     that will be processed in that bucket.
-            state_size: number of units in each recurrent layer (contained within the model cell).
-            num_layers: number of recurrent layers in the model's cell state.
-            max_gradient: gradients will be clipped to maximally this norm.
-            batch_size: the size of the batches used during training;
-            learning_rate: learning rate to start with.
-            lr_decay: decay learning rate by this much when needed.
-            num_softmax_samp: number of samples for sampled softmax.
-            is_chatting: if True, don't build backward pass.
-        """
+    def __init__(self, buckets, dataset, model_params):
 
         logging.basicConfig(level=logging.INFO)
-        self.log = logging.getLogger('ChatBotLogger')
+        logger = logging.getLogger('ChatBotLogger')
+        super(ChatBot, self).__init__(logger, dataset, model_params)
 
         if len(buckets) > 1:
             self.log.error("ChatBot requires len(buckets) be 1 since tensorflow's"
@@ -80,7 +52,7 @@ class ChatBot(BucketModel):
         # ==========================================================================================
 
         #cell =  tf.contrib.rnn.MultiRNNCell([tf.contrib.rnn.GRUCell(state_size)for _ in range(num_layers)])
-        cell = tf.contrib.rnn.GRUCell(state_size)
+        cell = tf.contrib.rnn.GRUCell(self.state_size)
         self.encoder_inputs = ChatBot._get_placeholder_list("encoder", buckets[-1][0])
         self.decoder_inputs = ChatBot._get_placeholder_list("decoder", buckets[-1][1] + 1)
         self.target_weights = ChatBot._get_placeholder_list("weight", buckets[-1][1] + 1, tf.float32)
@@ -88,10 +60,10 @@ class ChatBot(BucketModel):
 
         # If specified, sample from subset of full vocabulary size during training.
         softmax_loss, output_proj = None, None
-        if 0 < num_softmax_samp < vocab_size:
-            softmax_loss, output_proj = ChatBot._sampled_loss(num_softmax_samp,
-                                                              state_size,
-                                                              vocab_size)
+        if 0 < self.num_samples < self.vocab_size:
+            softmax_loss, output_proj = ChatBot._sampled_loss(self.num_samples,
+                                                              self.state_size,
+                                                              self.vocab_size)
 
         # ==========================================================================================
         # Combine the components to construct desired model architecture.
@@ -106,11 +78,11 @@ class ChatBot(BucketModel):
             #           --> How does this affect our model?? A bit misleading imo.
             #with tf.variable_scope(scope or "seq2seq2_f") as seq_scope:
             return embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
-                                               num_encoder_symbols=vocab_size,
-                                               num_decoder_symbols=vocab_size,
-                                               embedding_size=state_size,
+                                               num_encoder_symbols=self.vocab_size,
+                                               num_decoder_symbols=self.vocab_size,
+                                               embedding_size=self.state_size,
                                                output_projection=output_proj,
-                                               feed_previous=is_chatting,
+                                               feed_previous=self.is_chatting,
                                                dtype=tf.float32)
 
         # Note that self.outputs and self.losses are lists of length len(buckets).
@@ -123,7 +95,7 @@ class ChatBot(BucketModel):
             softmax_loss_function=softmax_loss)
 
         # If decoding, append _projection to true output to the model.
-        if is_chatting and output_proj is not None:
+        if self.is_chatting and output_proj is not None:
             self.outputs = ChatBot._get_projections(len(buckets), self.outputs, output_proj)
 
         with tf.variable_scope("summaries"):
@@ -131,18 +103,6 @@ class ChatBot(BucketModel):
             for i, loss in enumerate(self.losses):
                 name = "loss{}".format(i)
                 self.summaries[name] = tf.summary.scalar("loss{}".format(i), loss)
-
-        super(ChatBot, self).__init__(buckets,
-                                      self.losses,
-                                      self.log,
-                                      data_name=data_name,
-                                      ckpt_dir=ckpt_dir,
-                                      vocab_size=vocab_size,
-                                      batch_size=batch_size,
-                                      learning_rate=learning_rate,
-                                      lr_decay=lr_decay,
-                                      steps_per_ckpt=steps_per_ckpt,
-                                      is_chatting=is_chatting)
 
     def step(self, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only=False):
         """Run a step of the model.
@@ -253,25 +213,15 @@ class SimpleBot(BucketModel):
             4. Decoder: Single GRUCell.
     """
 
-    def __init__(self,
-                 data_name,
-                 ckpt_dir="out",
-                 vocab_size=40000,
-                 batch_size=64,
-                 state_size=128,
-                 learning_rate=0.6,
-                 lr_decay=0.995,
-                 steps_per_ckpt=100,
-                 temperature=0.0,
-                 max_seq_len=30,
-                 is_chatting=False):
+    def __init__(self, dataset, model_params):
 
         logging.basicConfig(level=logging.INFO)
-        self.log = logging.getLogger('SimpleBotLogger')
+        logger = logging.getLogger('SimpleBotLogger')
+        super(SimpleBot, self).__init__(logger, dataset, model_params)
 
         # SimpleBot allows user to not worry about making their own buckets.
         # SimpleBot does that for you. SimpleBot cares.
-        buckets = [(max_seq_len // 2,  max_seq_len // 2), (max_seq_len, max_seq_len)]
+        buckets = [(self.max_seq_len // 2,  self.max_seq_len // 2), (self.max_seq_len, self.max_seq_len)]
 
         # ==========================================================================================
         # Create placeholder lists for encoder/decoder sequences.
@@ -279,11 +229,11 @@ class SimpleBot(BucketModel):
 
         with tf.variable_scope("placeholders"):
             self.encoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="encoder"+str(i))
-                                   for i in range(max_seq_len)]
+                                   for i in range(self.max_seq_len)]
             self.decoder_inputs = [tf.placeholder(tf.int32, shape=[None], name="decoder"+str(i))
-                                   for i in range(max_seq_len+1)]
+                                   for i in range(self.max_seq_len+1)]
             self.target_weights = [tf.placeholder(tf.float32, shape=[None], name="weight"+str(i))
-                                   for i in range(max_seq_len+1)]
+                                   for i in range(self.max_seq_len+1)]
 
         # ==========================================================================================
         # Before bucketing, need to define the underlying model(x, y) -> outputs, state(s).
@@ -292,31 +242,31 @@ class SimpleBot(BucketModel):
         def seq2seq(encoder_inputs, decoder_inputs, scope=None):
             """Builds basic encoder-decoder model and returns list of (2D) output tensors."""
             with tf.variable_scope(scope or "seq2seq"):
-                encoder_cell = tf.contrib.rnn.GRUCell(state_size)
-                encoder_cell = tf.contrib.rnn.EmbeddingWrapper(encoder_cell, vocab_size, state_size)
+                encoder_cell = tf.contrib.rnn.GRUCell(self.state_size)
+                encoder_cell = tf.contrib.rnn.EmbeddingWrapper(encoder_cell, self.vocab_size, self.state_size)
                 # Encoder(raw_inputs) -> Embed(raw_inputs) -> [be an RNN] -> encoder state.
                 _, encoder_state = core_rnn.static_rnn(encoder_cell, encoder_inputs, dtype=tf.float32)
                 with tf.variable_scope("decoder"):
 
                     def loop_function(x):
                         with tf.variable_scope("loop_function"):
-                            params = tf.get_variable("embed_tensor", [vocab_size, state_size])
+                            params = tf.get_variable("embed_tensor", [self.vocab_size, self.state_size])
                             return embedding_ops.embedding_lookup(params, tf.argmax(x, 1))
 
-                    _decoder_cell = tf.contrib.rnn.GRUCell(state_size)
-                    _decoder_cell = tf.contrib.rnn.EmbeddingWrapper(_decoder_cell, vocab_size, state_size)
+                    _decoder_cell = tf.contrib.rnn.GRUCell(self.state_size)
+                    _decoder_cell = tf.contrib.rnn.EmbeddingWrapper(_decoder_cell, self.vocab_size, self.state_size)
                     # Dear TensorFlow: you should replace the 'reuse' param in
                     # OutputProjectionWrapper with 'scope' and just do scope.reuse in __init__.
                     # sincerely, programming conventions.
                     decoder_cell = tf.contrib.rnn.OutputProjectionWrapper(
-                        _decoder_cell, vocab_size, reuse=tf.get_variable_scope().reuse)
+                        _decoder_cell, self.vocab_size, reuse=tf.get_variable_scope().reuse)
 
                     decoder_outputs = []
                     prev = None
                     decoder_state = None
 
                     for i, dec_inp in enumerate(decoder_inputs):
-                        if is_chatting and prev is not None:
+                        if self.is_chatting and prev is not None:
                             dec_inp = loop_function(tf.reshape(prev, [1, 1]))
                         if i == 0:
                             output, decoder_state = decoder_cell(dec_inp, encoder_state,
@@ -349,7 +299,7 @@ class SimpleBot(BucketModel):
                     target_outputs = [self.decoder_inputs[i + 1]
                                       for i in range(len(self.decoder_inputs) - 1)]
                     # Compute loss by comparing outputs and target outputs.
-                    self.losses.append(SimpleBot._simple_loss(batch_size,
+                    self.losses.append(SimpleBot._simple_loss(self.batch_size,
                                                               self.outputs[-1],
                                                     target_outputs[:bucket[1]],
                                                     self.target_weights[:bucket[1]]))
@@ -359,19 +309,6 @@ class SimpleBot(BucketModel):
             for i, loss in enumerate(self.losses):
                 name = "loss{}".format(i)
                 self.summaries[name] = tf.summary.scalar("loss{}".format(i), loss)
-
-        # Let superclass handle the boring stuff :)
-        super(SimpleBot, self).__init__(buckets,
-                                        self.losses,
-                                        self.log,
-                                        data_name=data_name,
-                                        ckpt_dir=ckpt_dir,
-                                        vocab_size=vocab_size,
-                                        batch_size=batch_size,
-                                        learning_rate=learning_rate,
-                                        lr_decay=lr_decay,
-                                        steps_per_ckpt=steps_per_ckpt,
-                                        is_chatting=is_chatting)
 
     @staticmethod
     def _simple_loss(batch_size, logits, targets, weights):
