@@ -57,7 +57,6 @@ class DynamicBot(Model):
         self.merged = tf.summary.merge_all()
         self.outputs = decoder_outputs
 
-
     def compile(self, optimizer=None, max_gradient=5.0, reset=False, sampled_loss=False):
         """ Configure training process and initialize model. Inspired by Keras.
 

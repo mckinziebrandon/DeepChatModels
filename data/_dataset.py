@@ -8,6 +8,12 @@ import random
 from utils.io_utils import EOS_ID, PAD_ID, GO_ID, UNK_ID
 import logging
 
+DEFAULT_PARAMS = {
+    'data_dir': None,
+    'vocab_size': 40000,
+    'max_seq_len': 50
+}
+
 
 class DatasetABC(metaclass=ABCMeta):
 
@@ -51,7 +57,7 @@ class Dataset(DatasetABC):
 
     def __init__(self, dataset_params):
         """Implements the most general of subset of operations that all classes can use."""
-        self.__dict__['__params'] = dataset_params
+        self.__dict__['__params'] = Dataset.fill_params(dataset_params)
         print("max_seq_len recorded as ", self.max_seq_len)
         # We query io_utils to ensure all data files are organized properly,
         # and io_utils returns the paths to files of interest.
@@ -63,7 +69,7 @@ class Dataset(DatasetABC):
                                               self.vocab_size, self.vocab_size)
 
         train_path, valid_path, vocab_path = paths_triplet
-        self.paths = {}
+        self.paths = dict()
         self.paths['from_train']    = train_path[0]
         self.paths['to_train']      = train_path[1]
         self.paths['from_valid']    = valid_path[0]
@@ -85,74 +91,6 @@ class Dataset(DatasetABC):
             raise AttributeError(name)
         else:
             return self.__dict__['__params'][name]
-
-    def train_generator(self, batch_size):
-        """[Note: not needed by DynamicBot since InputPipeline]
-            Returns a generator function. Each call to next() yields a batch
-            of size batch_size data as numpy array of shape [batch_size, max_seq_len],
-            where max_seq_len is the longest sentence in the returned batch.
-        """
-        return self._generator(self.paths['from_train'], self.paths['to_train'],
-                               batch_size)
-
-    def valid_generator(self, batch_size):
-        return self._generator(self.paths['from_valid'], self.paths['to_valid'], batch_size)
-
-
-    def _generator(self, from_path, to_path, batch_size):
-        """Returns a generator function that reads data from file, an d
-            yields shuffled batches.
-
-        Args:
-            from_path: full path to file for encoder inputs.
-            to_path: full path to file for decoder inputs.
-            batch_size: number of samples to yield at once.
-        """
-
-        def longest_sentence(enc_list, dec_list):
-            max_enc_len = max([len(s) for s in enc_list])
-            max_dec_len = max([len(s) for s in dec_list])
-            return max(max_enc_len, max_dec_len)
-
-        def padded_batch(encoder_tokens, decoder_tokens):
-            max_sent_len = longest_sentence(encoder_tokens, decoder_tokens)
-            encoder_batch = np.array([s + [PAD_ID] * (max_sent_len - len(s)) for s in encoder_tokens])[:, ::-1]
-            decoder_batch = np.array([s + [PAD_ID] * (max_sent_len - len(s)) for s in decoder_tokens])
-            return encoder_batch, decoder_batch
-
-        encoder_tokens = []
-        decoder_tokens = []
-        with tf.gfile.GFile(from_path, mode="r") as source_file:
-            with tf.gfile.GFile(to_path, mode="r") as target_file:
-
-                source, target = source_file.readline(), target_file.readline()
-                while source and target:
-
-                    # Skip any sentence pairs that are too long for user specifications.
-                    space_needed = max(len(source.split()), len(target.split()))
-                    if space_needed > self.max_seq_len:
-                        source, target = source_file.readline(), target_file.readline()
-                        continue
-
-                    # Reformat token strings to token lists.
-                    # Note: GO_ID is prepended by the chat bot, since it determines
-                    # whether or not it's responsible for responding.
-                    encoder_tokens.append([int(x) for x in source.split()])
-                    decoder_tokens.append([int(x) for x in target.split()] + [EOS_ID])
-
-                    # Have we collected batch_size number of sentences? If so, pad & yield.
-                    assert len(encoder_tokens) == len(decoder_tokens)
-                    if len(encoder_tokens) == batch_size:
-                        yield padded_batch(encoder_tokens, decoder_tokens)
-                        encoder_tokens = []
-                        decoder_tokens = []
-                    source, target = source_file.readline(), target_file.readline()
-
-                # Don't forget to yield the 'leftovers'!
-                assert len(encoder_tokens) == len(decoder_tokens)
-                assert len(encoder_tokens) <= batch_size
-                if len(encoder_tokens) > 0:
-                    yield padded_batch(encoder_tokens, decoder_tokens)
 
     def convert_to_tf_records(self, prefix='train'):
         from_path = self.paths['from_'+prefix]
@@ -210,6 +148,68 @@ class Dataset(DatasetABC):
                 yield sentence
                 sentence = text_file.readline().strip()
 
+    def train_generator(self, batch_size):
+        """[Note: not needed by DynamicBot since InputPipeline]"""
+        return self._generator(self.paths['from_train'], self.paths['to_train'], batch_size)
+
+    def valid_generator(self, batch_size):
+        """[Note: not needed by DynamicBot since InputPipeline]"""
+        return self._generator(self.paths['from_valid'], self.paths['to_valid'], batch_size)
+
+    def _generator(self, from_path, to_path, batch_size):
+        """Returns a generator function that reads data from file, an d
+            yields shuffled batches.
+
+        Args:
+            from_path: full path to file for encoder inputs.
+            to_path: full path to file for decoder inputs.
+            batch_size: number of samples to yield at once.
+        """
+
+        def longest_sentence(enc_list, dec_list):
+            max_enc_len = max([len(s) for s in enc_list])
+            max_dec_len = max([len(s) for s in dec_list])
+            return max(max_enc_len, max_dec_len)
+
+        def padded_batch(encoder_tokens, decoder_tokens):
+            max_sent_len = longest_sentence(encoder_tokens, decoder_tokens)
+            encoder_batch = np.array([s + [PAD_ID] * (max_sent_len - len(s)) for s in encoder_tokens])[:, ::-1]
+            decoder_batch = np.array([s + [PAD_ID] * (max_sent_len - len(s)) for s in decoder_tokens])
+            return encoder_batch, decoder_batch
+
+        encoder_tokens = []
+        decoder_tokens = []
+        with tf.gfile.GFile(from_path, mode="r") as source_file:
+            with tf.gfile.GFile(to_path, mode="r") as target_file:
+
+                source, target = source_file.readline(), target_file.readline()
+                while source and target:
+
+                    # Skip any sentence pairs that are too long for user specifications.
+                    space_needed = max(len(source.split()), len(target.split()))
+                    if space_needed > self.max_seq_len:
+                        source, target = source_file.readline(), target_file.readline()
+                        continue
+
+                    # Reformat token strings to token lists.
+                    # Note: GO_ID is prepended by the chat bot, since it determines
+                    # whether or not it's responsible for responding.
+                    encoder_tokens.append([int(x) for x in source.split()])
+                    decoder_tokens.append([int(x) for x in target.split()] + [EOS_ID])
+
+                    # Have we collected batch_size number of sentences? If so, pad & yield.
+                    assert len(encoder_tokens) == len(decoder_tokens)
+                    if len(encoder_tokens) == batch_size:
+                        yield padded_batch(encoder_tokens, decoder_tokens)
+                        encoder_tokens = []
+                        decoder_tokens = []
+                    source, target = source_file.readline(), target_file.readline()
+
+                # Don't forget to yield the 'leftovers'!
+                assert len(encoder_tokens) == len(decoder_tokens)
+                assert len(encoder_tokens) <= batch_size
+                if len(encoder_tokens) > 0:
+                    yield padded_batch(encoder_tokens, decoder_tokens)
     @property
     def word_to_idx(self):
         """Return dictionary map from str -> int. """
@@ -269,3 +269,13 @@ class Dataset(DatasetABC):
     def max_seq_len(self):
         return self._max_seq_len
 
+    @staticmethod
+    def fill_params(dataset_params):
+        """Assigns default values from ALL_PARAMS for keys not in dataset_params."""
+        filled_params = {}
+        for key in DEFAULT_PARAMS:
+            if key in dataset_params:
+                filled_params[key] = dataset_params[key]
+            else:
+                filled_params[key] = DEFAULT_PARAMS[key]
+        return filled_params

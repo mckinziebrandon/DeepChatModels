@@ -54,6 +54,7 @@ class Model(object):
     """
 
     def __init__(self, logger, model_params):
+
         self.__dict__['__params'] = Model.fill_params(model_params)
         self.log    = logger
         self.sess   = tf.Session()
