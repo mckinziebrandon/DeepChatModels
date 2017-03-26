@@ -1,0 +1,16 @@
+model: DynamicBot
+model_params:
+  data_dir: /home/brandon/terabyte/Datasets/cornell
+  dataset: cornell
+  reset_model: True
+  state_size: 512
+  num_layers: 2
+  batch_size: 256
+  learning_rate: 0.002
+  optimizer: Adam
+  dropout: 0.2
+  l1_reg: 0.0
+  max_seq_len: 10
+  decode: False
+  embed_size: 64
+  vocab_size: 23765
