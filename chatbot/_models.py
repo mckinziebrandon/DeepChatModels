@@ -169,6 +169,9 @@ class BucketModel(Model):
                  steps_per_ckpt,
                  is_chatting=False):
 
+        print("Temporarily not supported. Try DynamicBot in the meantime. DynamicBot is awesome.")
+        raise NotImplementedError
+
         self.buckets = buckets
         self.losses = losses
         super(BucketModel, self).__init__(log,

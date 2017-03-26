@@ -3,11 +3,9 @@
 from chatbot import DynamicBot, ChatBot, SimpleBot
 from data import Cornell, Ubuntu, WMT, Reddit, TestData
 from utils import io_utils
-from tensorflow import app
+import sys, getopt
 
-flags = app.flags
-flags.DEFINE_string("config_path", None, "Location of configuration yml file.")
-FLAGS = flags.FLAGS
+
 
 DATASET = {'Ubuntu': Ubuntu,
            'Cornell': Cornell,
@@ -41,14 +39,32 @@ def start_chatting(bot):
     bot.chat()
 
 
-if __name__ == "__main__":
+def main(argv):
 
-    if FLAGS.config_path is None:
+    config_path = None
+
+    try:
+        opts, args = getopt.getopt(argv,"h:c:", ["config="])
+    except getopt.GetoptError:
         print("ERROR: Please pass in the config file path. "
-              "For example: ./main.py --config_path config.yml")
-        exit(-1)
+              "For example: ./main.py -c configs/my_config.yml")
+        sys.exit(2)
 
-    configs = io_utils.parse_config(FLAGS.config_path)
+    for opt, arg in opts:
+        if opt == '-h':
+            print('./main.py [options], where\n'
+                  'Options:\n'
+                  '\t-c [--config] <path-to-config-file>')
+            sys.exit()
+        elif opt in ("-c", "--config"):
+            config_path = arg
+
+    if config_path is None:
+        print("ERROR: Please pass in the config file path. "
+              "For example: ./main.py -c configs/my_config.yml")
+        sys.exit(2)
+
+    configs = io_utils.parse_config(config_path)
     try:
         model_name      = configs['model']
         dataset_name    = configs['dataset']
@@ -69,5 +85,5 @@ if __name__ == "__main__":
     else:
         start_chatting(bot)
 
-
-
+if __name__ == "__main__":
+    main(sys.argv[1:])

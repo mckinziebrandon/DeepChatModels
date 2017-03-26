@@ -43,8 +43,7 @@ def get_sentence():
     """
     sys.stdout.write("Human: ")
     sys.stdout.flush()
-    return sys.stdin.readline().strip() # Could just use input() ...
-
+    return sys.stdin.readline().strip().lower() # Could just use input() ...
 
 def parse_config(config_path):
     """
