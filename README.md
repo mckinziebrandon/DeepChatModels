@@ -6,7 +6,6 @@ __Table of Contents__
 * [The Input Pipeline](#the-input-pipeline)
 * [Preliminary Testing](#preliminary-testing)
     * [Overfitting](#check-1-ensure-a-large-dynamicbot-can-overfit-a-small-dataset)
-    * [Hyperparameter Search](#check-2-random--grid-search-plots)
 
 This project is still very much evolving each day, but the core goals are:
 * Create a cleaner user interface for tinkering with sequence-to-sequence models. This project will explore ways to make constructing such models feel more intuitive/customizable. The ideal result is a chatbot API with the readability of [Keras](https://keras.io/), but with a degree of flexibility closer to [TensorFlow](https://www.tensorflow.org/). For example, the following code is all that is needed (after imports, etc.) to create and train one of the models on the Cornell movie dialogs (All params with '=' are optional) :
