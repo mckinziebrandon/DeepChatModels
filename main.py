@@ -44,7 +44,7 @@ def main(argv):
     config_path = None
 
     try:
-        opts, args = getopt.getopt(argv,"h:c:", ["config="])
+        opts, args = getopt.getopt(argv, "h:c:", ["config="])
     except getopt.GetoptError:
         print("ERROR: Please pass in the config file path. "
               "For example: ./main.py -c configs/my_config.yml")
