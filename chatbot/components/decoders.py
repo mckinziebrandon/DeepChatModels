@@ -61,7 +61,8 @@ class Decoder(RNN):
 
         with tf.variable_scope(scope, "decoder", values=[inputs]) as dec_scope:
             outputs, state = DYNAMIC_RNNS[rnn_name](
-                self.cell, inputs, initial_state=initial_state, dtype=tf.float32
+                self.cell, inputs, initial_state=initial_state, dtype=tf.float32,
+                swap_memory=True,
             )
 
             if not is_chatting:

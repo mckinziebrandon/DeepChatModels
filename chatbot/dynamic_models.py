@@ -122,7 +122,6 @@ class DynamicBot(Model):
             response = self.sess.run(self.outputs, feed_dict=self.pipeline.feed_dict)
             return None, None, response
         else:
-            print("bout to sess run in step.")
             fetches = [self.merged, self.loss] # , self.outputs]
             summaries, step_loss = self.sess.run(fetches)
             return summaries, step_loss, None
