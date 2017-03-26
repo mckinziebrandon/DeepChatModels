@@ -191,6 +191,10 @@ class DynamicBot(Model):
             coord.join(threads)
             self.close()
 
+    def chat(self):
+        """Alias to decode."""
+        self.decode()
+
     def decode(self):
         """
         The higher the temperature, the more varied will be the bot's responses.

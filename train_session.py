@@ -22,6 +22,25 @@ MODELS = {
 }
 
 
+def start_training(dataset, bot):
+    """Train bot. Will expand this function later to aid interactivity/updates. Maybe."""
+    print("Training bot. CTRL-C to stop training.")
+    bot.train(dataset)
+
+
+def start_chatting(bot):
+    """Talk to bot. Will add teacher mode soon. Old implementation in _decode.py."""
+    print("Initiating chat session.")
+    print("Your bot has a temperature of %.2f." % bot.temperature, end=" ")
+    if bot.temperature < 0.1:
+        print("Not very adventurous, are we?")
+    elif bot.temperature < 0.7:
+        print("This should be interesting . . . ")
+    else:
+        print("Enjoy your gibberish!")
+    bot.chat()
+
+
 if __name__ == "__main__":
 
     configs = io_utils.parse_config(FLAGS.config_path)
@@ -38,7 +57,12 @@ if __name__ == "__main__":
     dataset = DATASET[dataset_name](dataset_params)
 
     print("Creating", model_name, ". . . ")
-    model_params['decode'] = False
     bot = MODELS[model_name](dataset, model_params)
-    bot.train(dataset)
+
+    if not model_params['decode']:
+        start_training(dataset, bot)
+    else:
+        start_chatting(bot)
+
+
 

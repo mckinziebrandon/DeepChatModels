@@ -137,6 +137,8 @@ class Model(object):
         filled_params['max_seq_len']    = dataset.max_seq_len
         filled_params['vocab_size']     = dataset.vocab_size
         filled_params['data_name']      = dataset.name
+        # smh. rly.
+        filled_params['dataset']      = dataset
         filled_params['is_chatting']    = filled_params['decode']
         return filled_params
 
