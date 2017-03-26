@@ -23,53 +23,63 @@ OPTIMIZERS = {
     'RMSProp':  tf.train.RMSPropOptimizer,
 }
 
+# Default values for parameters that could be used by a model, training or otherwise.
+ALL_PARAMS = {
+    "ckpt_dir": None,
+    "data_dir": None,
+    "dataset": None,
+    "optimizer": "Adam",
+    "reset_model": False,
+    "decode": False,
+    "sampled_loss": 512,
+    "steps_per_ckpt": 200,
+    "batch_size": 64,
+    "vocab_size": 40000,
+    "state_size": 512,
+    "embed_size": 64,
+    "num_layers": 3,
+    "max_seq_len": 80,
+    "num_samples": 512,
+    "learning_rate": 0.01,
+    "lr_decay": 0.98,
+    "max_gradient": 4.0,
+    "temperature": 0.0,
+    "dropout_prob": 0.2,
+    "l1_reg": 1e-6,
+}
+
 
 class Model(object):
     """Superclass of all subsequent model classes.
     """
 
-    def __init__(self,
-                 logger,
-                 params_path,
-                 data_name="default_model",
-                 ckpt_dir="out",
-                 vocab_size=40000,
-                 batch_size=64,
-                 learning_rate=0.5,
-                 lr_decay=0.98,
-                 steps_per_ckpt=100,
-                 is_decoding=False):
-        """
-        Args:
-            ckpt_dir: location where training checkpoint files will be saved.
-            batch_size: number of samples per training step.
-            learning_rate: float, typically in range [0, 1].
-            lr_decay: weight decay factor, not strictly necessary since default optimizer is adagrad.
-            steps_per_ckpt: (int) Specifies step interval for testing on validation data.
-        """
+    def __init__(self, logger, model_params):
 
-
-        self.sess = tf.Session()
+        self.log    = logger
+        self.sess   = tf.Session()
+        self.params = Model.fill_params(model_params)
         with self.graph.name_scope(tf.GraphKeys.SUMMARIES):
             self.global_step    = tf.Variable(initial_value=0, trainable=False)
-            self.learning_rate = tf.constant(model_params['learning_rate'])
-            #self.learning_rate = tf.train.exponential_deay(
-            #    learning_rate, self.global_step, self.steps_per_ckpt, lr_decay, staircase=True)
+            self.learning_rate  = tf.constant(model_params['learning_rate'])
 
-        self.steps_per_ckpt = steps_per_ckpt
-        self.log = logger
-        self.data_name = data_name
-        self.is_chatting    = is_decoding
-        self.batch_size     = batch_size
-        self.vocab_size = vocab_size
-        # Directory IO management.
-        self.ckpt_dir = ckpt_dir
         os.popen('mkdir -p %s' % self.ckpt_dir)  # Just in case :)
         self.projector_config = projector.ProjectorConfig()
-        # Responsibility of user to determine training operations.
-        self.file_writer    = None
-        self.apply_gradients = None
-        self.saver = None
+
+        # Good practice to set as None in constructor.
+        self.file_writer        = None
+        self.apply_gradients    = None
+        self.saver              = None
+
+    @staticmethod
+    def fill_params(model_params):
+        """Assigns default values from ALL_PARAMS for keys not in model_params."""
+        filled_params = {}
+        for key in ALL_PARAMS:
+            if key in model_params:
+                filled_params[key] = model_params[key]
+            else:
+                filled_params[key] = ALL_PARAMS[key]
+        return filled_params
 
     def compile(self, optimizer=None, max_gradient=None, reset=False):
         """ Configure training process and initialize model. Inspired by Keras.

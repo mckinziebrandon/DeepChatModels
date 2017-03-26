@@ -17,72 +17,18 @@ from utils import io_utils
 
 class DynamicBot(Model):
 
-    def __init__(self,
-                 dataset,
-                 batch_size=64,
-                 ckpt_dir="out",
-                 dropout_prob=0.0,
-                 embed_size=64,
-                 learning_rate=0.5,
-                 lr_decay=0.99,
-                 num_layers=2,
-                 num_samples=512,
-                 state_size=128,
-                 steps_per_ckpt=200,
-                 temperature=0.0,
-                 l1_reg=0.0,
-                 is_chatting=False):
-        """
-        Args:
-            dataset: 'Dataset' instance. Will likely be removed soon since it's only used
-                      for grabbing quantities like vocab size.
-            ckpt_dir: location where training checkpoint files will be saved.
-            batch_size: number of samples per training step.
-            state_size: number of nodes in the underlying RNN cell state.
-            embed_size: size of embedding dimension that integer IDs get mapped into.
-                        If None, will be set to state_size.
-            learning_rate: float, typically in range [0, 1].
-            lr_decay: weight decay factor, not strictly necessary since default optimizer is adagrad.
-            steps_per_ckpt: (int) Specifies step interval for testing on validation data.
-            dropout_prob: (float) in range [0., 1.]. probability of inputs being dropped,
-                            applied before each layer in the model.
-            num_layers: in the underlying MultiRNNCell. Total layers in model, not counting
-                        recurrence/loop unrolliwng is then 2 * num_layers (encoder + decoder).
-            num_samples: (int) size of subset of vocabulary_size to use for sampled softmax.
-                         Require that 0 < num_samples < vocab size.
-            temperature: determines how varied the bot responses will be when chatting.
-                         The default (0.0) just results in deterministic argmax.
-            is_chatting: boolean, should be False when training and True when chatting.
-        """
+    def __init__(self, dataset, model_params):
 
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('DynamicBotLogger')
         # Let superclass handle the boring stuff (dirs/more instance variables).
         super(DynamicBot, self).__init__(self.log,
-                                         dataset.name,
-                                         ckpt_dir,
-                                         dataset.vocab_size,
-                                         batch_size,
-                                         learning_rate,
-                                         lr_decay,
-                                         steps_per_ckpt,
-                                         is_chatting)
-
-        if embed_size is None:
-            embed_size = state_size
-        # FIXME: Not sure how I feel about dataset as instance attribute.
-        # TODO: Decouple dataset from dynamicbot ASAP.
-        self.dataset        = dataset
-        self.batch_size     = batch_size
-        self.embed_size     = embed_size
-        self.vocab_size     = dataset.vocab_size
-        self.dropout_prob   = dropout_prob
-        self.num_layers     = num_layers
-        self.num_samples    = num_samples
-        self.state_size     = state_size
+                                         model_params)
 
         with tf.variable_scope("input_layer"):
-            self.pipeline       = InputPipeline(dataset.paths, batch_size, is_chatting=is_chatting)
+            self.pipeline       = InputPipeline(dataset.paths,
+                                                self.params['batch_size'],
+                                                is_chatting=self.params['is_chatting'])
             self.encoder_inputs = self.pipeline.encoder_inputs
             self.decoder_inputs = self.pipeline.decoder_inputs
 
