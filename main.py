@@ -6,7 +6,7 @@ from utils import io_utils
 from tensorflow import app
 
 flags = app.flags
-flags.DEFINE_string("config_path", "config.yml", "Location of configuration yml file.")
+flags.DEFINE_string("config_path", None, "Location of configuration yml file.")
 FLAGS = flags.FLAGS
 
 DATASET = {'Ubuntu': Ubuntu,
@@ -42,6 +42,11 @@ def start_chatting(bot):
 
 
 if __name__ == "__main__":
+
+    if FLAGS.config_path is None:
+        print("ERROR: Please pass in the config file path. "
+              "For example: ./main.py --config_path config.yml")
+        exit(-1)
 
     configs = io_utils.parse_config(FLAGS.config_path)
     try:
