@@ -57,6 +57,16 @@ class DynamicBot(Model):
 
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('DynamicBotLogger')
+        # Let superclass handle the boring stuff (dirs/more instance variables).
+        super(DynamicBot, self).__init__(self.log,
+                                         dataset.name,
+                                         ckpt_dir,
+                                         dataset.vocab_size,
+                                         batch_size,
+                                         learning_rate,
+                                         lr_decay,
+                                         steps_per_ckpt,
+                                         is_chatting)
 
         if embed_size is None:
             embed_size = state_size
@@ -104,16 +114,6 @@ class DynamicBot(Model):
         self.merged = tf.summary.merge_all()
         self.outputs = decoder_outputs
 
-        # Let superclass handle the boring stuff (dirs/more instance variables).
-        super(DynamicBot, self).__init__(self.log,
-                                         dataset.name,
-                                         ckpt_dir,
-                                         dataset.vocab_size,
-                                         batch_size,
-                                         learning_rate,
-                                         lr_decay,
-                                         steps_per_ckpt,
-                                         is_chatting)
 
     def compile(self, optimizer=None, max_gradient=5.0, reset=False, sampled_loss=False):
         """ Configure training process and initialize model. Inspired by Keras.
