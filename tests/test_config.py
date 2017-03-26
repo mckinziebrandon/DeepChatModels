@@ -34,6 +34,7 @@ class TestConfig(unittest.TestCase):
 
         for key in config_dict['model_params']:
             self.log.info(key)
+            self.assertIsNotNone(key)
 
 if __name__ == '__main__':
     unittest.main()
