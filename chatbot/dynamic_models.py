@@ -4,16 +4,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import logging
 import time
-
+import logging
 import numpy as np
 import tensorflow as tf
-
 from chatbot._models import Model
 from chatbot.components import bot_ops
-from chatbot.components.input_components import InputPipeline, Embedder
-from chatbot.components.recurrent_components import Encoder, Decoder
+from chatbot.components import InputPipeline, Embedder, DynamicEncoder, DynamicDecoder
 from utils import io_utils
 
 
@@ -35,7 +32,7 @@ class DynamicBot(Model):
         with tf.variable_scope("encoder") as scope:
             embedded_enc_inputs = self.embedder(self.encoder_inputs, scope=scope)
             # Create the encoder & decoder objects.
-            self.encoder  = Encoder(self.state_size, self.embed_size,
+            self.encoder  = DynamicEncoder(self.state_size, self.embed_size,
                                     dropout_prob=self.dropout_prob,
                                     num_layers=self.num_layers)
             # Applying embedded inputs to encoder yields the final (context) state.
@@ -43,7 +40,7 @@ class DynamicBot(Model):
 
         with tf.variable_scope("decoder") as scope:
             embedded_dec_inputs = self.embedder(self.decoder_inputs, scope=scope)
-            self.decoder  = Decoder(self.state_size, self.vocab_size, self.embed_size,
+            self.decoder  = DynamicDecoder(self.state_size, self.vocab_size, self.embed_size,
                                     dropout_prob=self.dropout_prob,
                                     num_layers=self.num_layers,
                                     max_seq_len=dataset.max_seq_len,

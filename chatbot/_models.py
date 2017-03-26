@@ -211,10 +211,10 @@ class BucketModel(Model):
         # pad them if needed, reverse encoder inputs and add GO to decoder.
         for _ in range(self.batch_size):
             encoder_input, decoder_input = random.choice(data[bucket_id])
-            # Encoder inputs are padded and then reversed.
+            # DynamicEncoder inputs are padded and then reversed.
             encoder_pad = [io_utils.PAD_ID] * (encoder_size - len(encoder_input))
             encoder_inputs.append(list(reversed(encoder_input + encoder_pad)))
-            # Decoder inputs get an extra "GO" symbol, and are padded then.
+            # DynamicDecoder inputs get an extra "GO" symbol, and are padded then.
             decoder_pad= [io_utils.PAD_ID] * (decoder_size - len(decoder_input) - 1)
             decoder_inputs.append([io_utils.GO_ID] + decoder_input + decoder_pad)
 

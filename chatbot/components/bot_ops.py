@@ -14,7 +14,7 @@ def dynamic_sampled_softmax_loss(labels, logits, output_projection, vocab_size,
         labels: 2D integer tensor of shape [batch_size, None] containing
             the word ID labels for each individual rnn state from logits.
         logits: 3D float tensor of shape [batch_size, None, state_size] as
-            ouput by a Decoder instance.
+            ouput by a DynamicDecoder instance.
         from_scratch: (bool) Whether to use the version I wrote from scratch, or to use
                       the version I wrote that applies map_fn(sampled_softmax) across timeslices, which
                       is probably less efficient. (Currently testing)
@@ -42,7 +42,7 @@ def _dynamic_sampled_map(labels, logits, output_projection, vocab_size,
            labels: 2D integer tensor of shape [batch_size, None] containing
                 the word ID labels for each individual rnn state from logits.
             logits: 3D float tensor of shape [batch_size, None, state_size] as
-                ouput by a Decoder instance.
+                ouput by a DynamicDecoder instance.
 
         Returns:
             loss as a scalar Tensor, computed as the mean over all batches and sequences.
@@ -82,7 +82,7 @@ def _dynamic_sampled_from_scratch(labels, logits, output_projection, vocab_size,
        - Link: https://www.tensorflow.org/extras/candidate_sampling.pdf
 
     Args:
-        output_projection: (tuple) returned by any Decoder.get_projections_tensors()
+        output_projection: (tuple) returned by any DynamicDecoder.get_projections_tensors()
             - output_projection[0] == w tensor. [state_size, vocab_size]
             - output_projection[0] == b tensor. [vocab_size]
         labels: 2D Integer tensor. [batch_size, None]

@@ -209,8 +209,8 @@ class SimpleBot(BucketModel):
     """Primitive implementation from scratch, for learning purposes.
             1. Inputs: same as ChatBot.
             2. Embedding: same as ChatBot.
-            3. Encoder: Single GRUCell.
-            4. Decoder: Single GRUCell.
+            3. DynamicEncoder: Single GRUCell.
+            4. DynamicDecoder: Single GRUCell.
     """
 
     def __init__(self, dataset, model_params):
@@ -244,7 +244,7 @@ class SimpleBot(BucketModel):
             with tf.variable_scope(scope or "seq2seq"):
                 encoder_cell = tf.contrib.rnn.GRUCell(self.state_size)
                 encoder_cell = tf.contrib.rnn.EmbeddingWrapper(encoder_cell, self.vocab_size, self.state_size)
-                # Encoder(raw_inputs) -> Embed(raw_inputs) -> [be an RNN] -> encoder state.
+                # DynamicEncoder(raw_inputs) -> Embed(raw_inputs) -> [be an RNN] -> encoder state.
                 _, encoder_state = core_rnn.static_rnn(encoder_cell, encoder_inputs, dtype=tf.float32)
                 with tf.variable_scope("decoder"):
 
