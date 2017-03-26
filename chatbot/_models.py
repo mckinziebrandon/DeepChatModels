@@ -67,17 +67,6 @@ class Model(object):
         self.apply_gradients    = None
         self.saver              = None
 
-    @staticmethod
-    def fill_params(model_params):
-        """Assigns default values from ALL_PARAMS for keys not in model_params."""
-        filled_params = {}
-        for key in ALL_PARAMS:
-            if key in model_params:
-                filled_params[key] = model_params[key]
-            else:
-                filled_params[key] = ALL_PARAMS[key]
-        return filled_params
-
     def compile(self, optimizer=None, max_gradient=None, reset=False):
         """ Configure training process and initialize model. Inspired by Keras.
 
@@ -135,16 +124,27 @@ class Model(object):
         self.file_writer.close()
         self.sess.close()
 
+    @property
+    def graph(self):
+        return self.sess.graph
+
+    @staticmethod
+    def fill_params(model_params):
+        """Assigns default values from ALL_PARAMS for keys not in model_params."""
+        filled_params = {}
+        for key in ALL_PARAMS:
+            if key in model_params:
+                filled_params[key] = model_params[key]
+            else:
+                filled_params[key] = ALL_PARAMS[key]
+        filled_params['is_chatting'] = filled_params['decode']
+        return filled_params
+
     def __getattr__(self, name):
         if name not in self.__dict__['__params']:
             raise AttributeError(name)
         else:
             return self.__dict__['__params'][name]
-
-
-    @property
-    def graph(self):
-        return self.sess.graph
 
 
 class BucketModel(Model):

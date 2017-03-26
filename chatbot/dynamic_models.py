@@ -22,8 +22,7 @@ class DynamicBot(Model):
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('DynamicBotLogger')
         # Let superclass handle the boring stuff (dirs/more instance variables).
-        super(DynamicBot, self).__init__(self.log,
-                                         model_params)
+        super(DynamicBot, self).__init__(self.log, model_params)
 
         with tf.variable_scope("input_layer"):
             self.pipeline       = InputPipeline(dataset.paths, self.batch_size, is_chatting=self.is_chatting)
@@ -42,15 +41,15 @@ class DynamicBot(Model):
 
         with tf.variable_scope("decoder") as scope:
             embedded_dec_inputs = self.embedder(self.decoder_inputs, scope=scope)
-            self.decoder  = Decoder(state_size, self.vocab_size, self.embed_size,
-                                    dropout_prob=dropout_prob,
-                                    num_layers=num_layers,
+            self.decoder  = Decoder(self.state_size, self.vocab_size, self.embed_size,
+                                    dropout_prob=self.dropout_prob,
+                                    num_layers=self.num_layers,
                                     max_seq_len=dataset.max_seq_len,
-                                    temperature=temperature)
+                                    temperature=self.temperature)
             # For decoder, we want the full sequence of output states, not simply the last.
             decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
                                                           initial_state=encoder_state,
-                                                          is_chatting=is_chatting,
+                                                          is_chatting=self.is_chatting,
                                                           loop_embedder=self.embedder,
                                                           scope=scope)
 

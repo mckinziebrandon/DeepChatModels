@@ -61,20 +61,19 @@ MODELS = {
 if __name__ == "__main__":
 
     configs = io_utils.parse_config(FLAGS.config_path)
-    # TODO: handle case of any of these being None, and KeyError
     try:
-        # Grab the sub-dictionaries and/or string values.
-        model_name   = configs['model']
-        dataset_name = configs['dataset']
-        model_params = configs['model_params']
+        model_name      = configs['model']
+        dataset_name    = configs['dataset']
+        dataset_params  = configs['dataset_params']
+        model_params    = configs['model_params']
     except KeyError:
         print("aw man. KeyError. pfft.")
         exit(-1)
 
-    # All datasets follow the same API, found in data/_dataset.py
-    print("Setting up %s dataset." % FLAGS.dataset)
-    dataset = DATASET[FLAGS.dataset](FLAGS.data_dir, FLAGS.vocab_size,
-                                     max_seq_len=FLAGS.max_seq_len)
+    print("Setting up %s dataset." % dataset_name)
+    dataset = DATASET[dataset_name](data_dir=dataset_params['data_dir'],
+                                    vocab_size=dataset_params['vocab_size'],
+                                    max_seq_len=dataset_params['max_seq_len'])
 
     print("Creating", model_name, ". . . ")
     bot = MODELS[model_name](dataset, model_params)

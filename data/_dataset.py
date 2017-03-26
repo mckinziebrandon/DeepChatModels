@@ -49,12 +49,10 @@ class DatasetABC(metaclass=ABCMeta):
 
 class Dataset(DatasetABC):
 
-    def __init__(self, data_dir, vocab_size=20000, max_seq_len=80):
+    def __init__(self, dataset_params):
         """Implements the most general of subset of operations that all classes can use."""
-        self._max_seq_len = max_seq_len
-        print("max_seq_len recorded as ", max_seq_len)
-        self.vocab_size = vocab_size
-        self._data_dir = data_dir
+        self.__dict__['__params'] = dataset_params
+        print("max_seq_len recorded as ", self.max_seq_len)
         # We query io_utils to ensure all data files are organized properly,
         # and io_utils returns the paths to files of interest.
         paths_triplet = io_utils.prepare_data(self._data_dir,
@@ -62,7 +60,7 @@ class Dataset(DatasetABC):
                                               self._data_dir + "/train_to.txt",
                                               self._data_dir + "/valid_from.txt",
                                               self._data_dir + "/valid_to.txt",
-                                              vocab_size, vocab_size)
+                                              self.vocab_size, self.vocab_size)
 
         train_path, valid_path, vocab_path = paths_triplet
         self.paths = {}
@@ -82,6 +80,11 @@ class Dataset(DatasetABC):
         self.convert_to_tf_records('train')
         self.convert_to_tf_records('valid')
 
+    def __getattr__(self, name):
+        if name not in self.__dict__['__params']:
+            raise AttributeError(name)
+        else:
+            return self.__dict__['__params'][name]
 
     def train_generator(self, batch_size):
         """[Note: not needed by DynamicBot since InputPipeline]
