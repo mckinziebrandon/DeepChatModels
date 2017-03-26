@@ -113,20 +113,3 @@ Below is a plot related to one of the debugging strategies recommended in chapte
 ![Ensuring DynamicBot can overfit before optimizing any further](http://i.imgur.com/TLYvhEE.png)
 
 This plot shows DynamicBot can achieve 0 loss for an extremely small dataset. Great, we can overfit. Now we can begin to explore regularization techniques.
-
-### Check 2: Random & Grid Search Plots
-
-I recently did a small random search and grid search over the following hyperparameters: learning rate, embed size, state size. The plots below show some of the findings. These are simply exploratory, I understand their limitations and I'm not drawing strong conclusions from them. They are meant to give a rough sense of the energy landscape in hyperparameter space. Oh and, plots make me happy. Enjoy. For all below, the y-axis is validation loss and the x-axis is global (training) step. The colors distinguish between model hyperparameters defined in the legends.
-
-<img alt="state_size" src="http://i.imgur.com/w479tSo.png" width="400" align="left">
-<img alt="embed_size" src="http://i.imgur.com/2Tj3vmA.png" width="400">
-<br/>
-<br/>
-
-
-The only takeaway I saw from these two plots (after seeing the learning rate plots below) is that the __learning rate__, not the embed size, is overwhelmingly for responsible for any patterns here. It also looks like models with certain emed sizes (like 30) were underrepresented in the sampling, we see less points for them than others. The plots below illustrate the learning rate dependence.
-
-<img alt="learning_subs" src="http://i.imgur.com/bD8MFrV.png" width="900">
-
-**General conclusion: the learning rate influences the validation loss far more than state size or embed size.** This was basically known before making these plots, as it is a well known property of such networks (Ng). It was nice to verify this for myself.
-
