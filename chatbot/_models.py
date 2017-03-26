@@ -54,17 +54,14 @@ class Model(object):
     """
 
     def __init__(self, logger, model_params):
-
+        self.__dict__['__params'] = Model.fill_params(model_params)
         self.log    = logger
         self.sess   = tf.Session()
-        self.params = Model.fill_params(model_params)
         with self.graph.name_scope(tf.GraphKeys.SUMMARIES):
             self.global_step    = tf.Variable(initial_value=0, trainable=False)
-            self.learning_rate  = tf.constant(model_params['learning_rate'])
-
+            self.learning_rate  = tf.constant(self.learning_rate)
         os.popen('mkdir -p %s' % self.ckpt_dir)  # Just in case :)
         self.projector_config = projector.ProjectorConfig()
-
         # Good practice to set as None in constructor.
         self.file_writer        = None
         self.apply_gradients    = None
@@ -138,9 +135,17 @@ class Model(object):
         self.file_writer.close()
         self.sess.close()
 
+    def __getattr__(self, name):
+        if name not in self.__dict__['__params']:
+            raise AttributeError(name)
+        else:
+            return self.__dict__['__params'][name]
+
+
     @property
     def graph(self):
         return self.sess.graph
+
 
 class BucketModel(Model):
     """Abstract class. Any classes that extend BucketModel just need to customize their

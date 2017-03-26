@@ -26,19 +26,17 @@ class DynamicBot(Model):
                                          model_params)
 
         with tf.variable_scope("input_layer"):
-            self.pipeline       = InputPipeline(dataset.paths,
-                                                self.params['batch_size'],
-                                                is_chatting=self.params['is_chatting'])
+            self.pipeline       = InputPipeline(dataset.paths, self.batch_size, is_chatting=self.is_chatting)
             self.encoder_inputs = self.pipeline.encoder_inputs
             self.decoder_inputs = self.pipeline.decoder_inputs
 
-        self.embedder = Embedder(self.vocab_size, embed_size, l1_reg=l1_reg)
+        self.embedder = Embedder(self.vocab_size, self.embed_size, l1_reg=self.l1_reg)
         with tf.variable_scope("encoder") as scope:
             embedded_enc_inputs = self.embedder(self.encoder_inputs, scope=scope)
             # Create the encoder & decoder objects.
-            self.encoder  = Encoder(state_size, self.embed_size,
-                                    dropout_prob=dropout_prob,
-                                    num_layers=num_layers)
+            self.encoder  = Encoder(self.state_size, self.embed_size,
+                                    dropout_prob=self.dropout_prob,
+                                    num_layers=self.num_layers)
             # Applying embedded inputs to encoder yields the final (context) state.
             encoder_state = self.encoder(embedded_enc_inputs)
 
