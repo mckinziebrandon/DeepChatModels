@@ -7,6 +7,7 @@ from __future__ import print_function
 # Standard python imports.
 import os
 import random
+import yaml
 import logging
 # ML/DL-specific imports.
 import numpy as np
@@ -29,6 +30,7 @@ class Model(object):
 
     def __init__(self,
                  logger,
+                 params_path,
                  data_name="default_model",
                  ckpt_dir="out",
                  vocab_size=40000,
@@ -46,10 +48,11 @@ class Model(object):
             steps_per_ckpt: (int) Specifies step interval for testing on validation data.
         """
 
+
         self.sess = tf.Session()
         with self.graph.name_scope(tf.GraphKeys.SUMMARIES):
             self.global_step    = tf.Variable(initial_value=0, trainable=False)
-            self.learning_rate = tf.constant(learning_rate)
+            self.learning_rate = tf.constant(model_params['learning_rate'])
             #self.learning_rate = tf.train.exponential_deay(
             #    learning_rate, self.global_step, self.steps_per_ckpt, lr_decay, staircase=True)
 

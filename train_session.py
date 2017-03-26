@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """This shows how to run the new dynamic models (work in progress)."""
-import time
 import tensorflow as tf
-from chatbot import DynamicBot
+from chatbot import DynamicBot, ChatBot, SimpleBot
 from data import Cornell, Ubuntu, WMT, Reddit, TestData
 from utils import io_utils
 
@@ -12,12 +11,16 @@ from utils import io_utils
 # - Each flag's value can later be accessed via: FLAGS.name
 # - The flags are shown in alphabetical order (by name).
 # - Example usage:
-#       python3 main.py --ckpt_dir [path_to_dir] --reset_model=False --state_size=128
+#       python3 train_session.py --ckpt_dir [path_to_dir] --reset_model=False --state_size=128
 # ==================================================================================================
+
+# NOTE: Currently transitioning from FLAGS to .yml config files. Much cleaner/easier to use.
 
 flags = tf.app.flags
 # String flags -- directories and datast name(s).
+
 flags.DEFINE_string("ckpt_dir", "out", "Directory in which checkpoint files will be saved.")
+flags.DEFINE_string("config_path", "config.yml", ".")
 flags.DEFINE_string("data_dir", None, "Directory containing the data files.")
 flags.DEFINE_string("dataset", "cornell", "Dataset to use. 'ubuntu', 'cornell', or 'wmt'.")
 flags.DEFINE_string("optimizer", "Adam", "Training optimization algorithm.")
@@ -49,7 +52,35 @@ DATASET = {'ubuntu': Ubuntu,
            'reddit': Reddit,
            'test_data': TestData}
 
+MODELS = {
+    'DynamicBot': DynamicBot,
+    'ChatBot': ChatBot,
+    'SimpleBot': SimpleBot,
+}
+
 if __name__ == "__main__":
+
+    configs = io_utils.parse_config(FLAGS.config_path)
+    # TODO: handle case of any of these being None, and KeyError
+    try:
+        # Grab the sub-dictionaries and/or string values.
+        model_name   = configs['model']
+        dataset_name = configs['dataset']
+        model_params = configs['model_params']
+    except KeyError:
+        print("aw man. KeyError. pfft.")
+        exit(-1)
+
+    # All datasets follow the same API, found in data/_dataset.py
+    print("Setting up %s dataset." % FLAGS.dataset)
+    dataset = DATASET[FLAGS.dataset](FLAGS.data_dir, FLAGS.vocab_size,
+                                     max_seq_len=FLAGS.max_seq_len)
+
+    print("Creating", model_name, ". . . ")
+    bot = MODELS[model_name](dataset, model_params)
+
+
+def old_main():
 
     print("using ", FLAGS.dataset)
     if FLAGS.decode:

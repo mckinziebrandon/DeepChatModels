@@ -6,6 +6,7 @@ from __future__ import print_function
 import os
 import re
 import sys
+import yaml
 import pandas as pd
 
 import numpy as np
@@ -42,7 +43,22 @@ def get_sentence():
     """
     sys.stdout.write("Human: ")
     sys.stdout.flush()
-    return sys.stdin.readline().strip()
+    return sys.stdin.readline().strip() # Could just use input() ...
+
+
+def parse_config(config_path):
+    """
+    Args:
+        config_path: (str) location of [my config].yml file.
+               Both relative and absolute paths will work.
+
+    Returns:
+    """
+
+    config_path = os.path.abspath(config_path)
+    with tf.gfile.GFile(config_path) as config_file:
+        configs = yaml.load(config_file)
+    return configs
 
 
 def basic_tokenizer(sentence):
