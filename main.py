@@ -5,13 +5,13 @@ from data import Cornell, Ubuntu, WMT, Reddit, TestData
 from utils import io_utils
 import sys, getopt
 
-
-
-DATASET = {'Ubuntu': Ubuntu,
-           'Cornell': Cornell,
-           'WMT': WMT,
-           'Reddit': Reddit,
-           'TestData': TestData}
+DATASETS = {
+    'Ubuntu': Ubuntu,
+    'Cornell': Cornell,
+    'WMT': WMT,
+    'Reddit': Reddit,
+    'TestData': TestData
+}
 
 MODELS = {
     'DynamicBot': DynamicBot,
@@ -75,7 +75,7 @@ def main(argv):
         exit(-1)
 
     print("Setting up %s dataset." % dataset_name)
-    dataset = DATASET[dataset_name](dataset_params)
+    dataset = DATASETS[dataset_name](dataset_params)
 
     print("Creating", model_name, ". . . ")
     bot = MODELS[model_name](dataset, model_params)
