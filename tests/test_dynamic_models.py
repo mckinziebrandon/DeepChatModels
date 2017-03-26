@@ -1,15 +1,16 @@
 """Run trial run on DynamicBot with the TestData Dataset."""
-import os
-import time
-import numpy as np
 import logging
-import tensorflow as tf
-import unittest
 import sys
+import time
+import unittest
+
+import numpy as np
+import tensorflow as tf
+
 sys.path.append("..")
 from data import *
 from chatbot import DynamicBot
-from chatbot import bot_ops
+from chatbot.components import bot_ops
 from utils import io_utils
 
 
@@ -260,12 +261,12 @@ class TestDynamicModels(unittest.TestCase):
 
             print('\n=========== MAP VERSION ============')
             loss = bot_ops.dynamic_sampled_softmax_loss(labels=labels,
-                                            logits=state_outputs,
-                                            output_projection=output_projection,
-                                            vocab_size=vocab_size,
-                                            from_scratch=False,
-                                            name="from_scratch",
-                                            num_samples=num_samples)
+                                                        logits=state_outputs,
+                                                        output_projection=output_projection,
+                                                        vocab_size=vocab_size,
+                                                        from_scratch=False,
+                                                        name="from_scratch",
+                                                        num_samples=num_samples)
 
             loss = sess.run(loss)
             print('loss:\n', loss)

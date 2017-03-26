@@ -4,14 +4,16 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import time
 import logging
+import time
+
 import numpy as np
 import tensorflow as tf
-from chatbot import bot_ops
-from chatbot._models import Model, OPTIMIZERS
-from chatbot.recurrent_components import Encoder, Decoder
-from chatbot.input_components import InputPipeline, Embedder
+
+from chatbot._models import Model
+from chatbot.components import bot_ops
+from chatbot.components.input_components import InputPipeline, Embedder
+from chatbot.components.recurrent_components import Encoder, Decoder
 from utils import io_utils
 
 

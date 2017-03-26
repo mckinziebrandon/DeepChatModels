@@ -4,16 +4,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-# Standard python imports.
 import os
 import random
-import yaml
-import logging
-# ML/DL-specific imports.
+
 import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.tensorboard.plugins import projector
-# User-defined imports.
+
 from utils import io_utils
 
 OPTIMIZERS = {
@@ -248,12 +245,12 @@ class BucketModel(Model):
 
     def train(self, dataset):
         """ Train chatbot. """
-        from chatbot._train import train
+        from chatbot.legacy._train import train
         train(self, dataset)
 
     def decode(self):
         """ Create chat session between user & chatbot. """
-        from chatbot._decode import decode
+        from chatbot.legacy._decode import decode
         decode(self)
 
     def step(self, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only=False):

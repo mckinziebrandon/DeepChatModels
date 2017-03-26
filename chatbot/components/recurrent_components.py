@@ -110,6 +110,7 @@ class Decoder(RNN):
             output_size: dimension of output space for projections.
             embed_size: dimension size of word-embedding space.
         """
+        super(Decoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
         self.temperature = temperature
         self.output_size = output_size
         self.max_seq_len = max_seq_len
@@ -119,7 +120,6 @@ class Decoder(RNN):
             b = tf.get_variable("b", [output_size], dtype=tf.float32,
                                 initializer=tf.contrib.layers.xavier_initializer())
             self._projection = (w, b)
-        super(Decoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
 
     def __call__(self, inputs, initial_state=None, is_chatting=False, loop_embedder=None, scope=None):
         """Run the inputs on the decoder. If we are chatting, then conduct dynamic sampling,
