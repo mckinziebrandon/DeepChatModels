@@ -9,7 +9,7 @@ from tensorflow.contrib.cudnn_rnn.python.ops import cudnn_rnn_ops
 from chatbot.components._rnn import RNN, Cell
 
 
-class DynamicEncoder(RNN):
+class BasicEncoder(RNN):
     def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2):
         """
         Args:
@@ -17,9 +17,9 @@ class DynamicEncoder(RNN):
             output_size: dimension of output space for projections.
             embed_size: dimension size of word-embedding space.
         """
-        super(DynamicEncoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
+        super(BasicEncoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
 
-    def __call__(self, inputs, return_sequence=False, scope=None, initial_state=None):
+    def __call__(self, inputs, initial_state=None, scope=None):
         """Run the inputs on the encoder and return the output(s).
 
         Args:
@@ -34,13 +34,36 @@ class DynamicEncoder(RNN):
         """
         with tf.name_scope(scope, "encoder", values=[inputs]):
 
-            outputs, state = tf.nn.dynamic_rnn(self.cell, inputs,
-                                               initial_state=initial_state,
-                                               dtype=tf.float32)
+            _, state = tf.nn.dynamic_rnn(self.cell,
+                                         inputs,
+                                         initial_state=initial_state,
+                                         dtype=tf.float32)
+            return state
 
-            if return_sequence:
-                return outputs, state
-            else:
-                return state
+
+class BidirectionalEncoder(RNN):
+    def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2):
+        """
+        Args:
+            state_size: number of units in underlying rnn cell.
+            output_size: dimension of output space for projections.
+            embed_size: dimension size of word-embedding space.
+        """
+        super(BasicEncoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
+
+    def __call__(self, inputs, initial_state=None, scope=None):
+        """Run the inputs on the encoder and return the output(s).
+
+        Args:
+            inputs: Tensor with shape [batch_size, max_time, embed_size].
+
+        Returns:
+            outputs: Tensor of shape [batch_size, max_time, state_size].
+            state:   The final encoder state. Tensor of shape [batch_size, state_size].
+        """
+        with tf.name_scope(scope, "encoder", values=[inputs]):
+
+            return tf.nn.bidirectional_dynamic_rnn(self.cell, inputs,
+                                               dtype=tf.float32)
 
 

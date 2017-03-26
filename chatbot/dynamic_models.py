@@ -10,13 +10,19 @@ import numpy as np
 import tensorflow as tf
 from chatbot._models import Model
 from chatbot.components import bot_ops
-from chatbot.components import InputPipeline, Embedder, DynamicEncoder, SimpleDecoder
+from chatbot.components import InputPipeline, Embedder, BasicEncoder, SimpleDecoder
 from utils import io_utils
+from pydoc import locate
 
 
 class DynamicBot(Model):
 
     def __init__(self, dataset, model_params):
+        """
+        Args:
+            dataset: any instance of data.DataSet base class.
+            model_params: dictionary of hyperparameters.
+        """
 
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('DynamicBotLogger')
@@ -32,9 +38,13 @@ class DynamicBot(Model):
         with tf.variable_scope("encoder") as scope:
             embedded_enc_inputs = self.embedder(self.encoder_inputs, scope=scope)
             # Create the encoder & decoder objects.
-            self.encoder  = DynamicEncoder(self.state_size, self.embed_size,
-                                    dropout_prob=self.dropout_prob,
-                                    num_layers=self.num_layers)
+            encoder_class = locate(model_params['encoder.class'])
+            self.encoder = encoder_class(self.state_size, self.embed_size,
+                                         dropout_prob=self.dropout_prob,
+                                         num_layers=self.num_layers)
+            #self.encoder  = BasicEncoder(self.state_size, self.embed_size,
+            #                             dropout_prob=self.dropout_prob,
+            #                             num_layers=self.num_layers)
             # Applying embedded inputs to encoder yields the final (context) state.
             encoder_state = self.encoder(embedded_enc_inputs)
 

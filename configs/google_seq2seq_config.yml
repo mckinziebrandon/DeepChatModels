@@ -1,0 +1,19 @@
+model: DynamicBot
+dataset: Cornell
+model_params:
+  batch_size: 256
+  ckpt_dir: out/cornell
+  decode: False
+  dropout: 0.2
+  embed_size: 128
+  encoder.class: chatbot.components.encoders.BidirectionalEncoder
+  learning_rate: 1e-4
+  num_layers: 4
+  optimizer: Adam
+  reset_model: True
+  state_size: 512
+  steps_per_ckpt: 500
+dataset_params:
+  data_dir: /home/brandon/terabyte/Datasets/cornell
+  max_seq_len: 10
+  vocab_size: 40000
