@@ -40,7 +40,7 @@ class Decoder(RNN):
                                 initializer=tf.contrib.layers.xavier_initializer())
             self._projection = (w, b)
 
-    def __call__(self, rnn_name, inputs, initial_state=None, is_chatting=False, loop_embedder=None, scope=None):
+    def __call__(self, rnn_name, inputs, initial_state, is_chatting, loop_embedder, scope):
         """Run the inputs on the decoder. If we are chatting, then conduct dynamic sampling,
             which is the process of generating a response given inputs == GO_ID.
 
@@ -161,14 +161,16 @@ class SimpleDecoder(Decoder):
 
 
     def __call__(self, inputs, initial_state=None, is_chatting=False, loop_embedder=None, scope=None):
-        super(SimpleDecoder, self).__call__("dynamic_rnn", inputs,
-                                            initial_state=initial_state,
-                                            is_chatting=is_chatting,
-                                            loop_embedder=loop_embedder,
-                                            scope=scope)
+        return super(SimpleDecoder, self).__call__("dynamic_rnn",
+                                                   inputs,
+                                                   initial_state=initial_state,
+                                                   is_chatting=is_chatting,
+                                                   loop_embedder=loop_embedder,
+                                                   scope=scope)
 
 
 class AttentionDecoder(Decoder):
+    """TODO"""
 
     def __init__(self, state_size, output_size, embed_size,
                  dropout_prob=1.0, num_layers=2, temperature=0.0, max_seq_len=50):
@@ -177,7 +179,7 @@ class AttentionDecoder(Decoder):
 
 
     def __call__(self, inputs, initial_state=None, is_chatting=False, loop_embedder=None, scope=None):
-        super(AttentionDecoder, self).__call__("bidirectional_rnn", inputs,
+        return super(AttentionDecoder, self).__call__("bidirectional_rnn", inputs,
                                             initial_state=initial_state,
                                             is_chatting=is_chatting,
                                             loop_embedder=loop_embedder,

@@ -10,7 +10,7 @@ import numpy as np
 import tensorflow as tf
 from chatbot._models import Model
 from chatbot.components import bot_ops
-from chatbot.components import InputPipeline, Embedder, DynamicEncoder, DynamicDecoder
+from chatbot.components import InputPipeline, Embedder, DynamicEncoder, SimpleDecoder
 from utils import io_utils
 
 
@@ -40,7 +40,7 @@ class DynamicBot(Model):
 
         with tf.variable_scope("decoder") as scope:
             embedded_dec_inputs = self.embedder(self.decoder_inputs, scope=scope)
-            self.decoder  = DynamicDecoder(self.state_size, self.vocab_size, self.embed_size,
+            self.decoder  = SimpleDecoder(self.state_size, self.vocab_size, self.embed_size,
                                     dropout_prob=self.dropout_prob,
                                     num_layers=self.num_layers,
                                     max_seq_len=dataset.max_seq_len,
