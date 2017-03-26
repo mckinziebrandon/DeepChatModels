@@ -2,6 +2,7 @@ model: DynamicBot
 dataset: Cornell
 model_params:
   batch_size: 256
+  ckpt_dir: out/cornell
   decode: False
   dropout: 0.2
   embed_size: 64

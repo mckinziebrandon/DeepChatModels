@@ -28,24 +28,22 @@ ALL_PARAMS = {
     "ckpt_dir": None,
     "data_dir": None,
     "dataset": None,
-    "optimizer": "Adam",
-    "reset_model": False,
     "decode": False,
-    "sampled_loss": 512,
-    "steps_per_ckpt": 200,
     "batch_size": 64,
-    "vocab_size": 40000,
+    "dropout_prob": 0.2,
     "state_size": 512,
     "embed_size": 64,
-    "num_layers": 3,
-    "max_seq_len": 80,
-    "num_samples": 512,
     "learning_rate": 0.01,
-    "lr_decay": 0.98,
-    "max_gradient": 4.0,
-    "temperature": 0.0,
-    "dropout_prob": 0.2,
     "l1_reg": 1e-6,
+    "lr_decay": 0.98,
+    "max_gradient": 5.0,
+    "num_layers": 3,
+    "num_samples": 512,
+    "optimizer": "Adam",
+    "reset_model": False,
+    "sampled_loss": False,
+    "steps_per_ckpt": 200,
+    "temperature": 0.0,
 }
 
 
@@ -53,9 +51,9 @@ class Model(object):
     """Superclass of all subsequent model classes.
     """
 
-    def __init__(self, logger, model_params):
+    def __init__(self, logger, dataset, model_params):
 
-        self.__dict__['__params'] = Model.fill_params(model_params)
+        self.__dict__['__params'] = Model.fill_params(dataset, model_params)
         self.log    = logger
         self.sess   = tf.Session()
         with self.graph.name_scope(tf.GraphKeys.SUMMARIES):
@@ -68,7 +66,7 @@ class Model(object):
         self.apply_gradients    = None
         self.saver              = None
 
-    def compile(self, optimizer=None, max_gradient=None, reset=False):
+    def compile(self):
         """ Configure training process and initialize model. Inspired by Keras.
 
         Either restore model parameters or create fresh ones.
@@ -79,7 +77,7 @@ class Model(object):
         checkpoint_state  = tf.train.get_checkpoint_state(self.ckpt_dir)
         # Note: If you want to prevent from loading models trained on different dataset,
         # you should store them in their own out/dataname folder, and pass that as the ckpt_dir to config.
-        if not reset and checkpoint_state \
+        if not self.reset_model and checkpoint_state \
                 and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
             print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
             self.file_writer    = tf.summary.FileWriter(self.ckpt_dir)
@@ -108,11 +106,9 @@ class Model(object):
 
         if self.saver is None:
             raise ValueError("Tried saving model before defining a saver.")
-
-        checkpoint_path = os.path.join(self.ckpt_dir, "{}.ckpt".format(self.data_name))
+        ckpt_fname = os.path.join(self.ckpt_dir, "{}.ckpt".format(self.data_name))
         # Saves the state of all global variables in a ckpt file.
-        self.saver.save(self.sess, checkpoint_path, global_step=self.global_step)
-
+        self.saver.save(self.sess, ckpt_fname, global_step=self.global_step)
         if summaries is not None:
             self.file_writer.add_summary(summaries, self.global_step.eval(self.sess))
         else:
@@ -130,7 +126,7 @@ class Model(object):
         return self.sess.graph
 
     @staticmethod
-    def fill_params(model_params):
+    def fill_params(dataset, model_params):
         """Assigns default values from ALL_PARAMS for keys not in model_params."""
         filled_params = {}
         for key in ALL_PARAMS:
@@ -138,7 +134,10 @@ class Model(object):
                 filled_params[key] = model_params[key]
             else:
                 filled_params[key] = ALL_PARAMS[key]
-        filled_params['is_chatting'] = filled_params['decode']
+        filled_params['max_seq_len']    = dataset.max_seq_len
+        filled_params['vocab_size']     = dataset.vocab_size
+        filled_params['data_name']      = dataset.name
+        filled_params['is_chatting']    = filled_params['decode']
         return filled_params
 
     def __getattr__(self, name):

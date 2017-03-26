@@ -9,11 +9,11 @@ flags = app.flags
 flags.DEFINE_string("config_path", "config.yml", "Location of configuration yml file.")
 FLAGS = flags.FLAGS
 
-DATASET = {'ubuntu': Ubuntu,
-           'cornell': Cornell,
-           'wmt': WMT,
-           'reddit': Reddit,
-           'test_data': TestData}
+DATASET = {'Ubuntu': Ubuntu,
+           'Cornell': Cornell,
+           'WMT': WMT,
+           'Reddit': Reddit,
+           'TestData': TestData}
 
 MODELS = {
     'DynamicBot': DynamicBot,
@@ -35,10 +35,10 @@ if __name__ == "__main__":
         exit(-1)
 
     print("Setting up %s dataset." % dataset_name)
-    dataset = DATASET[dataset_name](data_dir=dataset_params['data_dir'],
-                                    vocab_size=dataset_params['vocab_size'],
-                                    max_seq_len=dataset_params['max_seq_len'])
+    dataset = DATASET[dataset_name](dataset_params)
 
     print("Creating", model_name, ". . . ")
+    model_params['decode'] = False
     bot = MODELS[model_name](dataset, model_params)
+    bot.train(dataset)
 

@@ -193,6 +193,7 @@ class Embedder:
         Args:
             writer: instance of tf.summary.FileWriter
         """
+        assert(writer is not None)
         config = tf.contrib.tensorboard.plugins.projector.ProjectorConfig()
         emb = config.embeddings.add()
         with tf.variable_scope(scope, reuse=True):

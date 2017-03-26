@@ -22,7 +22,7 @@ class DynamicBot(Model):
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('DynamicBotLogger')
         # Let superclass handle the boring stuff (dirs/more instance variables).
-        super(DynamicBot, self).__init__(self.log, model_params)
+        super(DynamicBot, self).__init__(self.log, dataset, model_params)
 
         with tf.variable_scope("input_layer"):
             self.pipeline       = InputPipeline(dataset.paths, self.batch_size, is_chatting=self.is_chatting)
@@ -56,19 +56,9 @@ class DynamicBot(Model):
         # Merge any summaries floating around in the aether into one object.
         self.merged = tf.summary.merge_all()
         self.outputs = decoder_outputs
+        self.compile()
 
-    def compile(self, optimizer=None, max_gradient=5.0, reset=False, sampled_loss=False):
-        """ Configure training process and initialize model. Inspired by Keras.
-
-        Args:
-            optimizer: (str). Supported: 'Adagrad', 'RMSProp', 'SGD', 'Adam'.
-            max_gradient: float. Gradients will be clipped to be below this value.
-            reset: boolean. Tells Model superclass whether or not we wish to compile
-                            a model from scratch or load existing parameters from ckpt_dir.
-            sampled_loss: (bool) gives user the option to toggle sampled_loss
-                          on/off post-initialization.
-        """
-
+    def compile(self):
         if not self.is_chatting:
             with tf.variable_scope("evaluation") as scope:
                 # Loss - target is to predict, as output, the next decoder input.
@@ -78,7 +68,7 @@ class DynamicBot(Model):
                 preds = self.decoder.apply_projection(self.outputs)
                 regLosses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
                 l1 = tf.reduce_sum(tf.abs(regLosses))
-                if sampled_loss:
+                if self.sampled_loss:
                     self.log.info("Training with dynamic sampled softmax loss.")
                     assert 0 < self.num_samples < self.vocab_size, \
                         "num_samples is %d but should be between 0 and %d" \
@@ -92,20 +82,12 @@ class DynamicBot(Model):
                         labels=target_labels, logits=preds[:, :-1, :],
                         weights=target_weights) + l1
 
-                # Define the training portion of the graph.
-                if optimizer is not None:
-                    assert optimizer in OPTIMIZERS, \
-                        "Optimizer %s not supported. Choice are:\n%r" \
-                    % (optimizer, OPTIMIZERS.keys())
-                else:
-                    optimizer = 'Adam'
-
-                self.log.info("Optimizing with %s." % optimizer)
+                self.log.info("Optimizing with %s." % self.optimizer)
                 self.apply_gradients = tf.contrib.layers.optimize_loss(
                     loss=self.loss, global_step=self.global_step,
                     learning_rate=self.learning_rate,
-                    optimizer=optimizer,
-                    clip_gradients=max_gradient,
+                    optimizer=self.optimizer,
+                    clip_gradients=self.max_gradient,
                     summaries=['loss', 'gradients'])
 
                 # Compute accuracy, ensuring we use fully projected outputs.
@@ -115,7 +97,7 @@ class DynamicBot(Model):
                 self.merged = tf.summary.merge_all()
 
         # Let superclass load param values from file (if reset==False), else initialize new model.
-        super(DynamicBot, self).compile(reset=reset)
+        super(DynamicBot, self).compile()
 
     def step(self, forward_only=False):
         """Run one step of the model, which can mean 1 of the following:
@@ -140,6 +122,7 @@ class DynamicBot(Model):
             response = self.sess.run(self.outputs, feed_dict=self.pipeline.feed_dict)
             return None, None, response
         else:
+            print("bout to sess run in step.")
             fetches = [self.merged, self.loss] # , self.outputs]
             summaries, step_loss = self.sess.run(fetches)
             return summaries, step_loss, None

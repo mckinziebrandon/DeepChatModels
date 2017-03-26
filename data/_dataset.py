@@ -38,11 +38,6 @@ class DatasetABC(metaclass=ABCMeta):
         pass
 
     @abstractproperty
-    def data_dir(self):
-        """Return path to directory that contains the data."""
-        pass
-
-    @abstractproperty
     def name(self):
         """Returns name of the dataset as a string."""
         pass
@@ -61,11 +56,11 @@ class Dataset(DatasetABC):
         print("max_seq_len recorded as ", self.max_seq_len)
         # We query io_utils to ensure all data files are organized properly,
         # and io_utils returns the paths to files of interest.
-        paths_triplet = io_utils.prepare_data(self._data_dir,
-                                              self._data_dir + "/train_from.txt",
-                                              self._data_dir + "/train_to.txt",
-                                              self._data_dir + "/valid_from.txt",
-                                              self._data_dir + "/valid_to.txt",
+        paths_triplet = io_utils.prepare_data(self.data_dir,
+                                              self.data_dir + "/train_from.txt",
+                                              self.data_dir + "/train_to.txt",
+                                              self.data_dir + "/valid_from.txt",
+                                              self.data_dir + "/valid_to.txt",
                                               self.vocab_size, self.vocab_size)
 
         train_path, valid_path, vocab_path = paths_triplet
@@ -96,7 +91,7 @@ class Dataset(DatasetABC):
         from_path = self.paths['from_'+prefix]
         to_path = self.paths['to_'+prefix]
         output_path = os.path.join(
-            self._data_dir, prefix + 'voc%d_seq%d' % (self.vocab_size, self.max_seq_len) + '.tfrecords')
+            self.data_dir, prefix + 'voc%d_seq%d' % (self.vocab_size, self.max_seq_len) + '.tfrecords')
         if os.path.isfile(output_path):
             self.log.info('Using tfrecords file %s' % output_path)
             self.paths[prefix + '_tfrecords'] = output_path
@@ -246,11 +241,6 @@ class Dataset(DatasetABC):
             print("\n\nIndexError encountered for following sentence:\n", sentence)
             print("\nVocab size is :", self.vocab_size)
             print("Words:", words)
-
-    @property
-    def data_dir(self):
-        """Return path to directory that contains the data."""
-        return self._data_dir
 
     @property
     def name(self):
