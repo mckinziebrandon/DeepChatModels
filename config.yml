@@ -1,4 +1,4 @@
-model: ChatBot
+model: DynamicBot
 model_params:
   data_dir: /home/brandon/terabyte/Datasets/cornell
   dataset: cornell
