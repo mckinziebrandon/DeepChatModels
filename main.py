@@ -16,11 +16,11 @@ from utils import io_utils
 # ==================================================================================================
 
 flags = tf.app.flags
-# String flags -- directories and dataset name(s).
+# String flags -- directories and datast name(s).
 flags.DEFINE_string("ckpt_dir", "out", "Directory in which checkpoint files will be saved.")
 flags.DEFINE_string("data_dir", None, "Directory containing the data files.")
 flags.DEFINE_string("dataset", "cornell", "Dataset to use. 'ubuntu', 'cornell', or 'wmt'.")
-flags.DEFINE_string("optimizer", None, "Defaults to AdagradOptimizer.")
+flags.DEFINE_string("optimizer", "Adam", "Training optimization algorithm.")
 # Boolean flags.
 flags.DEFINE_boolean("reset_model", False, "wipe output directory; new params")
 flags.DEFINE_boolean("decode", False, "If true, initiates chat session.")
@@ -35,12 +35,12 @@ flags.DEFINE_integer("num_layers", 3, "Num layers in underlying MultiRNNCell.")
 flags.DEFINE_integer("max_seq_len", 80, "Num layers in underlying MultiRNNCell.")
 flags.DEFINE_integer("num_samples", 512, "subset of vocabulary_size for sampled softmax.")
 # Float flags -- hyperparameters.
-flags.DEFINE_float("learning_rate", 0.4, "Learning rate.")
+flags.DEFINE_float("learning_rate", 0.01, "Learning rate.")
 flags.DEFINE_float("lr_decay", 0.98, "Decay factor applied to learning rate.")
-flags.DEFINE_float("max_gradient", 5.0, "Clip gradients to this value.")
+flags.DEFINE_float("max_gradient", 4.0, "Clip gradients to this value.")
 flags.DEFINE_float("temperature", 0.0, "Sampling temperature.")
-flags.DEFINE_float("dropout_prob", 0.5, "Dropout rate before each layer.")
-flags.DEFINE_float("l1_reg", 0.0, "l1")
+flags.DEFINE_float("dropout_prob", 0.2, "Dropout rate before each layer.")
+flags.DEFINE_float("l1_reg", 1e-6, "l1")
 FLAGS = flags.FLAGS
 
 DATASET = {'ubuntu': Ubuntu,
@@ -51,6 +51,7 @@ DATASET = {'ubuntu': Ubuntu,
 
 if __name__ == "__main__":
 
+    print("using ", FLAGS.dataset)
     if FLAGS.decode:
         if FLAGS.reset_model:
             print("WARNING: To chat, should pass --reset_model=False, but found True."

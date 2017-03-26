@@ -61,6 +61,7 @@ class DynamicBot(Model):
         if embed_size is None:
             embed_size = state_size
         # FIXME: Not sure how I feel about dataset as instance attribute.
+        # TODO: Decouple dataset from dynamicbot ASAP.
         self.dataset        = dataset
         self.batch_size     = batch_size
         self.embed_size     = embed_size
