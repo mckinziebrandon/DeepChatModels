@@ -4,14 +4,13 @@ import sys
 import time
 import unittest
 
-import os
-from pydoc import locate
 import numpy as np
 import tensorflow as tf
+from pydoc import locate
 
 sys.path.append("..")
-from data import *
-from chatbot import DynamicBot
+from chatbot import DynamicBot, ChatBot, SimpleBot
+from data import Cornell, Ubuntu, WMT, Reddit, TestData
 from chatbot.components import bot_ops
 from utils import io_utils
 
@@ -41,24 +40,72 @@ class TestDynamicModels(unittest.TestCase):
     def test_freeze(self):
         """Make sure we can freeze the bot, unfreeze, and still chat."""
 
+        config_path = "configs/small_model.yml"
+        configs = io_utils.parse_config(config_path)
+        self.log.info(configs)
+        model_name = configs['model']
+        dataset_name = configs['dataset']
+        dataset_params = configs['dataset_params']
+        model_params = configs['model_params']
+
+        self.log.info("Setting up %s dataset." % dataset_name)
+        self.log.info(locate("Cornell"))
+        dataset = locate(dataset_name)(dataset_params)
+        self.log.info("Creating %s" % model_name)
+        bot = locate(model_name)(dataset, model_params)
+        if not model_params['decode']:
+            bot.train(dataset)
+        else:
+            bot.chat()
+
 
     def test_chat(self):
         """Feed the training sentences to the bot during conversation.
         It should respond somewhat predictably on these for now.
         """
 
-        config_path = "/home/brandon/Documents/seq2seq_projects/configs/basic_config.yml"
-        configs = io_utils.parse_config(config_path)
-        model_name      = configs['model']
-        dataset_name    = configs['dataset']
-        dataset_params  = configs['dataset_params']
-        model_params    = configs['model_params']
+        data_dir = '/home/brandon/terabyte/Datasets/test_data'
+        dataset = TestData(data_dir)
+        dataset.convert_to_tf_records('train')
+        dataset.convert_to_tf_records('valid')
 
-        print("Setting up %s dataset." % dataset_name)
-        dataset = locate(dataset_name)(dataset_params)
-        print("Creating", model_name, ". . . ")
-        bot = locate(model_name)(dataset, model_params)
+        print("Should I train first?")
+        should_train = io_utils.get_sentence()
+        is_chatting = False if should_train == 'y' else True
+        print("is chatting is ", is_chatting)
 
+        state_size = 2048
+        embed_size = 64
+        num_layers = 3
+        learning_rate = 0.1
+        dropout_prob = 0.5
+        ckpt_dir = 'out/st_%d_nl_%d_emb_%d_lr_%d_drop_5' % (
+            state_size, num_layers, embed_size, int(100 * learning_rate)
+        )
+
+        bot = DynamicBot(dataset,
+                         ckpt_dir=ckpt_dir,
+                         batch_size=4,
+                         learning_rate=learning_rate,
+                         state_size=state_size,
+                         embed_size=embed_size,
+                         num_layers=num_layers,
+                         dropout_prob=dropout_prob,
+                         is_chatting=is_chatting)
+        bot.compile(reset=(not is_chatting))
+        if not is_chatting:
+            bot.train(dataset)
+        else:
+            sentence_generator = dataset.sentence_generator()
+            try:
+                while True:
+                    sentence = next(sentence_generator)
+                    print("Human:\t", sentence)
+                    print("Bot:  \t", bot(sentence))
+                    print()
+                    time.sleep(1)
+            except (KeyboardInterrupt, StopIteration):
+                print('Bleep bloop. Goodbye.')
 
     def test_target_weights(self):
         """Make sure target weights set PAD targets to zero."""

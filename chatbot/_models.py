@@ -116,7 +116,7 @@ class Model(object):
         # First save the checkpoint as usual.
         self.save()
         # Freeze me, for I am infinite.
-        Model.freeze_model(self.ckpt_dir)
+        Model.freeze_model(self, self.ckpt_dir)
         self.file_writer.close()
         self.sess.close()
 
@@ -142,7 +142,7 @@ class Model(object):
         return filled_params
 
     @staticmethod
-    def freeze_model(model_dir):
+    def freeze_model(bot, model_dir):
         """ Useful for e.g. deploying model on website.
 
         Args: directory containing model ckpt files we'd like to freeze.
@@ -154,17 +154,28 @@ class Model(object):
         assert checkpoint_state is not None, "No ckpt files in %s." % model_dir
         frozen_file = os.path.join(model_dir, "frozen_model.pb")
 
+        print("mod", checkpoint_state.model_checkpoint_path)
         saver = tf.train.import_meta_graph(checkpoint_state.model_checkpoint_path+'.meta',
                                            clear_devices=True)
-        with tf.Session() as sess:
-            saver.restore(sess, checkpoint_state.model_checkpoint_path)
-            output_graph_def = tf.graph_util.convert_variables_to_constants(
-                sess,
-                sess.graph_def,
-                tf.get_collection("freezer"))
-            with tf.gfile.GFile(frozen_file, 'wb') as f:
-                f.write(output_graph_def.SerializeToString())
-            print("%d ops in the final graph." % len(output_graph_def.node))
+
+        # We retrieve the protobuf graph definition
+        graph = bot.graph
+        plz = [bot.outputs.name]
+        input_graph_def = graph.as_graph_def()
+        saver.restore(bot.sess, checkpoint_state.model_checkpoint_path)
+        fml = tf.get_collection('freezer')
+        print('fml', fml)
+        bot.log.info('FML')
+        bot.log.info(fml)
+
+
+        output_graph_def = tf.graph_util.convert_variables_to_constants(
+            bot.sess,
+            input_graph_def,
+            plz)
+        with tf.gfile.GFile(frozen_file, 'wb') as f:
+            f.write(output_graph_def.SerializeToString())
+        print("%d ops in the final graph." % len(output_graph_def.node))
 
     def __getattr__(self, name):
         if name not in self.__dict__['__params']:

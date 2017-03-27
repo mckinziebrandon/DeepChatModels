@@ -10,9 +10,9 @@ class Cell(tf.contrib.rnn.RNNCell):
         self._state_size = state_size
         self._num_layers = num_layers
         if num_layers == 1:
-            self._cell = LSTMCell(self._state_size)
+            self._cell = GRUCell(self._state_size)
         else:
-            self._cell = MultiRNNCell([LSTMCell(self._state_size) for _ in range(num_layers)])
+            self._cell = MultiRNNCell([GRUCell(self._state_size) for _ in range(num_layers)])
         self._dropout_prob = dropout_prob
 
     @property

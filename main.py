@@ -30,13 +30,13 @@ def main(argv):
 
     config_path = None
 
+    # Extract config dictionaries from file path.
     try:
         opts, args = getopt.getopt(argv, "h:c:", ["config="])
     except getopt.GetoptError:
         print("ERROR: Please pass in the config file path. "
               "For example: ./main.py -c configs/my_config.yml")
         sys.exit(2)
-
     for opt, arg in opts:
         if opt == '-h':
             print('./main.py [options], where\n'
@@ -45,21 +45,15 @@ def main(argv):
             sys.exit()
         elif opt in ("-c", "--config"):
             config_path = arg
-
-    if config_path is None:
-        print("ERROR: Please pass in the config file path. "
-              "For example: ./main.py -c configs/my_config.yml")
-        sys.exit(2)
+    assert config_path is not None, "Config path not found."
 
     configs = io_utils.parse_config(config_path)
-    try:
-        model_name      = configs['model']
-        dataset_name    = configs['dataset']
-        dataset_params  = configs['dataset_params']
-        model_params    = configs['model_params']
-    except KeyError:
-        print("aw man. KeyError. pfft.")
-        exit(-1)
+    # TODO: none of these checks should be in main,
+    # and default params should be set if not found.
+    model_name      = configs['model']
+    dataset_name    = configs['dataset']
+    dataset_params  = configs['dataset_params']
+    model_params    = configs['model_params']
 
     print("Setting up %s dataset." % dataset_name)
     dataset = locate(dataset_name)(dataset_params)
@@ -73,3 +67,4 @@ def main(argv):
 
 if __name__ == "__main__":
     main(sys.argv[1:])
+

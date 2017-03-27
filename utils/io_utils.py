@@ -30,6 +30,8 @@ UNK_ID  = 3
 _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
 _DIGIT_RE   = re.compile(br"\d")
 
+utils_dir = os.path.dirname(os.path.realpath(__file__))
+
 def save_hyper_params(hyper_params, fname):
     # Append to file if exists, else create.
     df = pd.DataFrame(hyper_params)
@@ -55,7 +57,8 @@ def parse_config(config_path):
     Returns:
     """
 
-    config_path = os.path.abspath(config_path)
+    #config_path = os.path.abspath(config_path)
+    config_path = os.path.join(utils_dir, '../configs', os.path.basename(config_path))
     with tf.gfile.GFile(config_path) as config_file:
         configs = yaml.load(config_file)
     return configs
