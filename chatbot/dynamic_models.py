@@ -29,6 +29,12 @@ class DynamicBot(Model):
         # Let superclass handle the boring stuff (dirs/more instance variables).
         super(DynamicBot, self).__init__(self.log, dataset, model_params)
 
+        # Grab the model classes (Constructors) specified by user in model_params.
+        encoder_class = locate(model_params['encoder.class'])
+        decoder_class = locate(model_params['decoder.class'])
+        assert encoder_class is not None, "Couldn't find requested %s." % model_params['encoder.class']
+        assert decoder_class is not None, "Couldn't find requested %s." % model_params['decoder.class']
+
         with tf.variable_scope("input_layer"):
             self.pipeline = InputPipeline(dataset.paths, self.batch_size, is_chatting=self.is_chatting)
             self.encoder_inputs = self.pipeline.encoder_inputs
@@ -38,23 +44,19 @@ class DynamicBot(Model):
         with tf.variable_scope("encoder") as scope:
             embedded_enc_inputs = self.embedder(self.encoder_inputs, scope=scope)
             # Create the encoder & decoder objects.
-            encoder_class = locate(model_params['encoder.class'])
             self.encoder = encoder_class(self.state_size, self.embed_size,
                                          dropout_prob=self.dropout_prob,
                                          num_layers=self.num_layers)
-            #self.encoder  = BasicEncoder(self.state_size, self.embed_size,
-            #                             dropout_prob=self.dropout_prob,
-            #                             num_layers=self.num_layers)
             # Applying embedded inputs to encoder yields the final (context) state.
             _, encoder_state = self.encoder(embedded_enc_inputs)
 
         with tf.variable_scope("decoder") as scope:
             embedded_dec_inputs = self.embedder(self.decoder_inputs, scope=scope)
-            self.decoder  = SimpleDecoder(self.state_size, self.vocab_size, self.embed_size,
-                                    dropout_prob=self.dropout_prob,
-                                    num_layers=self.num_layers,
-                                    max_seq_len=dataset.max_seq_len,
-                                    temperature=self.temperature)
+            self.decoder  = decoder_class(self.state_size, self.vocab_size, self.embed_size,
+                                          dropout_prob=self.dropout_prob,
+                                          num_layers=self.num_layers,
+                                          max_seq_len=dataset.max_seq_len,
+                                          temperature=self.temperature)
             # For decoder, we want the full sequence of output states, not simply the last.
             decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
                                                           initial_state=encoder_state,

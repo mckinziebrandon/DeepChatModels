@@ -39,7 +39,7 @@ class BasicEncoder(RNN):
                                          inputs,
                                          initial_state=initial_state,
                                          dtype=tf.float32)
-            return state
+            return None, state
 
 
 class BidirectionalEncoder(RNN):
@@ -66,10 +66,17 @@ class BidirectionalEncoder(RNN):
 
             cell_fw = self.get_cell("cell_fw")
             cell_bw = self.get_cell("cell_bw")
-            return tf.nn.bidirectional_dynamic_rnn(
+            outputs_tuple, states_tuple =  tf.nn.bidirectional_dynamic_rnn(
                 cell_fw=cell_fw,
                 cell_bw=cell_bw,
                 inputs=inputs,
                 dtype=tf.float32)
+
+            outputs = tf.concat(outputs_tuple, 2)
+            state = tf.concat(states_tuple, 2)
+            print("outputs:\n", outputs)
+            print("state:\n", state)
+            return outputs, state
+
 
 

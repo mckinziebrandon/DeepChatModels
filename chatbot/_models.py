@@ -22,9 +22,9 @@ OPTIMIZERS = {
 
 # Default values for parameters that could be used by a model, training or otherwise.
 ALL_PARAMS = {
-    "ckpt_dir": None,
-    "data_dir": None,
-    "dataset": None,
+    "ckpt_dir": "out",
+    "data_dir": "data",
+    "dataset": "cornell",
     "decode": False,
     "batch_size": 64,
     "dropout_prob": 0.2,
@@ -128,7 +128,7 @@ class Model(object):
         filled_params = {}
         for key in ALL_PARAMS:
             if key in model_params:
-                filled_params[key] = model_params[key]
+                filled_params[key] = type(ALL_PARAMS[key])(model_params[key])
             else:
                 filled_params[key] = ALL_PARAMS[key]
         filled_params['max_seq_len']    = dataset.max_seq_len
