@@ -88,6 +88,10 @@ class InputPipeline:
             return tf.convert_to_tensor([[GO_ID]])
 
     @property
+    def user_input(self):
+        return self._user_input
+
+    @property
     def feed_dict(self):
         return self._feed_dict
 

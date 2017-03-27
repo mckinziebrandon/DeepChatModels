@@ -4,20 +4,7 @@ from chatbot import DynamicBot, ChatBot, SimpleBot
 from data import Cornell, Ubuntu, WMT, Reddit, TestData
 from utils import io_utils
 import sys, getopt
-
-DATASETS = {
-    'Ubuntu': Ubuntu,
-    'Cornell': Cornell,
-    'WMT': WMT,
-    'Reddit': Reddit,
-    'TestData': TestData
-}
-
-MODELS = {
-    'DynamicBot': DynamicBot,
-    'ChatBot': ChatBot,
-    'SimpleBot': SimpleBot,
-}
+from pydoc import locate
 
 
 def start_training(dataset, bot):
@@ -75,10 +62,9 @@ def main(argv):
         exit(-1)
 
     print("Setting up %s dataset." % dataset_name)
-    dataset = DATASETS[dataset_name](dataset_params)
-
+    dataset = locate(dataset_name)(dataset_params)
     print("Creating", model_name, ". . . ")
-    bot = MODELS[model_name](dataset, model_params)
+    bot = locate(model_name)(dataset, model_params)
 
     if not model_params['decode']:
         start_training(dataset, bot)

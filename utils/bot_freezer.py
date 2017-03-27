@@ -4,8 +4,10 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import numpy as np
 import tensorflow as tf
 from tensorflow.python.platform import gfile
+from utils import io_utils
 from pydoc import locate
 
 
@@ -42,7 +44,24 @@ def unfreeze_bot(frozen_model_path):
     """
 
     bot_graph = load_graph(frozen_model_path)
-    outputs = bot_graph.get_collection("outputs")
-    assert isinstance(outputs, list) and len(outputs) == 1, \
-    "Unknown outputs %r found in frozen graph." % outputs
-    outputs = outputs[0]
+    freezer = bot_graph.get_collection("freezer")
+    assert isinstance(freezer, list) and len(freezer) == 2, \
+    "Unknown outputs %r found in frozen graph." % freezer
+    user_input, outputs = freezer
+    return user_input, outputs
+
+def unfreeze_and_chat(frozen_model_path):
+
+    user_input, outputs = unfreeze_bot(frozen_model_path)
+
+    word_to_idx, _ = io_utils.get_vocab_dicts("/home/brandon/terabyte/Datasets/cornell/vocab40000.from")
+    _, idx_to_word = io_utils.get_vocab_dicts("/home/brandon/terabyte/Datasets/cornell/vocab40000.to")
+
+    encoder_inputs = io_utils.sentence_to_token_ids(
+        tf.compat.as_bytes("Please don't explode."), word_to_idx)
+
+    encoder_inputs = np.array([encoder_inputs[::-1]])
+    with tf.Session() as chat_sess:
+        response = chat_sess.run(outputs, feed_dict={user_input: encoder_inputs})
+        response = " ".join([tf.compat.as_str(idx_to_word[i])
+                             for i in response[0][:-1]])

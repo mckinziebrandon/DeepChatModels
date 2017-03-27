@@ -72,7 +72,8 @@ class DynamicBot(Model):
         # Merge any summaries floating around in the aether into one object.
         self.outputs = decoder_outputs
         self.merged = tf.summary.merge_all()
-        tf.add_to_collection("outputs", self.outputs)
+        tf.add_to_collection("freezer", self.pipeline.user_input)
+        tf.add_to_collection("freezer", self.outputs)
         self.compile()
 
     def compile(self):

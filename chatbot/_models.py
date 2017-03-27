@@ -115,6 +115,8 @@ class Model(object):
         """Call then when training session is terminated."""
         # First save the checkpoint as usual.
         self.save()
+        # Freeze me, for I am infinite.
+        Model.freeze_model(self.ckpt_dir)
         self.file_writer.close()
         self.sess.close()
 
@@ -159,7 +161,7 @@ class Model(object):
             output_graph_def = tf.graph_util.convert_variables_to_constants(
                 sess,
                 sess.graph_def,
-                tf.get_collection("outputs"))
+                tf.get_collection("freezer"))
             with tf.gfile.GFile(frozen_file, 'wb') as f:
                 f.write(output_graph_def.SerializeToString())
             print("%d ops in the final graph." % len(output_graph_def.node))
