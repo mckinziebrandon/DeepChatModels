@@ -60,7 +60,7 @@ class Model(object):
         self.projector_config = projector.ProjectorConfig()
         # Good practice to set as None in constructor.
         self.file_writer        = None
-        self.apply_gradients    = None
+        self.train_op    = None
         self.saver              = None
 
     def compile(self):
@@ -139,6 +139,30 @@ class Model(object):
         filled_params['is_chatting']    = filled_params['decode']
         return filled_params
 
+    @staticmethod
+    def freeze_model(model_dir):
+        """ Useful for e.g. deploying model on website.
+
+        Args: directory containing model ckpt files we'd like to freeze.
+        """
+
+        model_dir = os.path.abspath(model_dir)
+        checkpoint_state  = tf.train.get_checkpoint_state(model_dir)
+        assert checkpoint_state is not None, "No ckpt files in %s." % model_dir
+        frozen_file = os.path.join(model_dir, "frozen_model.pb")
+
+        saver = tf.train.import_meta_graph(checkpoint_state.model_checkpoint_path+'.meta',
+                                           clear_devices=True)
+        with tf.Session() as sess:
+            saver.restore(sess, checkpoint_state.model_checkpoint_path)
+            output_graph_def = tf.graph_util.convert_variables_to_constants(
+                sess,
+                sess.graph_def,
+                tf.get_collection("outputs"))
+            with tf.gfile.GFile(frozen_file, 'wb') as f:
+                f.write(output_graph_def.SerializeToString())
+            print("%d ops in the final graph." % len(output_graph_def.node))
+
     def __getattr__(self, name):
         if name not in self.__dict__['__params']:
             raise AttributeError(name)
@@ -166,7 +190,7 @@ class BucketModel(Model):
         print("Configuring training operations. This may take some time . . . ")
         # Note: variables are trainable=True by default.
         params = tf.trainable_variables()
-        # apply_gradients will store the parameter (S)GD apply_gradients.
+        # train_op will store the parameter (S)GD train_op.
         self.apply_gradients = []
         if optimizer is None:
             optimizer = tf.train.AdagradOptimizer(self.learning_rate)

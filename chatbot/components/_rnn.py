@@ -49,10 +49,11 @@ class RNN(object):
         self.embed_size = embed_size
         self.num_layers = num_layers
         self.dropout_prob = dropout_prob
+        # TODO: Switch decoder from using this to using get_cell, like encoders.
         self.cell = Cell(state_size, num_layers, dropout_prob=dropout_prob)
 
     def get_cell(self, name, reuse=None):
-        with tf.name_scope(name, "get_cell"):
+        with tf.name_scope(name, "get_cell", reuse=reuse):
             return Cell(self.state_size, self.num_layers,
                         dropout_prob=self.dropout_prob)
 

@@ -18,7 +18,12 @@ from pydoc import locate
 class DynamicBot(Model):
 
     def __init__(self, dataset, model_params):
-        """
+        """ General sequence-to-sequence model for conversations. Will eventually support
+            attention, beam search, and a wider variety of cell options. At present, supports
+            multi-layer encoder/decoders, GRU/LSTM cells, and fully dynamic unrolling
+            (online decoding included). Additionally, will soon support biologically inspired
+            mechanisms for learning, such as hebbian-based update rules. Stay tuned, folks.
+
         Args:
             dataset: any instance of data.DataSet base class.
             model_params: dictionary of hyperparameters.
@@ -67,9 +72,16 @@ class DynamicBot(Model):
         # Merge any summaries floating around in the aether into one object.
         self.merged = tf.summary.merge_all()
         self.outputs = decoder_outputs
+        tf.add_to_collection("outputs", self.outputs)
         self.compile()
 
     def compile(self):
+        """ TODO: perhaps merge this into __init__?
+        Originally, this function accepted training/evaluation specific parameters.
+        However, since moving the configuration parameters to .yaml files and interfacing
+        with the dictionary, no args are needed here, and thus would mainly just be a hassle
+        to have to call before training. Will decide later.
+        """
 
         if not self.is_chatting:
             with tf.variable_scope("evaluation") as scope:
@@ -95,18 +107,25 @@ class DynamicBot(Model):
                         weights=target_weights) + l1
 
                 self.log.info("Optimizing with %s." % self.optimizer)
-                self.apply_gradients = tf.contrib.layers.optimize_loss(
+                self.train_op = tf.contrib.layers.optimize_loss(
                     loss=self.loss, global_step=self.global_step,
                     learning_rate=self.learning_rate,
                     optimizer=self.optimizer,
                     clip_gradients=self.max_gradient,
-                    summaries=['loss', 'gradients'])
+                    summaries=['gradients'])
 
                 # Compute accuracy, ensuring we use fully projected outputs.
-                correct_pred = tf.equal(tf.argmax(preds[:, :-1, :], axis=2), target_labels)
-                accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+                with self.graph.device('/cpu:0'):
+                    correct_pred = tf.equal(tf.argmax(preds[:, :-1, :], axis=2), target_labels)
+                    accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+                    # Surprise: no tf support for 3D tensors on yet another method. TODO
+                    #in_top_k = tf.nn.in_top_k(preds, target_labels, k=10)
                 tf.summary.scalar('accuracy', accuracy)
+                tf.summary.scalar('train_loss', self.loss)
                 self.merged = tf.summary.merge_all()
+                # Note: Important not to merge in the validation loss, don't want to
+                # store the training loss on accident.
+                self.valid_summ = tf.summary.scalar('valid_loss', self.loss)
 
         # Let superclass load param values from file (if reset==False), else initialize new model.
         super(DynamicBot, self).compile()
@@ -127,14 +146,14 @@ class DynamicBot(Model):
         """
 
         if not forward_only:
-            fetches = [self.merged, self.loss, self.apply_gradients]
+            fetches = [self.merged, self.loss, self.train_op]
             summaries, step_loss, _ = self.sess.run(fetches)
             return summaries, step_loss, None
         elif self.is_chatting:
             response = self.sess.run(self.outputs, feed_dict=self.pipeline.feed_dict)
             return None, None, response
         else:
-            fetches = [self.merged, self.loss] # , self.outputs]
+            fetches = [self.valid_summ, self.loss] # , self.outputs]
             summaries, step_loss = self.sess.run(fetches)
             return summaries, step_loss, None
 

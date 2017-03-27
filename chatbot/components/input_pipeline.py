@@ -28,7 +28,7 @@ class InputPipeline:
         """
         with tf.variable_scope(scope, 'input_pipeline'):
             if capacity is None:
-                self.capacity = 20 * batch_size
+                self.capacity = 40 * batch_size
             self.batch_size = batch_size
             self.paths = file_paths
             self.num_threads = 4
