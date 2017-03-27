@@ -70,8 +70,8 @@ class DynamicBot(Model):
                                                           scope=scope)
 
         # Merge any summaries floating around in the aether into one object.
-        self.merged = tf.summary.merge_all()
         self.outputs = decoder_outputs
+        self.merged = tf.summary.merge_all()
         tf.add_to_collection("outputs", self.outputs)
         self.compile()
 
@@ -198,12 +198,13 @@ class DynamicBot(Model):
                     print("step time = %.3f" % avg_step_time)
                     print("\ttraining loss = %.3f" % avg_loss, end="; ")
                     print("training perplexity = %.2f" % perplexity(avg_loss))
+                    self.save(summaries=summaries)
 
                     # Toggle data switch and led the validation flow!
                     self.pipeline.toggle_active()
-                    with self.graph.device('/cpu:0'):
-                        summaries, eval_loss, _ = self.step(forward_only=True)
-                        self.save(summaries=summaries)
+                    #with self.graph.device('/cpu:0'):
+                    summaries, eval_loss, _ = self.step(forward_only=True)
+                    self.save(summaries=summaries)
                     self.pipeline.toggle_active()
                     print("\tValidation loss = %.3f" % eval_loss, end="; ")
                     print("val perplexity = %.2f" % perplexity(eval_loss))
