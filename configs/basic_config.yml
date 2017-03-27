@@ -1,8 +1,8 @@
 model: DynamicBot
-dataset: Ubuntu
+dataset: Cornell
 model_params:
   batch_size: 256
-  ckpt_dir: out/ubuntu
+  ckpt_dir: out/cornell
   decode: False
   dropout: 0.2
   embed_size: 64
@@ -13,6 +13,6 @@ model_params:
   optimizer: Adam
   reset_model: True
 dataset_params:
-  data_dir: /home/brandon/terabyte/Datasets/ubuntu
+  data_dir: /home/brandon/terabyte/Datasets/cornell
   max_seq_len: 10
   vocab_size: 40000

@@ -46,7 +46,7 @@ class DynamicBot(Model):
             #                             dropout_prob=self.dropout_prob,
             #                             num_layers=self.num_layers)
             # Applying embedded inputs to encoder yields the final (context) state.
-            encoder_state = self.encoder(embedded_enc_inputs)
+            _, encoder_state = self.encoder(embedded_enc_inputs)
 
         with tf.variable_scope("decoder") as scope:
             embedded_dec_inputs = self.embedder(self.decoder_inputs, scope=scope)

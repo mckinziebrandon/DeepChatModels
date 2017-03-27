@@ -48,4 +48,11 @@ class RNN(object):
         self.state_size = state_size
         self.embed_size = embed_size
         self.num_layers = num_layers
+        self.dropout_prob = dropout_prob
         self.cell = Cell(state_size, num_layers, dropout_prob=dropout_prob)
+
+    def get_cell(self, name, reuse=None):
+        with tf.name_scope(name, "get_cell"):
+            return Cell(self.state_size, self.num_layers,
+                        dropout_prob=self.dropout_prob)
+

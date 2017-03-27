@@ -34,7 +34,8 @@ class BasicEncoder(RNN):
         """
         with tf.name_scope(scope, "encoder", values=[inputs]):
 
-            _, state = tf.nn.dynamic_rnn(self.cell,
+            cell = self.get_cell("basic_enc_cell")
+            _, state = tf.nn.dynamic_rnn(cell,
                                          inputs,
                                          initial_state=initial_state,
                                          dtype=tf.float32)
@@ -49,7 +50,7 @@ class BidirectionalEncoder(RNN):
             output_size: dimension of output space for projections.
             embed_size: dimension size of word-embedding space.
         """
-        super(BasicEncoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
+        super(BidirectionalEncoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
 
     def __call__(self, inputs, initial_state=None, scope=None):
         """Run the inputs on the encoder and return the output(s).
@@ -63,7 +64,12 @@ class BidirectionalEncoder(RNN):
         """
         with tf.name_scope(scope, "encoder", values=[inputs]):
 
-            return tf.nn.bidirectional_dynamic_rnn(self.cell, inputs,
-                                               dtype=tf.float32)
+            cell_fw = self.get_cell("cell_fw")
+            cell_bw = self.get_cell("cell_bw")
+            return tf.nn.bidirectional_dynamic_rnn(
+                cell_fw=cell_fw,
+                cell_bw=cell_bw,
+                inputs=inputs,
+                dtype=tf.float32)
 
 
