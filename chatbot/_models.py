@@ -146,6 +146,7 @@ class Model(object):
         Args: directory containing model ckpt files we'd like to freeze.
         """
 
+        # TODO: Need to ensure batch size set to 1 before freezing.
         model_dir = os.path.abspath(model_dir)
         checkpoint_state  = tf.train.get_checkpoint_state(model_dir)
         assert checkpoint_state is not None, "No ckpt files in %s." % model_dir
