@@ -115,20 +115,23 @@
                     </span> -->
                     <!-- <h4 class="service-heading">Responsive Design</h4>
                     <p class="text-muted">Lorem ipsum dolor sit amet, consectetur adipisicing elit. Minima maxime quam architecto quo inventore harum ex magni, dicta impedit.</p> -->
-                    {% block content %}
-                    <form role="form" action="#chat" method="post">
+
+                    <form role="form" id="frm1" method="post">
                       <div class="form-group">
 
                       {% csrf_token %}
                       {{ form.as_p}}
-                      <button type="submit"> Submit </button>
+                      <input type="submit" value="Chat"></input>
                     </div>
                     </form>
-                    {% endblock %}
                 </div>
+                <div id="chat-log">
+                    <p>somthing</p>
+                </div>
+                <!---
                 <div class="col-md-4">
                     <span class="fa-stack fa-4x">
-                      <!---
+                      
                         <i class="fa fa-circle fa-stack-2x text-primary"></i>
                         <i class="fa fa-lock fa-stack-1x fa-inverse"></i>
                     </span>
@@ -498,6 +501,9 @@
 
     <!-- Theme JavaScript -->
     <script src={% static "userinput/js/agency.min.js" %}></script>
+
+    <!-- Chat Processing JavaScript -->
+    <script src="../static/userinput/js/chat_processing.js"></script>
 
 </body>
 
