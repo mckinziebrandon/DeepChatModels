@@ -8,9 +8,9 @@ $(document).ready(function() {
     chat_submit = function(e) {
         var chatlog = $('#chat-log');
         chatlog.append("<div class='row'>\
-            <div class='user-message text-right col-md-11'>" +
-            user_msg.val() + "</div>" +
-           "<div class='user-name text-right col-md-1'><b>User</b></div></div>"
+            <div class='user-name text-left col-md-1'><b>User</b></div>\
+            <div class='user-message text-left col-md-11'>" +
+            user_msg.val() + "</div></div>" 
         );
 
         // Submit a POST request to /chat
@@ -22,6 +22,8 @@ $(document).ready(function() {
                 <div class='bot-message text-left col-md-11'>" + data +
                 "</div></div>"
             );
+            $('#chat-log').scrollTop($('#chat-log')[0].scrollHeight);
+            $('#chat-form :input[name="message"]').val("");
         });
     };
 

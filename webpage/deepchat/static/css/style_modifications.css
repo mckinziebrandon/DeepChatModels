@@ -55,14 +55,39 @@ header .intro-text .intro-heading {
 }
 
 #chat-log {
-  height: 4em;
+  width: 50%;
+  margin-left: 25%;
+  margin-right: 25%;
   margin-bottom: 1em;
+  height: 250px;
+  border: 2px solid rgb(20, 80, 160);
+  border-radius: 5px;
   background-color: black;
   color: white;
+  overflow: auto;
+}
+
+#chat-form {
+  margin: auto;
+  width: 50%;
+}
+
+.bot-name {
+  color: green;
+}
+
+.user-name {
+  color: blue;
 }
 
 #chat-log .bot-message {
+  border: 1px solid white;
+  border-radius: 5px;
+  margin-left: 1em;
 }
 
 #chat-log .user-message {
+  border: 1px solid white;
+  border-radius: 5px;
+  margin-left: 1em;
 }
