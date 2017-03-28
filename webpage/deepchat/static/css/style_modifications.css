@@ -1,0 +1,68 @@
+header {
+    color: rgb(255, 255, 255);
+}
+
+header .intro-text .intro-lead-in {
+    text-shadow: 1px 1px black;
+}
+
+header .intro-text .intro-heading {
+    text-shadow: 3px 3px black;
+}
+
+.navbar-custom .navbar-brand {
+    color: rgb(255, 255, 255);
+}
+
+.navbar-custom .navbar-brand:hover,
+.navbar-custom .navbar-brand:focus,
+.navbar-custom .navbar-brand:active,
+.navbar-custom .navbar-brand.active {
+  color: rgb(20, 150, 220);
+}
+
+.navbar-custom .nav li a:hover,
+.navbar-custom .nav li a:focus {
+  color: rgb(20, 150, 220);
+  outline: none;
+}
+
+.navbar-custom .navbar-nav > .active > a {
+  color: white;
+  background-color: rgb(20, 150, 220);
+}
+.navbar-custom .navbar-nav > .active > a:hover,
+.navbar-custom .navbar-nav > .active > a:focus {
+  color: white;
+  background-color: rgb(20, 100, 180);
+}
+
+.btn-xl {
+  color: white;
+  background-color: rgb(20, 150, 220);
+  border-color: rgb(20, 130, 200);
+  text-shadow: 1px 1px 3px black;
+}
+
+.btn-xl:hover,
+.btn-xl:focus,
+.btn-xl:active,
+.btn-xl.active,
+.open .dropdown-toggle.btn-xl {
+  color: white;
+  background-color: rgb(20, 100, 180);
+  border-color: rgb(20, 80, 160);
+}
+
+#chat-log {
+  height: 4em;
+  margin-bottom: 1em;
+  background-color: black;
+  color: white;
+}
+
+#chat-log .bot-message {
+}
+
+#chat-log .user-message {
+}
