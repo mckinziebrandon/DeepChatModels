@@ -6,110 +6,30 @@ from tensorflow.contrib.training import bucket_by_sequence_length
 from tensorflow.contrib.rnn import GRUCell, LSTMCell, MultiRNNCell
 from tensorflow.contrib.rnn import LSTMBlockFusedCell, LSTMBlockCell, GRUBlockCell
 from tensorflow.contrib.cudnn_rnn.python.ops import cudnn_rnn_ops
+from chatbot.components._rnn import RNN, Cell
 
-__all__ = ['Encoder', 'Decoder']
-
-
-class Cell(tf.contrib.rnn.RNNCell):
-    """Simple wrapper class for any extensions I want to make to the
-    encoder/decoder rnn cells. For now, just Dropout+GRU."""
-
-    def __init__(self, state_size, num_layers, dropout_prob=1.0):
-        self._state_size = state_size
-        self._num_layers = num_layers
-        if num_layers == 1:
-            self._cell = GRUCell(self._state_size)
-        else:
-            self._cell = MultiRNNCell([GRUCell(self._state_size) for _ in range(num_layers)])
-        self._dropout_prob = dropout_prob
-
-    @property
-    def state_size(self):
-        return self._cell.state_size
-
-    @property
-    def output_size(self):
-        return self._cell.output_size
-
-    @property
-    def shape(self):
-        if self._num_layers == 1:
-            return tf.TensorShape([None, self._state_size])
-        else:
-            return tuple([tf.TensorShape([None, self._state_size]) for _ in range(self._num_layers)])
-
-    def __call__(self, inputs, state, scope=None):
-        inputs = tf.layers.dropout(inputs, rate=self._dropout_prob, name="dropout")
-        output, new_state = self._cell(inputs, state, scope)
-        return output, new_state
-
-
-class RNN(object):
-    """Base class for Encoder/Decoder."""
-
-    def __init__(self, state_size, embed_size, dropout_prob, num_layers):
-        """
-        Args:
-            state_size: number of units in underlying rnn cell.
-            embed_size: dimension size of word-embedding space.
-        """
-        self.state_size = state_size
-        self.embed_size = embed_size
-        self.num_layers = num_layers
-        self.cell = Cell(state_size, num_layers, dropout_prob=dropout_prob)
-
-
-class Encoder(RNN):
-    def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2):
-        """
-        Args:
-            state_size: number of units in underlying rnn cell.
-            output_size: dimension of output space for projections.
-            embed_size: dimension size of word-embedding space.
-        """
-        super(Encoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
-
-    def __call__(self, inputs, return_sequence=False, scope=None, initial_state=None):
-        """Run the inputs on the encoder and return the output(s).
-
-        Args:
-            inputs: Tensor with shape [batch_size, max_time, embed_size].
-            return_sequence: if True, also return the outputs at each time step.
-            initial_state: (optional) Tensor with shape [batch_size, state_size] to initialize decoder cell.
-
-        Returns:
-            outputs: (only if return_sequence is True)
-                     Tensor of shape [batch_size, max_time, state_size].
-            state:   The final encoder state. Tensor of shape [batch_size, state_size].
-        """
-        with tf.name_scope(scope, "encoder", values=[inputs]):
-
-            outputs, state = tf.nn.dynamic_rnn(self.cell, inputs,
-                                               initial_state=initial_state,
-                                               dtype=tf.float32)
-
-            if return_sequence:
-                return outputs, state
-            else:
-                return state
+DYNAMIC_RNNS = {
+    "dynamic_rnn": tf.nn.dynamic_rnn,
+    "bidirectional_dynamic_rnn": tf.nn.bidirectional_dynamic_rnn,
+    "raw_rnn": tf.nn.raw_rnn,
+}
 
 
 class Decoder(RNN):
     """Dynamic decoding class that supports both training and inference without
-       requiring superfluous helper objects as in tensorflow's development branch.
-       Based on simple boolean parameters, handles the decoder sub-graph construction
-       dynamically in its entirety.
+       requiring superfluous helper objects. With simple boolean parameters,
+       handles the decoder sub-graph construction dynamically in its entirety.
     """
 
     def __init__(self, state_size, output_size, embed_size,
-                 dropout_prob=1.0, num_layers=2, temperature=0.0,
-                 max_seq_len=50):
+                 dropout_prob, num_layers, temperature, max_seq_len):
         """
         Args:
             state_size: number of units in underlying rnn cell.
             output_size: dimension of output space for projections.
             embed_size: dimension size of word-embedding space.
         """
+        super(Decoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
         self.temperature = temperature
         self.output_size = output_size
         self.max_seq_len = max_seq_len
@@ -119,13 +39,13 @@ class Decoder(RNN):
             b = tf.get_variable("b", [output_size], dtype=tf.float32,
                                 initializer=tf.contrib.layers.xavier_initializer())
             self._projection = (w, b)
-        super(Decoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
 
-    def __call__(self, inputs, initial_state=None, is_chatting=False, loop_embedder=None, scope=None):
+    def __call__(self, rnn_name, inputs, initial_state, is_chatting, loop_embedder, scope):
         """Run the inputs on the decoder. If we are chatting, then conduct dynamic sampling,
             which is the process of generating a response given inputs == GO_ID.
 
         Args:
+            rnn_name: one of the keys in DYNAMIC_RNNS (top of file).
             inputs: Tensor with shape [batch_size, max_time, embed_size].
             initial_state: Tensor with shape [batch_size, state_size] to initialize decoder cell.
             is_chatting: boolean. Determines how we retrieve the outputs and the
@@ -140,8 +60,9 @@ class Decoder(RNN):
         """
 
         with tf.variable_scope(scope, "decoder", values=[inputs]) as dec_scope:
-            outputs, state = tf.nn.dynamic_rnn(
-                self.cell, inputs, initial_state=initial_state, dtype=tf.float32
+            outputs, state = DYNAMIC_RNNS[rnn_name](
+                self.cell, inputs, initial_state=initial_state, dtype=tf.float32,
+                swap_memory=True,
             )
 
             if not is_chatting:
@@ -156,11 +77,9 @@ class Decoder(RNN):
                 """Input callable for tf.while_loop. See below."""
                 dec_scope.reuse_variables()
                 decoder_input = loop_embedder(tf.reshape(response[-1], (1, 1)), scope=dec_scope, reuse=True)
-                outputs, state = tf.nn.dynamic_rnn(self.cell,
-                                             inputs=decoder_input,
-                                             initial_state=state,
-                                             sequence_length=[1],
-                                             dtype=tf.float32)
+                outputs, state = DYNAMIC_RNNS[rnn_name](
+                    self.cell, inputs=decoder_input, initial_state=state,
+                    sequence_length=[1], dtype=tf.float32)
                 next_id = self.sample(self.apply_projection(outputs))
                 return tf.concat([response, tf.stack([next_id])], axis=0), state
 
@@ -232,3 +151,39 @@ class Decoder(RNN):
         Required as argument to the sampled softmax loss.
         """
         return self._projection
+
+
+class SimpleDecoder(Decoder):
+
+    def __init__(self, state_size, output_size, embed_size,
+                 dropout_prob=1.0, num_layers=2, temperature=0.0, max_seq_len=50):
+        super(SimpleDecoder, self).__init__(state_size, output_size, embed_size,
+                                             dropout_prob, num_layers, temperature, max_seq_len)
+
+
+    def __call__(self, inputs, initial_state=None, is_chatting=False, loop_embedder=None, scope=None):
+        return super(SimpleDecoder, self).__call__("dynamic_rnn",
+                                                   inputs,
+                                                   initial_state=initial_state,
+                                                   is_chatting=is_chatting,
+                                                   loop_embedder=loop_embedder,
+                                                   scope=scope)
+
+
+class AttentionDecoder(Decoder):
+    """TODO"""
+
+    def __init__(self, state_size, output_size, embed_size,
+                 dropout_prob=1.0, num_layers=2, temperature=0.0, max_seq_len=50):
+        super(AttentionDecoder, self).__init__(state_size, output_size, embed_size,
+                                             dropout_prob, num_layers, temperature, max_seq_len)
+
+
+    def __call__(self, inputs, initial_state=None, is_chatting=False, loop_embedder=None, scope=None):
+        return super(AttentionDecoder, self).__call__("bidirectional_rnn", inputs,
+                                            initial_state=initial_state,
+                                            is_chatting=is_chatting,
+                                            loop_embedder=loop_embedder,
+                                            scope=scope)
+
+

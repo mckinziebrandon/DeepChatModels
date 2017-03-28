@@ -4,13 +4,14 @@ __Table of Contents__
 * [Brief Overview of Completed Work](#brief-overview-of-completed-work)
 * [Faster Embedding, Encoding, and Chatting](#faster-embedding-encoding-and-chatting)
 * [The Input Pipeline](#the-input-pipeline)
-    * [Graph Visualization with TensorBoard](#graph-visualization-with-tensorboard)
 * [Preliminary Testing](#preliminary-testing)
     * [Overfitting](#check-1-ensure-a-large-dynamicbot-can-overfit-a-small-dataset)
-    * [Hyperparameter Search](#check-2-random--grid-search-plots)
 
 This project is still very much evolving each day, but the core goals are:
 * Create a cleaner user interface for tinkering with sequence-to-sequence models. This project will explore ways to make constructing such models feel more intuitive/customizable. The ideal result is a chatbot API with the readability of [Keras](https://keras.io/), but with a degree of flexibility closer to [TensorFlow](https://www.tensorflow.org/). For example, the following code is all that is needed (after imports, etc.) to create and train one of the models on the Cornell movie dialogs (All params with '=' are optional) :
+
+> TODO: this is somewhat out-of-date now. Now we use config files to make customizing, saving, and loading models even easier and more compact. See main.py and examples in the configs directory for more details.
+
 ```python
     # All datasets implement a Dataset interface, found in data/_dataset.py
     dataset = Cornell(vocab_size=FLAGS.vocab_size)
@@ -85,22 +86,14 @@ One particular feature of DynamicBot worth mentioning is that the output generat
 
 ## The Input Pipeline
 
-In the past couple days, the way the model reads and interacts with data has been completely reimplemented. Before, a data generator fed padded numpy array batches from files to the model directly. It turns out that it is *substantially* faster encode the input information and preprocessing techniques in the graph structure itself. In the new implementation, we don't feed the model anything at all. Rather, it uses a sequence of queues to access the data from files in google's protobuf format, decode the files into tensor sequences, dynamically batch and pad the sequences, and then feed these batches to the embedding decoder. All within the graph structure. Furthermore, this data processing is coordinated by multiple threads in parallel. The result? You start the model, watch all cores of your CPU light up in a brief burst, and then it's 100% GPU training utilization (with helper CPU threads managing data in the background) for the remaining time (this is, of course, as reported on my system). 
-
-Below are plots of training error for non-optimal hyperparameters on the ubuntu (purple), reddit (light blue), and cornell (orange) datasets. These plots correspond to just __five minutes__ of training time on each dataset. The relative performance is also expected; the current reddit data is our smallest and noisiest dataset (still working on the preprocessing) and cornell is about as high quality as one would ever need (grammatically correct movie dialogs). 
-
-![](http://i.imgur.com/cM35tYJ.png)
-
-Before the input pipeline, achieving these losses, even with finely tuned hyperparameters after running random search, would've taken around an hour or so. To be completely honest, I still have yet to determine why the training performance is this consistently better after only modifying the input structure. This is what I'll be analyzing for the next couple days. 
-
-### Graph Visualization with TensorBoard
-
-(Descriptions coming soon)
+Instead of using the ```feed_dict``` argument to input data batches to the model, it is *substantially* faster encode the input information and preprocessing techniques in the graph structure itself. This means we don't feed the model anything at training time. Rather the model uses a sequence of queues to access the data from files in google's protobuf format, decode the files into tensor sequences, dynamically batch and pad the sequences, and then feed these batches to the embedding decoder. All within the graph structure. Furthermore, this data processing is coordinated by multiple threads in parallel. We can use tensorboard (and best practices for variable scoping) to visualize this type of pipeline at a high level.  
 
 <img alt="input_pipeline" src="http://i.imgur.com/xrLqths.png" width="400" align="left">
 <img alt="input_pipeline_expanded" src="http://i.imgur.com/xMWB7oL.png" width="400">
 <br/>
 <br/>
+
+(Descriptions coming soon)
 
 ## Preliminary Testing
 
@@ -113,20 +106,3 @@ Below is a plot related to one of the debugging strategies recommended in chapte
 ![Ensuring DynamicBot can overfit before optimizing any further](http://i.imgur.com/TLYvhEE.png)
 
 This plot shows DynamicBot can achieve 0 loss for an extremely small dataset. Great, we can overfit. Now we can begin to explore regularization techniques.
-
-### Check 2: Random & Grid Search Plots
-
-I recently did a small random search and grid search over the following hyperparameters: learning rate, embed size, state size. The plots below show some of the findings. These are simply exploratory, I understand their limitations and I'm not drawing strong conclusions from them. They are meant to give a rough sense of the energy landscape in hyperparameter space. Oh and, plots make me happy. Enjoy. For all below, the y-axis is validation loss and the x-axis is global (training) step. The colors distinguish between model hyperparameters defined in the legends.
-
-<img alt="state_size" src="http://i.imgur.com/w479tSo.png" width="400" align="left">
-<img alt="embed_size" src="http://i.imgur.com/2Tj3vmA.png" width="400">
-<br/>
-<br/>
-
-
-The only takeaway I saw from these two plots (after seeing the learning rate plots below) is that the __learning rate__, not the embed size, is overwhelmingly for responsible for any patterns here. It also looks like models with certain emed sizes (like 30) were underrepresented in the sampling, we see less points for them than others. The plots below illustrate the learning rate dependence.
-
-<img alt="learning_subs" src="http://i.imgur.com/bD8MFrV.png" width="900">
-
-**General conclusion: the learning rate influences the validation loss far more than state size or embed size.** This was basically known before making these plots, as it is a well known property of such networks (Ng). It was nice to verify this for myself.
-

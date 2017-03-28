@@ -6,6 +6,7 @@ from __future__ import print_function
 import os
 import re
 import sys
+import yaml
 import pandas as pd
 
 import numpy as np
@@ -29,6 +30,8 @@ UNK_ID  = 3
 _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
 _DIGIT_RE   = re.compile(br"\d")
 
+utils_dir = os.path.dirname(os.path.realpath(__file__))
+
 def save_hyper_params(hyper_params, fname):
     # Append to file if exists, else create.
     df = pd.DataFrame(hyper_params)
@@ -42,7 +45,23 @@ def get_sentence():
     """
     sys.stdout.write("Human: ")
     sys.stdout.flush()
-    return sys.stdin.readline().strip()
+    return sys.stdin.readline().strip().lower() # Could just use input() ...
+
+
+def parse_config(config_path):
+    """
+    Args:
+        config_path: (str) location of [my config].yml file.
+               Both relative and absolute paths will work.
+
+    Returns:
+    """
+
+    #config_path = os.path.abspath(config_path)
+    config_path = os.path.join(utils_dir, '../configs', os.path.basename(config_path))
+    with tf.gfile.GFile(config_path) as config_file:
+        configs = yaml.load(config_file)
+    return configs
 
 
 def basic_tokenizer(sentence):
@@ -51,6 +70,7 @@ def basic_tokenizer(sentence):
     for space_separated_fragment in sentence.strip().split():
         words.extend(_WORD_SPLIT.split(space_separated_fragment))
     return [w for w in words if w]
+
 
 def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size, normalize_digits=True):
     """Create vocabulary file (if it does not exist yet) from data file.

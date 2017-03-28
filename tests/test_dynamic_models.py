@@ -1,15 +1,17 @@
 """Run trial run on DynamicBot with the TestData Dataset."""
-import os
-import time
-import numpy as np
 import logging
-import tensorflow as tf
-import unittest
 import sys
+import time
+import unittest
+
+import numpy as np
+import tensorflow as tf
+from pydoc import locate
+
 sys.path.append("..")
-from data import *
-from chatbot import DynamicBot
-from chatbot import bot_ops
+from chatbot import DynamicBot, ChatBot, SimpleBot
+from data import Cornell, Ubuntu, WMT, Reddit, TestData
+from chatbot.components import bot_ops
 from utils import io_utils
 
 
@@ -33,6 +35,28 @@ class TestDynamicModels(unittest.TestCase):
     def setUp(self):
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('TestDynamicModelsLogger')
+
+
+    def test_freeze(self):
+        """Make sure we can freeze the bot, unfreeze, and still chat."""
+
+        config_path = "configs/small_model.yml"
+        configs = io_utils.parse_config(config_path)
+        self.log.info(configs)
+        model_name = configs['model']
+        dataset_name = configs['dataset']
+        dataset_params = configs['dataset_params']
+        model_params = configs['model_params']
+
+        self.log.info("Setting up %s dataset." % dataset_name)
+        self.log.info(locate("Cornell"))
+        dataset = locate(dataset_name)(dataset_params)
+        self.log.info("Creating %s" % model_name)
+        bot = locate(model_name)(dataset, model_params)
+        if not model_params['decode']:
+            bot.train(dataset)
+        else:
+            bot.chat()
 
 
     def test_chat(self):
@@ -260,12 +284,12 @@ class TestDynamicModels(unittest.TestCase):
 
             print('\n=========== MAP VERSION ============')
             loss = bot_ops.dynamic_sampled_softmax_loss(labels=labels,
-                                            logits=state_outputs,
-                                            output_projection=output_projection,
-                                            vocab_size=vocab_size,
-                                            from_scratch=False,
-                                            name="from_scratch",
-                                            num_samples=num_samples)
+                                                        logits=state_outputs,
+                                                        output_projection=output_projection,
+                                                        vocab_size=vocab_size,
+                                                        from_scratch=False,
+                                                        name="from_scratch",
+                                                        num_samples=num_samples)
 
             loss = sess.run(loss)
             print('loss:\n', loss)

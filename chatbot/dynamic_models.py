@@ -8,122 +8,80 @@ import time
 import logging
 import numpy as np
 import tensorflow as tf
-from chatbot import bot_ops
-from chatbot._models import Model, OPTIMIZERS
-from chatbot.recurrent_components import Encoder, Decoder
-from chatbot.input_components import InputPipeline, Embedder
+from chatbot._models import Model
+from chatbot.components import bot_ops
+from chatbot.components import InputPipeline, Embedder, BasicEncoder, SimpleDecoder
 from utils import io_utils
+from pydoc import locate
 
 
 class DynamicBot(Model):
 
-    def __init__(self,
-                 dataset,
-                 batch_size=64,
-                 ckpt_dir="out",
-                 dropout_prob=0.0,
-                 embed_size=64,
-                 learning_rate=0.5,
-                 lr_decay=0.99,
-                 num_layers=2,
-                 num_samples=512,
-                 state_size=128,
-                 steps_per_ckpt=200,
-                 temperature=0.0,
-                 l1_reg=0.0,
-                 is_chatting=False):
-        """
+    def __init__(self, dataset, model_params):
+        """ General sequence-to-sequence model for conversations. Will eventually support
+            attention, beam search, and a wider variety of cell options. At present, supports
+            multi-layer encoder/decoders, GRU/LSTM cells, and fully dynamic unrolling
+            (online decoding included). Additionally, will soon support biologically inspired
+            mechanisms for learning, such as hebbian-based update rules. Stay tuned, folks.
+
         Args:
-            dataset: 'Dataset' instance. Will likely be removed soon since it's only used
-                      for grabbing quantities like vocab size.
-            ckpt_dir: location where training checkpoint files will be saved.
-            batch_size: number of samples per training step.
-            state_size: number of nodes in the underlying RNN cell state.
-            embed_size: size of embedding dimension that integer IDs get mapped into.
-                        If None, will be set to state_size.
-            learning_rate: float, typically in range [0, 1].
-            lr_decay: weight decay factor, not strictly necessary since default optimizer is adagrad.
-            steps_per_ckpt: (int) Specifies step interval for testing on validation data.
-            dropout_prob: (float) in range [0., 1.]. probability of inputs being dropped,
-                            applied before each layer in the model.
-            num_layers: in the underlying MultiRNNCell. Total layers in model, not counting
-                        recurrence/loop unrolliwng is then 2 * num_layers (encoder + decoder).
-            num_samples: (int) size of subset of vocabulary_size to use for sampled softmax.
-                         Require that 0 < num_samples < vocab size.
-            temperature: determines how varied the bot responses will be when chatting.
-                         The default (0.0) just results in deterministic argmax.
-            is_chatting: boolean, should be False when training and True when chatting.
+            dataset: any instance of data.DataSet base class.
+            model_params: dictionary of hyperparameters.
         """
 
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('DynamicBotLogger')
+        # Let superclass handle the boring stuff (dirs/more instance variables).
+        super(DynamicBot, self).__init__(self.log, dataset, model_params)
 
-        if embed_size is None:
-            embed_size = state_size
-        # FIXME: Not sure how I feel about dataset as instance attribute.
-        self.dataset        = dataset
-        self.batch_size     = batch_size
-        self.embed_size     = embed_size
-        self.vocab_size     = dataset.vocab_size
-        self.dropout_prob   = dropout_prob
-        self.num_layers     = num_layers
-        self.num_samples    = num_samples
-        self.state_size     = state_size
+        # Grab the model classes (Constructors) specified by user in model_params.
+        encoder_class = locate(model_params['encoder.class'])
+        decoder_class = locate(model_params['decoder.class'])
+        assert encoder_class is not None, "Couldn't find requested %s." % model_params['encoder.class']
+        assert decoder_class is not None, "Couldn't find requested %s." % model_params['decoder.class']
 
         with tf.variable_scope("input_layer"):
-            self.pipeline       = InputPipeline(dataset.paths, batch_size, is_chatting=is_chatting)
+            self.pipeline = InputPipeline(dataset.paths, self.batch_size, is_chatting=self.is_chatting)
             self.encoder_inputs = self.pipeline.encoder_inputs
             self.decoder_inputs = self.pipeline.decoder_inputs
 
-        self.embedder = Embedder(self.vocab_size, embed_size, l1_reg=l1_reg)
+        self.embedder = Embedder(self.vocab_size, self.embed_size, l1_reg=self.l1_reg)
         with tf.variable_scope("encoder") as scope:
             embedded_enc_inputs = self.embedder(self.encoder_inputs, scope=scope)
             # Create the encoder & decoder objects.
-            self.encoder  = Encoder(state_size, self.embed_size,
-                                    dropout_prob=dropout_prob,
-                                    num_layers=num_layers)
+            self.encoder = encoder_class(self.state_size, self.embed_size,
+                                         dropout_prob=self.dropout_prob,
+                                         num_layers=self.num_layers)
             # Applying embedded inputs to encoder yields the final (context) state.
-            encoder_state = self.encoder(embedded_enc_inputs)
+            _, encoder_state = self.encoder(embedded_enc_inputs)
 
         with tf.variable_scope("decoder") as scope:
             embedded_dec_inputs = self.embedder(self.decoder_inputs, scope=scope)
-            self.decoder  = Decoder(state_size, self.vocab_size, self.embed_size,
-                                    dropout_prob=dropout_prob,
-                                    num_layers=num_layers,
-                                    max_seq_len=dataset.max_seq_len,
-                                    temperature=temperature)
+            self.decoder  = decoder_class(self.state_size, self.vocab_size, self.embed_size,
+                                          dropout_prob=self.dropout_prob,
+                                          num_layers=self.num_layers,
+                                          max_seq_len=dataset.max_seq_len,
+                                          temperature=self.temperature)
             # For decoder, we want the full sequence of output states, not simply the last.
             decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
                                                           initial_state=encoder_state,
-                                                          is_chatting=is_chatting,
+                                                          is_chatting=self.is_chatting,
                                                           loop_embedder=self.embedder,
                                                           scope=scope)
 
         # Merge any summaries floating around in the aether into one object.
-        self.merged = tf.summary.merge_all()
         self.outputs = decoder_outputs
+        self.merged = tf.summary.merge_all()
+        #tf.add_to_collection("freezer", self.pipeline._user_input)
+        tf.add_to_collection("freezer", self.outputs)
+        self.compile()
 
-        # Let superclass handle the boring stuff (dirs/more instance variables).
-        super(DynamicBot, self).__init__(self.log,
-                                         dataset.name,
-                                         ckpt_dir,
-                                         dataset.vocab_size,
-                                         batch_size,
-                                         learning_rate,
-                                         lr_decay,
-                                         steps_per_ckpt,
-                                         is_chatting)
-
-    def compile(self, optimizer=None, max_gradient=5.0, reset=False, sampled_loss=False):
-        """ Configure training process and initialize model. Inspired by Keras.
-
-        Args:
-            optimizer: (str). Supported: 'Adagrad', 'RMSProp', 'SGD', 'Adam'.
-            max_gradient: float. Gradients will be clipped to be below this value.
-            reset: boolean. Tells Model superclass whether or not we wish to compile
-                            a model from scratch or load existing parameters from ckpt_dir.
-            sampled_loss: (bool) gives user the option to toggle sampled_loss
-                          on/off post-initialization.
+    def compile(self):
+        """ TODO: perhaps merge this into __init__?
+        Originally, this function accepted training/evaluation specific parameters.
+        However, since moving the configuration parameters to .yaml files and interfacing
+        with the dictionary, no args are needed here, and thus would mainly just be a hassle
+        to have to call before training. Will decide later.
         """
 
         if not self.is_chatting:
@@ -135,7 +93,7 @@ class DynamicBot(Model):
                 preds = self.decoder.apply_projection(self.outputs)
                 regLosses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
                 l1 = tf.reduce_sum(tf.abs(regLosses))
-                if sampled_loss:
+                if self.sampled_loss:
                     self.log.info("Training with dynamic sampled softmax loss.")
                     assert 0 < self.num_samples < self.vocab_size, \
                         "num_samples is %d but should be between 0 and %d" \
@@ -149,30 +107,29 @@ class DynamicBot(Model):
                         labels=target_labels, logits=preds[:, :-1, :],
                         weights=target_weights) + l1
 
-                # Define the training portion of the graph.
-                if optimizer is not None:
-                    assert optimizer in OPTIMIZERS, \
-                        "Optimizer %s not supported. Choice are:\n%r" \
-                    % (optimizer, OPTIMIZERS.keys())
-                else:
-                    optimizer = 'Adam'
-
-                self.log.info("Optimizing with %s." % optimizer)
-                self.apply_gradients = tf.contrib.layers.optimize_loss(
+                self.log.info("Optimizing with %s." % self.optimizer)
+                self.train_op = tf.contrib.layers.optimize_loss(
                     loss=self.loss, global_step=self.global_step,
                     learning_rate=self.learning_rate,
-                    optimizer=optimizer,
-                    clip_gradients=max_gradient,
-                    summaries=['loss', 'gradients'])
+                    optimizer=self.optimizer,
+                    clip_gradients=self.max_gradient,
+                    summaries=['gradients'])
 
                 # Compute accuracy, ensuring we use fully projected outputs.
-                correct_pred = tf.equal(tf.argmax(preds[:, :-1, :], axis=2), target_labels)
-                accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+                with self.graph.device('/cpu:0'):
+                    correct_pred = tf.equal(tf.argmax(preds[:, :-1, :], axis=2), target_labels)
+                    accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+                    # Surprise: no tf support for 3D tensors on yet another method. TODO
+                    #in_top_k = tf.nn.in_top_k(preds, target_labels, k=10)
                 tf.summary.scalar('accuracy', accuracy)
+                tf.summary.scalar('train_loss', self.loss)
                 self.merged = tf.summary.merge_all()
+                # Note: Important not to merge in the validation loss, don't want to
+                # store the training loss on accident.
+                self.valid_summ = tf.summary.scalar('valid_loss', self.loss)
 
         # Let superclass load param values from file (if reset==False), else initialize new model.
-        super(DynamicBot, self).compile(reset=reset)
+        super(DynamicBot, self).compile()
 
     def step(self, forward_only=False):
         """Run one step of the model, which can mean 1 of the following:
@@ -190,14 +147,14 @@ class DynamicBot(Model):
         """
 
         if not forward_only:
-            fetches = [self.merged, self.loss, self.apply_gradients]
+            fetches = [self.merged, self.loss, self.train_op]
             summaries, step_loss, _ = self.sess.run(fetches)
             return summaries, step_loss, None
         elif self.is_chatting:
             response = self.sess.run(self.outputs, feed_dict=self.pipeline.feed_dict)
             return None, None, response
         else:
-            fetches = [self.merged, self.loss] # , self.outputs]
+            fetches = [self.valid_summ, self.loss] # , self.outputs]
             summaries, step_loss = self.sess.run(fetches)
             return summaries, step_loss, None
 
@@ -242,6 +199,7 @@ class DynamicBot(Model):
                     print("step time = %.3f" % avg_step_time)
                     print("\ttraining loss = %.3f" % avg_loss, end="; ")
                     print("training perplexity = %.2f" % perplexity(avg_loss))
+                    self.save(summaries=summaries)
 
                     # Toggle data switch and led the validation flow!
                     self.pipeline.toggle_active()
@@ -265,6 +223,10 @@ class DynamicBot(Model):
             coord.join(threads)
             self.close()
 
+    def chat(self):
+        """Alias to decode."""
+        self.decode()
+
     def decode(self):
         """
         The higher the temperature, the more varied will be the bot's responses.
@@ -281,6 +243,7 @@ class DynamicBot(Model):
             print("Robot:", response)
             sentence = io_utils.get_sentence()
             if sentence == 'exit':
+                self.close()
                 print("Farewell, human.")
                 break
 

@@ -4,15 +4,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-# Standard python imports.
 import os
 import random
-import logging
-# ML/DL-specific imports.
+
 import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.tensorboard.plugins import projector
-# User-defined imports.
+
 from utils import io_utils
 
 OPTIMIZERS = {
@@ -22,53 +20,50 @@ OPTIMIZERS = {
     'RMSProp':  tf.train.RMSPropOptimizer,
 }
 
+# Default values for parameters that could be used by a model, training or otherwise.
+ALL_PARAMS = {
+    "ckpt_dir": "out",
+    "data_dir": "data",
+    "dataset": "cornell",
+    "decode": False,
+    "batch_size": 64,
+    "dropout_prob": 0.2,
+    "state_size": 512,
+    "embed_size": 64,
+    "learning_rate": 0.01,
+    "l1_reg": 1e-6,
+    "lr_decay": 0.98,
+    "max_gradient": 5.0,
+    "num_layers": 3,
+    "num_samples": 512,
+    "optimizer": "Adam",
+    "reset_model": False,
+    "sampled_loss": False,
+    "steps_per_ckpt": 200,
+    "temperature": 0.0,
+}
+
 
 class Model(object):
     """Superclass of all subsequent model classes.
     """
 
-    def __init__(self,
-                 logger,
-                 data_name="default_model",
-                 ckpt_dir="out",
-                 vocab_size=40000,
-                 batch_size=64,
-                 learning_rate=0.5,
-                 lr_decay=0.98,
-                 steps_per_ckpt=100,
-                 is_decoding=False):
-        """
-        Args:
-            ckpt_dir: location where training checkpoint files will be saved.
-            batch_size: number of samples per training step.
-            learning_rate: float, typically in range [0, 1].
-            lr_decay: weight decay factor, not strictly necessary since default optimizer is adagrad.
-            steps_per_ckpt: (int) Specifies step interval for testing on validation data.
-        """
+    def __init__(self, logger, dataset, model_params):
 
-        self.sess = tf.Session()
+        self.__dict__['__params'] = Model.fill_params(dataset, model_params)
+        self.log    = logger
+        self.sess   = tf.Session()
         with self.graph.name_scope(tf.GraphKeys.SUMMARIES):
             self.global_step    = tf.Variable(initial_value=0, trainable=False)
-            self.learning_rate = tf.constant(learning_rate)
-            #self.learning_rate = tf.train.exponential_deay(
-            #    learning_rate, self.global_step, self.steps_per_ckpt, lr_decay, staircase=True)
-
-        self.steps_per_ckpt = steps_per_ckpt
-        self.log = logger
-        self.data_name = data_name
-        self.is_chatting    = is_decoding
-        self.batch_size     = batch_size
-        self.vocab_size = vocab_size
-        # Directory IO management.
-        self.ckpt_dir = ckpt_dir
+            self.learning_rate  = tf.constant(self.learning_rate)
         os.popen('mkdir -p %s' % self.ckpt_dir)  # Just in case :)
         self.projector_config = projector.ProjectorConfig()
-        # Responsibility of user to determine training operations.
-        self.file_writer    = None
-        self.apply_gradients = None
-        self.saver = None
+        # Good practice to set as None in constructor.
+        self.file_writer        = None
+        self.train_op    = None
+        self.saver              = None
 
-    def compile(self, optimizer=None, max_gradient=None, reset=False):
+    def compile(self):
         """ Configure training process and initialize model. Inspired by Keras.
 
         Either restore model parameters or create fresh ones.
@@ -79,7 +74,7 @@ class Model(object):
         checkpoint_state  = tf.train.get_checkpoint_state(self.ckpt_dir)
         # Note: If you want to prevent from loading models trained on different dataset,
         # you should store them in their own out/dataname folder, and pass that as the ckpt_dir to config.
-        if not reset and checkpoint_state \
+        if not self.reset_model and checkpoint_state \
                 and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
             print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
             self.file_writer    = tf.summary.FileWriter(self.ckpt_dir)
@@ -108,11 +103,9 @@ class Model(object):
 
         if self.saver is None:
             raise ValueError("Tried saving model before defining a saver.")
-
-        checkpoint_path = os.path.join(self.ckpt_dir, "{}.ckpt".format(self.data_name))
+        ckpt_fname = os.path.join(self.ckpt_dir, "{}.ckpt".format(self.data_name))
         # Saves the state of all global variables in a ckpt file.
-        self.saver.save(self.sess, checkpoint_path, global_step=self.global_step)
-
+        self.saver.save(self.sess, ckpt_fname, global_step=self.global_step)
         if summaries is not None:
             self.file_writer.add_summary(summaries, self.global_step.eval(self.sess))
         else:
@@ -122,12 +115,69 @@ class Model(object):
         """Call then when training session is terminated."""
         # First save the checkpoint as usual.
         self.save()
+        # Freeze me, for I am infinite.
+        Model.freeze_model(self.ckpt_dir)
         self.file_writer.close()
         self.sess.close()
 
     @property
     def graph(self):
         return self.sess.graph
+
+    @staticmethod
+    def fill_params(dataset, model_params):
+        """Assigns default values from ALL_PARAMS for keys not in model_params."""
+        filled_params = {}
+        for key in ALL_PARAMS:
+            if key in model_params:
+                filled_params[key] = type(ALL_PARAMS[key])(model_params[key])
+            else:
+                filled_params[key] = ALL_PARAMS[key]
+        filled_params['max_seq_len']    = dataset.max_seq_len
+        filled_params['vocab_size']     = dataset.vocab_size
+        filled_params['data_name']      = dataset.name
+        # smh. rly.
+        filled_params['dataset']      = dataset
+        filled_params['is_chatting']    = filled_params['decode']
+        return filled_params
+
+    @staticmethod
+    def freeze_model(model_dir):
+        """ Useful for e.g. deploying model on website.
+
+        Args: directory containing model ckpt files we'd like to freeze.
+        """
+
+        # TODO: Need to ensure batch size set to 1 before freezing.
+        model_dir = os.path.abspath(model_dir)
+        checkpoint_state  = tf.train.get_checkpoint_state(model_dir)
+        assert checkpoint_state is not None, "No ckpt files in %s." % model_dir
+        frozen_file = os.path.join(model_dir, "frozen_model.pb")
+
+        print("mod", checkpoint_state.model_checkpoint_path)
+        saver = tf.train.import_meta_graph(checkpoint_state.model_checkpoint_path+'.meta',
+                                           clear_devices=True)
+
+        graph = tf.get_default_graph()
+        input_graph_def = graph.as_graph_def()
+        with tf.Session() as sess:
+            saver.restore(sess, checkpoint_state.model_checkpoint_path)
+            freezer = tf.get_collection('freezer')
+
+            output_graph_def = tf.graph_util.convert_variables_to_constants(
+                sess,
+                input_graph_def,
+                freezer)
+            with tf.gfile.GFile(frozen_file, 'wb') as f:
+                f.write(output_graph_def.SerializeToString())
+            print("%d ops in the final graph." % len(output_graph_def.node))
+
+    def __getattr__(self, name):
+        if name not in self.__dict__['__params']:
+            raise AttributeError(name)
+        else:
+            return self.__dict__['__params'][name]
+
 
 class BucketModel(Model):
     """Abstract class. Any classes that extend BucketModel just need to customize their
@@ -136,31 +186,9 @@ class BucketModel(Model):
         directory, bucketed or not, r1.0 or r0.12.
     """
 
-    def __init__(self,
-                 buckets,
-                 losses,    # TODO: (low prio) find less clunky way of doing this.
-                 log,
-                 data_name,
-                 ckpt_dir,
-                 vocab_size,
-                 batch_size,
-                 learning_rate,
-                 lr_decay,
-                 steps_per_ckpt,
-                 is_chatting=False):
-
+    def __init__(self, logger, buckets, dataset, model_params):
+        super(BucketModel, self).__init__(logger, dataset, model_params)
         self.buckets = buckets
-        self.losses = losses
-        super(BucketModel, self).__init__(log,
-                                         data_name=data_name,
-                                         ckpt_dir=ckpt_dir,
-                                         vocab_size=vocab_size,
-                                         batch_size=batch_size,
-                                         learning_rate=learning_rate,
-                                         lr_decay=lr_decay,
-                                         steps_per_ckpt=steps_per_ckpt,
-                                         is_decoding=is_chatting)
-
 
     def compile(self, optimizer=None, max_gradient=5.0, reset=False):
         """ Configure training process. Name was inspired by Keras. <3 """
@@ -171,7 +199,7 @@ class BucketModel(Model):
         print("Configuring training operations. This may take some time . . . ")
         # Note: variables are trainable=True by default.
         params = tf.trainable_variables()
-        # apply_gradients will store the parameter (S)GD apply_gradients.
+        # train_op will store the parameter (S)GD train_op.
         self.apply_gradients = []
         if optimizer is None:
             optimizer = tf.train.AdagradOptimizer(self.learning_rate)
@@ -216,10 +244,10 @@ class BucketModel(Model):
         # pad them if needed, reverse encoder inputs and add GO to decoder.
         for _ in range(self.batch_size):
             encoder_input, decoder_input = random.choice(data[bucket_id])
-            # Encoder inputs are padded and then reversed.
+            # BasicEncoder inputs are padded and then reversed.
             encoder_pad = [io_utils.PAD_ID] * (encoder_size - len(encoder_input))
             encoder_inputs.append(list(reversed(encoder_input + encoder_pad)))
-            # Decoder inputs get an extra "GO" symbol, and are padded then.
+            # DynamicDecoder inputs get an extra "GO" symbol, and are padded then.
             decoder_pad= [io_utils.PAD_ID] * (decoder_size - len(decoder_input) - 1)
             decoder_inputs.append([io_utils.GO_ID] + decoder_input + decoder_pad)
 
@@ -250,12 +278,12 @@ class BucketModel(Model):
 
     def train(self, dataset):
         """ Train chatbot. """
-        from chatbot._train import train
+        from chatbot.legacy._train import train
         train(self, dataset)
 
     def decode(self):
         """ Create chat session between user & chatbot. """
-        from chatbot._decode import decode
+        from chatbot.legacy._decode import decode
         decode(self)
 
     def step(self, encoder_inputs, decoder_inputs, target_weights, bucket_id, forward_only=False):
