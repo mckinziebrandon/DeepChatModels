@@ -203,9 +203,9 @@ class DynamicBot(Model):
 
                     # Toggle data switch and led the validation flow!
                     self.pipeline.toggle_active()
-                    #with self.graph.device('/cpu:0'):
-                    summaries, eval_loss, _ = self.step(forward_only=True)
-                    self.save(summaries=summaries)
+                    with self.graph.device('/cpu:0'):
+                        summaries, eval_loss, _ = self.step(forward_only=True)
+                        self.save(summaries=summaries)
                     self.pipeline.toggle_active()
                     print("\tValidation loss = %.3f" % eval_loss, end="; ")
                     print("val perplexity = %.2f" % perplexity(eval_loss))
