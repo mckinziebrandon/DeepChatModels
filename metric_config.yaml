@@ -1,0 +1,49 @@
+# This is a sample metric config
+
+# Sample Groups definition:
+# Groups:
+#     Group1:
+#         metrics:
+#             - FooMetric
+#             - BarMetric
+#         metric_expressions:
+#             - ^.*Baz.*$
+#
+# This defines a group named Group1 which explicitly includes the metrics
+# FooMetric and BarMetric and also includes all metrics which match ^.*Baz.*$.
+# NOTE: metrics and metric_expressions may be omitted
+
+Groups:
+    - Cheetah:
+        metrics: ['TotalLinesOfCode_Template']
+        metric_expressions:
+            - ^.*Cheetah.*$
+    - Python:
+        metric_expressions:
+            - ^.*Python.*$
+    - CurseWords:
+        metric_expressions:
+            - ^TotalCurseWords.*$
+    - LinesOfCode:
+        metric_expressions:
+            - ^TotalLinesOfCode.*$
+
+
+# Sample ColorOverrides definition:
+# ColorOverrides:
+#     - PartialTemplateCount
+#
+# This indicates that PartialTemplateCount should be colored the opposite of
+# the usual coloring (the usual coloring is up = red, down = green).
+ColorOverrides: []
+
+
+# Sample CommitLinks for Commit page:
+# CommitLinks:
+#     View on Github: https://github.com/Yelp/git-code-debt/commit/{sha}
+#     ...
+#
+# These links will have the following variables substituted when displayed:
+#     {sha} - Points to the full (40-character) sha of the commit
+CommitLinks:
+    View on Github: https://github.com/FIXME_USER/FIXME_PROJECT/commit/{sha}
