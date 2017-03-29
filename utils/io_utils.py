@@ -71,7 +71,7 @@ def load_yaml(FLAGS):
 
 def parse_config(FLAGS):
     yaml_config, flags_dict = load_yaml(FLAGS)
-    # Let any additions in FLAGS.model_params take precedence. For details, see:
+    # Let any additions in TEST_FLAGS.model_params take precedence. For details, see:
     # http://treyhunner.com/2016/02/how-to-merge-dictionaries-in-python/
     return {**yaml_config, **flags_dict}
 

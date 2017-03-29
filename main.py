@@ -8,7 +8,7 @@ import sys, getopt
 from pydoc import locate
 
 # Allow user to override config values with command-line args.
-# All flags with default as None are not accessed unless set.
+# All test_flags with default as None are not accessed unless set.
 flags = tf.app.flags
 flags.DEFINE_string("config", "configs/default.yml", "path to config (.yml) file. Defaults to DynamicBot on Cornell.")
 flags.DEFINE_string("model", "{}", "Options: chatbot.{DynamicBot,Simplebot,ChatBot}.")
@@ -46,8 +46,6 @@ def main(argv):
     dataset = locate(config['dataset'])(config['dataset_params'])
     print("Creating", config['model'], ". . . ")
     bot = locate(config['model'])(dataset, config['model_params'])
-
-    exit()
 
     if not config['model_params']['decode']:
         start_training(dataset, bot)

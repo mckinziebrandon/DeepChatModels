@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     exit()
 
-    # Create chat model of choice. Pass in FLAGS values in case you want to change from defaults.
+    # Create chat model of choice. Pass in TEST_FLAGS values in case you want to change from defaults.
     print("Creating DynamicBot.")
     bot = DynamicBot(dataset,
                      batch_size=batch_size,
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     log.info("Compiling DynamicBot.")
     bot.compile(max_gradient=10.0, reset=reset)
     # Train an epoch on the data. CTRL-C at any time to safely stop training.
-    # Model saved in FLAGS.ckpt_dir if specified, else "./out"
+    # Model saved in TEST_FLAGS.ckpt_dir if specified, else "./out"
     print("Training bot. CTRL-C to stop training.")
     bot.train(dataset, nb_epoch=5)
 

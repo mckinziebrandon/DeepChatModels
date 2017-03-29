@@ -31,7 +31,7 @@ dataset = Cornell(DATA_DIR, FLAGS.vocab_size)
 
 
 def scalar_hyperparam_search(hyperparams):
-    """Train a bot for FLAGS.nb_epoch with each set of hyperparameters in input list.
+    """Train a bot for TEST_FLAGS.nb_epoch with each set of hyperparameters in input list.
 
     Args:
         list of dictionaries from name -> float/int hyperparemeters to initialize the bot.
@@ -79,7 +79,7 @@ def scalar_hyperparam_search(hyperparams):
 
 
 def optimizer_search(optimizers):
-    """Train the bot for FLAGS.nb_epoch for each optimizer in list.
+    """Train the bot for TEST_FLAGS.nb_epoch for each optimizer in list.
 
     Args:
         list of tuples: (name, optimizer) inheriting from tf.train.Optimizer.
