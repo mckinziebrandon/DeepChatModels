@@ -40,17 +40,16 @@ def start_chatting(bot):
 def main(argv):
 
     # Extract merge configs/dictionaries.
-    model, dataset, model_params, dataset_params = io_utils.parse_config(FLAGS)
+    config = io_utils.parse_config(FLAGS)
 
-    dataset = dataset['dataset']; model=model['model']
-    print("Setting up %s dataset." % dataset)
-    dataset = locate(dataset)(dataset_params)
-    print("Creating", model, ". . . ")
-    bot = locate(model)(dataset, model_params)
+    print("Setting up %s dataset." % config['dataset'])
+    dataset = locate(config['dataset'])(config['dataset_params'])
+    print("Creating", config['model'], ". . . ")
+    bot = locate(config['model'])(dataset, config['model_params'])
 
     exit()
 
-    if not model_params['decode']:
+    if not config['model_params']['decode']:
         start_training(dataset, bot)
     else:
         start_chatting(bot)

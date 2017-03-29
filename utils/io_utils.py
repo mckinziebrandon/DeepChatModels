@@ -57,10 +57,12 @@ def load_yaml(FLAGS):
         configs: dictionary of (hyper)parameters for models/directories.
     """
 
-    flags_dict = {'model': yaml.load(FLAGS.model),
-                  'dataset': yaml.load(FLAGS.dataset),
-                  'model_params': yaml.load(FLAGS.model_params),
-                  'dataset_params': yaml.load(FLAGS.dataset_params)}
+    flags_dict = {}
+    for stream in ['model', 'dataset', 'model_params', 'dataset_params']:
+        yaml_stream = yaml.load(FLAGS.__dict__['__flags'][stream])
+        if yaml_stream:
+            flags_dict.update({stream: yaml_stream})
+
     config_path = os.path.join(utils_dir, '../configs', os.path.basename(FLAGS.config))
     with tf.gfile.GFile(config_path) as config_file:
         configs = yaml.load(config_file)
@@ -71,11 +73,7 @@ def parse_config(FLAGS):
     yaml_config, flags_dict = load_yaml(FLAGS)
     # Let any additions in FLAGS.model_params take precedence. For details, see:
     # http://treyhunner.com/2016/02/how-to-merge-dictionaries-in-python/
-    model           = {**{'model':yaml_config['model']}, **{}}#**{'model':flags_dict['model']}}
-    dataset         = {**{'dataset':yaml_config['dataset']}, **{}}#**{'dataset':flags_dict['dataset']}}
-    model_params    = {**yaml_config['model_params'], **{}}# **flags_dict['model_params']}
-    dataset_params  = {**yaml_config['dataset_params'],**{}}# **flags_dict['dataset_params']}
-    return model, dataset, model_params, dataset_params
+    return {**yaml_config, **flags_dict}
 
 def basic_tokenizer(sentence):
     """Very basic tokenizer: split the sentence into a list of tokens."""
