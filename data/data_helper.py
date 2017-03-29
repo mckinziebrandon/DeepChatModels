@@ -1,4 +1,7 @@
-"""For use in preprocessing stages. Because I'm tired of thinking about paths and filenames."""
+"""For use in preprocessing stages. Because I'm tired of thinking about
+paths and filenames. Right now, is mainly for use by Brandon/Ivan. Will extend to
+general users in the future.
+"""
 import os
 import logging
 import pandas as pd
@@ -7,17 +10,13 @@ import matplotlib.pyplot as plt
 import nltk
 from pprint import pprint
 from pympler.asizeof import asizeof # for profiling memory usage
-import enchant
 import json
-from itertools import chain
-from collections import Counter
 from progressbar import ProgressBar
 
 DATA_ROOTS = {'brandon': '/home/brandon/terabyte/Datasets/reddit',
               'ivan': '/Users/ivan/Documents/sp_17/reddit_data',
               'mitch': None}
 
-# smh
 HERE = os.path.dirname(os.path.realpath(__file__))
 
 
@@ -25,13 +24,9 @@ class DataHelper:
     """Hi, I'm the DataHelper class. I manage file locations and how much computing resources
     are being used in the preprocessing stages. I make it harder for you to screw up."""
 
-    def __init__(self, verbosity='info'):
-
-        if verbosity == 'info': logging.basicConfig(level=logging.INFO)
-        else: logging.basicConfig(level=logging.WARN)
+    def __init__(self):
 
         self.log = logging.getLogger('DataHelperLogger')
-
         # Figure out who we are talking to: ivan or brandon.
         print("User name:", end=" ")
         user = input().lower()
@@ -39,11 +34,6 @@ class DataHelper:
         self.data_root = DATA_ROOTS[user]
         print("Hello {}, I've set your data root as {}".format(user, self.data_root))
 
-        # Which dataset we are working on.
-        #print("Dataset name: [reddit, ubuntu, wmt, cornell]")
-        #data_name = input().lower()
-        # TODO: generalize for any dataset, not just reddit.
-        #if data_name == 'reddit':
         print("Year:", end=" ")
         year = input()
         data_files_rel_path = os.listdir(os.path.join(self.data_root, 'raw_data', year))

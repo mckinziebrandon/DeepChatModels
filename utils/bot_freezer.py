@@ -6,20 +6,26 @@ from __future__ import print_function
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.python.platform import gfile
 from utils import io_utils
 from pydoc import locate
 
 
 def load_graph(frozen_model_path):
-    # We load the protobuf file from the disk and parse it to retrieve the
-    # unserialized graph_def
+    """Load frozen tensorflow graph.
+
+    Args:
+        frozen_model_path: location of protobuf file containing frozen graph.
+
+    Returns:
+        tf.Graph object imported from frozen_model_path.
+    """
+
+    # Prase the frozen graph definition into a GraphDef object.
     with tf.gfile.GFile(frozen_model_path, "rb") as f:
         graph_def = tf.GraphDef()
         graph_def.ParseFromString(f.read())
 
-    # Then, we can use again a convenient built-in function to import a graph_def into the
-    # current default Graph
+    # Load the graph def into the default graph and return it.
     with tf.Graph().as_default() as graph:
         tf.import_graph_def(
             graph_def,
@@ -33,12 +39,18 @@ def load_graph(frozen_model_path):
 
 
 def freeze_bot(bot_class, freeze_path):
+    """TODO: freeze_model has changed. Make sure this is up-to-date."""
     assert bot_class is not None, "Couldn't find bot class %s." % bot_class
     locate(bot_class).freeze_model(freeze_path)
 
 
 def unfreeze_bot(frozen_model_path):
-    """Burrr. Time to unfreeze the chilly bot. Ha. Heh. Woo.
+    """Restores the frozen graph from file and grabs input/output tensors needed to
+    interface with a bot for conversation.
+
+    Args:
+        frozen_model_path: location of protobuf file containing frozen graph.
+
     Returns:
         outputs: tensor that can be run in a session.
     """
@@ -50,7 +62,10 @@ def unfreeze_bot(frozen_model_path):
     user_input, outputs = freezer
     return user_input, outputs
 
+
 def unfreeze_and_chat(frozen_model_path):
+    """TODO: Re-implement. This was hastily made while sketching out the model freezing
+    functionality of tensorflow, as a proof of concept for website. Bad design. """
 
     user_input, outputs = unfreeze_bot(frozen_model_path)
 

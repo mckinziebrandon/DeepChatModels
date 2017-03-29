@@ -14,6 +14,9 @@ from data import DataHelper
 import re
 _WORD_SPLIT = re.compile(r'([.,!?\"\':;)(])|\s')
 _DIGIT_RE   = re.compile(r"\d")
+
+# Global helper object that helps abstract away locations of
+# files & directories, and keeps an eye on memory usage.
 data_helper = DataHelper()
 
 
@@ -24,7 +27,8 @@ def root_comments(df):
         list of length equal to the number of rows in our data frame.
     '''
     root_value = []
-    # Iterate over DataFrame rows as namedtuples, with index value as first element of the tuple.
+    # Iterate over DataFrame rows as namedtuples, with index value as
+    # first element of the tuple.
     for row in df.itertuples():
         root_value.append(row.parent_id == row.link_id)
     return root_value
@@ -97,7 +101,8 @@ def children_dict(df):
                 children[row.parent_id] = [row.name]
     return children
 
-if __name__ == '__main__':
+
+def main():
 
     max_seq_len = 10
     print('startin')
@@ -145,4 +150,7 @@ if __name__ == '__main__':
     data_helper.generate_files(
         "from_file.txt", "to_file.txt", root_to_children, comments_dict
     )
-    print('DONEZO')
+
+
+if __name__ == '__main__':
+    main()

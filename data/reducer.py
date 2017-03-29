@@ -5,6 +5,7 @@ import os
 from progressbar import ProgressBar
 import subprocess as sp
 
+
 class Reducer:
 
     def __init__(self):
