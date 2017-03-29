@@ -75,6 +75,7 @@ def parse_config(FLAGS):
     # http://treyhunner.com/2016/02/how-to-merge-dictionaries-in-python/
     return {**yaml_config, **flags_dict}
 
+
 def basic_tokenizer(sentence):
     """Very basic tokenizer: split the sentence into a list of tokens."""
     words = []

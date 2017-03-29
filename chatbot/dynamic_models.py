@@ -25,8 +25,9 @@ class DynamicBot(Model):
             mechanisms for learning, such as hebbian-based update rules. Stay tuned, folks.
 
         Args:
-            dataset: any instance of data.DataSet base class.
+            dataset: any instance inheriting from data.DataSet.
             model_params: dictionary of hyperparameters.
+                          See DEFAULT_PARAMS in chatbot._models.py for supported keys.
         """
 
         logging.basicConfig(level=logging.INFO)
@@ -40,11 +41,15 @@ class DynamicBot(Model):
         assert encoder_class is not None, "Couldn't find requested %s." % model_params['encoder.class']
         assert decoder_class is not None, "Couldn't find requested %s." % model_params['decoder.class']
 
+        # Organize full input pipeline inside single graph node for clean visualization.
         with tf.variable_scope("input_layer"):
             self.pipeline = InputPipeline(dataset.paths, self.batch_size, is_chatting=self.is_chatting)
             self.encoder_inputs = self.pipeline.encoder_inputs
             self.decoder_inputs = self.pipeline.decoder_inputs
 
+        # Create embedder object -- handles all of your embedding needs!
+        # By passing scope to embedder calls, we can easily create distinct embeddings,
+        # while storing inside the same embedder object.
         self.embedder = Embedder(self.vocab_size, self.embed_size, l1_reg=self.l1_reg)
         with tf.variable_scope("encoder") as scope:
             embedded_enc_inputs = self.embedder(self.encoder_inputs, scope=scope)
@@ -55,6 +60,9 @@ class DynamicBot(Model):
             # Applying embedded inputs to encoder yields the final (context) state.
             _, encoder_state = self.encoder(embedded_enc_inputs)
 
+        # Decoder construction depends greatly on whether or not we need to train,
+        # as opposed to dynamic chat session. Luckily, the user need not worry about
+        # such details, just
         with tf.variable_scope("decoder") as scope:
             embedded_dec_inputs = self.embedder(self.decoder_inputs, scope=scope)
             self.decoder  = decoder_class(self.state_size, self.vocab_size, self.embed_size,
@@ -72,6 +80,7 @@ class DynamicBot(Model):
         # Merge any summaries floating around in the aether into one object.
         self.outputs = decoder_outputs
         self.merged = tf.summary.merge_all()
+        # TODO: Implement freezer so we can deploy compact model version on heroku.
         #tf.add_to_collection("freezer", self.pipeline._user_input)
         tf.add_to_collection("freezer", self.outputs)
         self.compile()
@@ -171,7 +180,7 @@ class DynamicBot(Model):
         threads = tf.train.start_queue_runners(sess=self.sess, coord=coord)
 
         # Tell embedder to coordinate with TensorBoard's embedding visualization.
-        # This allows to view, e.g., our words in 3D-projected embedding space (with labels!).
+        # This allows us to view words in 3D-projected embedding space (with labels!).
         label_paths = [dataset.paths['from_vocab'], dataset.paths['to_vocab']]
         self.embedder.assign_visualizer(self.file_writer, 'encoder', label_paths[0])
         self.embedder.assign_visualizer(self.file_writer, 'decoder', label_paths[1])

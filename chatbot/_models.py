@@ -21,7 +21,7 @@ OPTIMIZERS = {
 }
 
 # Default values for parameters that could be used by a model, training or otherwise.
-ALL_PARAMS = {
+DEFAULT_PARAMS = {
     "ckpt_dir": "out",
     "data_dir": "data",
     "dataset": "cornell",
@@ -126,18 +126,12 @@ class Model(object):
 
     @staticmethod
     def fill_params(dataset, model_params):
-        """Assigns default values from ALL_PARAMS for keys not in model_params."""
-        filled_params = {}
-        for key in ALL_PARAMS:
-            if key in model_params:
-                filled_params[key] = type(ALL_PARAMS[key])(model_params[key])
-            else:
-                filled_params[key] = ALL_PARAMS[key]
+        """Assigns default values from DEFAULT_PARAMS for keys not in model_params."""
+        filled_params = {**DEFAULT_PARAMS, **model_params}
         filled_params['max_seq_len']    = dataset.max_seq_len
         filled_params['vocab_size']     = dataset.vocab_size
         filled_params['data_name']      = dataset.name
-        # smh. rly.
-        filled_params['dataset']      = dataset
+        filled_params['dataset']        = dataset # get...this...outta here...
         filled_params['is_chatting']    = filled_params['decode']
         return filled_params
 

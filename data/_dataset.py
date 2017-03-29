@@ -261,7 +261,7 @@ class Dataset(DatasetABC):
 
     @staticmethod
     def fill_params(dataset_params):
-        """Assigns default values from ALL_PARAMS for keys not in dataset_params."""
+        """Assigns default values from DEFAULT_PARAMS for keys not in dataset_params."""
         filled_params = {}
         for key in DEFAULT_PARAMS:
             if key in dataset_params:
