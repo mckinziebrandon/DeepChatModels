@@ -3,8 +3,19 @@
 from chatbot import DynamicBot, ChatBot, SimpleBot
 from data import Cornell, Ubuntu, WMT, Reddit, TestData
 from utils import io_utils
+import tensorflow as tf
 import sys, getopt
 from pydoc import locate
+
+# Allow user to override config values with command-line args.
+# All flags with default as None are not accessed unless set.
+flags = tf.app.flags
+flags.DEFINE_string("config", "configs/default.yml", "path to config (.yml) file. Defaults to DynamicBot on Cornell.")
+flags.DEFINE_string("model", "{}", "Options: chatbot.{DynamicBot,Simplebot,ChatBot}.")
+flags.DEFINE_string("model_params", "{}", "")
+flags.DEFINE_string("dataset", "{}", "Options: data.{Cornell,Ubuntu,WMT}.")
+flags.DEFINE_string("dataset_params", "{}", "")
+FLAGS = flags.FLAGS
 
 
 def start_training(dataset, bot):
@@ -28,37 +39,16 @@ def start_chatting(bot):
 
 def main(argv):
 
-    config_path = None
+    # Extract merge configs/dictionaries.
+    model, dataset, model_params, dataset_params = io_utils.parse_config(FLAGS)
 
-    # Extract config dictionaries from file path.
-    try:
-        opts, args = getopt.getopt(argv, "h:c:", ["config="])
-    except getopt.GetoptError:
-        print("ERROR: Please pass in the config file path. "
-              "For example: ./main.py -c configs/my_config.yml")
-        sys.exit(2)
-    for opt, arg in opts:
-        if opt == '-h':
-            print('./main.py [options], where\n'
-                  'Options:\n'
-                  '\t-c [--config] <path-to-config-file>')
-            sys.exit()
-        elif opt in ("-c", "--config"):
-            config_path = arg
-    assert config_path is not None, "Config path not found."
+    dataset = dataset['dataset']; model=model['model']
+    print("Setting up %s dataset." % dataset)
+    dataset = locate(dataset)(dataset_params)
+    print("Creating", model, ". . . ")
+    bot = locate(model)(dataset, model_params)
 
-    configs = io_utils.parse_config(config_path)
-    # TODO: none of these checks should be in main,
-    # and default params should be set if not found.
-    model_name      = configs['model']
-    dataset_name    = configs['dataset']
-    dataset_params  = configs['dataset_params']
-    model_params    = configs['model_params']
-
-    print("Setting up %s dataset." % dataset_name)
-    dataset = locate(dataset_name)(dataset_params)
-    print("Creating", model_name, ". . . ")
-    bot = locate(model_name)(dataset, model_params)
+    exit()
 
     if not model_params['decode']:
         start_training(dataset, bot)
@@ -66,5 +56,6 @@ def main(argv):
         start_chatting(bot)
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    tf.logging.set_verbosity(tf.logging.WARN)
+    tf.app.run()
 

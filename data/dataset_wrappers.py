@@ -10,10 +10,19 @@ from data._dataset import Dataset
 from utils import io_utils
 
 
-def checkData(abs_path, name):
+def check_data(logger, abs_path, name):
     """All dataset wrappers call this as a quick sanity check."""
-    assert os.path.basename(abs_path) == name, \
-        "Data directory %s does not match dataset name %s." % (abs_path, name)
+    if os.path.basename(abs_path) != name:
+        logger.warn("Data directory %s does not match dataset name %s." % (abs_path, name))
+        propose_path = os.path.join(os.path.dirname(abs_path), name.lower())
+        print("Would you like me to change the path to {}? [y/n] ", propose_path)
+        answer = input()
+        if answer == 'y':
+            return propose_path
+        else:
+            raise ValueError("Rejected path change. Terminating program.")
+    return abs_path
+
 
 class Cornell(Dataset):
     """Movie dialogs."""
@@ -22,7 +31,7 @@ class Cornell(Dataset):
         self._name = "cornell"
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('CornellLogger')
-        checkData(dataset_params['data_dir'], self.name)
+        dataset_params['data_dir'] = check_data(self.log, dataset_params['data_dir'], self.name)
         super(Cornell, self).__init__(dataset_params)
 
 
@@ -33,7 +42,7 @@ class Ubuntu(Dataset):
         self._name = "ubuntu"
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('UbuntuLogger')
-        checkData(dataset_params['data_dir'], self.name)
+        dataset_params['data_dir'] = check_data(self.log, dataset_params['data_dir'], self.name)
         super(Ubuntu, self).__init__(dataset_params)
 
 
@@ -44,7 +53,7 @@ class WMT(Dataset):
         self._name = "wmt"
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('WMTLogger')
-        checkData(dataset_params['data_dir'], self.name)
+        dataset_params['data_dir'] = check_data(self.log, dataset_params['data_dir'], self.name)
         super(WMT, self).__init__(dataset_params)
 
 
@@ -55,7 +64,7 @@ class Reddit(Dataset):
         self._name = "reddit"
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('RedditLogger')
-        checkData(dataset_params['data_dir'], self.name)
+        dataset_params['data_dir'] = check_data(self.log, dataset_params['data_dir'], self.name)
         super(Reddit, self).__init__(dataset_params)
 
 
@@ -66,5 +75,5 @@ class TestData(Dataset):
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('TestDataLogger')
         self._name = "test_data"
-        checkData(dataset_params['data_dir'], self.name)
+        dataset_params['data_dir'] = check_data(self.log, dataset_params['data_dir'], self.name)
         super(TestData, self).__init__(dataset_params)

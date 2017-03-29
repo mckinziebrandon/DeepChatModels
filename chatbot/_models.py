@@ -37,7 +37,7 @@ ALL_PARAMS = {
     "num_layers": 3,
     "num_samples": 512,
     "optimizer": "Adam",
-    "reset_model": False,
+    "reset_model": True,
     "sampled_loss": False,
     "steps_per_ckpt": 200,
     "temperature": 0.0,

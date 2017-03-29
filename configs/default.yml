@@ -1,0 +1,8 @@
+model: chatbot.DynamicBot
+dataset: data.Cornell
+model_params:
+  ckpt_dir: out/cornell/default
+  encoder.class: chatbot.components.encoders.BasicEncoder
+  decoder.class: chatbot.components.decoders.SimpleDecoder
+dataset_params:
+  data_dir: /home/brandon/terabyte/Datasets/cornell

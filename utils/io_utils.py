@@ -48,21 +48,34 @@ def get_sentence():
     return sys.stdin.readline().strip().lower() # Could just use input() ...
 
 
-def parse_config(config_path):
+def load_yaml(FLAGS):
     """
     Args:
-        config_path: (str) location of [my config].yml file.
-               Both relative and absolute paths will work.
+        config_path: (str) location of [my config].yml file, relative to project root.
 
     Returns:
+        configs: dictionary of (hyper)parameters for models/directories.
     """
 
-    #config_path = os.path.abspath(config_path)
-    config_path = os.path.join(utils_dir, '../configs', os.path.basename(config_path))
+    flags_dict = {'model': yaml.load(FLAGS.model),
+                  'dataset': yaml.load(FLAGS.dataset),
+                  'model_params': yaml.load(FLAGS.model_params),
+                  'dataset_params': yaml.load(FLAGS.dataset_params)}
+    config_path = os.path.join(utils_dir, '../configs', os.path.basename(FLAGS.config))
     with tf.gfile.GFile(config_path) as config_file:
         configs = yaml.load(config_file)
-    return configs
+    return configs, flags_dict
 
+
+def parse_config(FLAGS):
+    yaml_config, flags_dict = load_yaml(FLAGS)
+    # Let any additions in FLAGS.model_params take precedence. For details, see:
+    # http://treyhunner.com/2016/02/how-to-merge-dictionaries-in-python/
+    model           = {**{'model':yaml_config['model']}, **{}}#**{'model':flags_dict['model']}}
+    dataset         = {**{'dataset':yaml_config['dataset']}, **{}}#**{'dataset':flags_dict['dataset']}}
+    model_params    = {**yaml_config['model_params'], **{}}# **flags_dict['model_params']}
+    dataset_params  = {**yaml_config['dataset_params'],**{}}# **flags_dict['dataset_params']}
+    return model, dataset, model_params, dataset_params
 
 def basic_tokenizer(sentence):
     """Very basic tokenizer: split the sentence into a list of tokens."""
