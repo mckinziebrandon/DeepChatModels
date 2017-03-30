@@ -55,6 +55,7 @@ header .intro-text .intro-heading {
 }
 
 #chat-log {
+<<<<<<< HEAD
   width: 50%;
   height: 250px;
 
@@ -106,7 +107,6 @@ header .intro-text .intro-heading {
   margin-top: 0.5em;
   margin-bottom: 0.5em;
 }
-
 
 #chat-log .bot-message {
 }
