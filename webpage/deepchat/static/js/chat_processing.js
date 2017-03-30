@@ -6,21 +6,26 @@ $(document).ready(function() {
     var user_msg = $('#chat-form :input[name="message"]');
 
     chat_submit = function(e) {
+        if (!user_msg.val()) {  // don't do anything on empty input
+            return;
+        }
+
         var chatlog = $('#chat-log');
-        chatlog.append("<div class='row'>\
-            <div class='user-name text-left col-md-1'><b>User</b></div>\
-            <div class='user-message text-left col-md-11'>" +
-            user_msg.val() + "</div></div>" 
+        chatlog.append("<div class='row message'>\
+            <div class='user-message text-left col-md-8 col-md-push-2'>" +
+            user_msg.val() + "</div>" +
+            "<div class='user-name text-left col-md-2 col-md-push-2'>\
+            User</div></div><hr />"
         );
 
         // Submit a POST request to /chat
         $.post('chat/', {
             "message": user_msg.val()
         }, function(data) {
-            chatlog.append("<div class='row'>\
-                <div class='bot-name text-left col-md-1'><b>Botty</b></div>\
-                <div class='bot-message text-left col-md-11'>" + data +
-                "</div></div>"
+            chatlog.append("<div class='row message'>\
+                <div class='bot-name text-left col-md-2'>Botty</div>\
+                <div class='bot-message text-left col-md-8'>" + data +
+                "</div></div><hr />"
             );
             $('#chat-log').scrollTop($('#chat-log')[0].scrollHeight);
             $('#chat-form :input[name="message"]').val("");

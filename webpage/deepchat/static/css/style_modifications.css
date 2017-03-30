@@ -1,17 +1,17 @@
 header {
-    color: rgb(255, 255, 255);
+  color: rgb(255, 255, 255);
 }
 
 header .intro-text .intro-lead-in {
-    text-shadow: 1px 1px black;
+  text-shadow: 1px 1px black;
 }
 
 header .intro-text .intro-heading {
-    text-shadow: 3px 3px black;
+  text-shadow: 3px 3px black;
 }
 
 .navbar-custom .navbar-brand {
-    color: rgb(255, 255, 255);
+  color: rgb(255, 255, 255);
 }
 
 .navbar-custom .navbar-brand:hover,
@@ -56,14 +56,18 @@ header .intro-text .intro-heading {
 
 #chat-log {
   width: 50%;
+  height: 250px;
+
   margin-left: 25%;
   margin-right: 25%;
   margin-bottom: 1em;
-  height: 250px;
+
   border: 2px solid rgb(20, 80, 160);
   border-radius: 5px;
-  background-color: black;
-  color: white;
+
+  color: black;
+  background-color: white;
+
   overflow: auto;
 }
 
@@ -73,21 +77,38 @@ header .intro-text .intro-heading {
 }
 
 .bot-name {
-  color: green;
+  color: lightgreen;
+  font-weight: italic;
 }
 
 .user-name {
-  color: blue;
+  color: lightblue;
+  font-weight: italic;
+}
+
+#chat-log {
+  padding-top: 0.25em;
+  padding-bottom: 0.25em;
+}
+
+.message {
+  margin-left: 1em;
+  margin-right: 1em;
+}
+
+#chat-log hr {
+  height: 1px;
+  display: block;
+
+  border: 0;
+  border-top: 1px solid lightgray;
+
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
 }
 
 #chat-log .bot-message {
-  border: 1px solid white;
-  border-radius: 5px;
-  margin-left: 1em;
 }
 
 #chat-log .user-message {
-  border: 1px solid white;
-  border-radius: 5px;
-  margin-left: 1em;
 }
