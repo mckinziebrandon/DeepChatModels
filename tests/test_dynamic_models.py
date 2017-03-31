@@ -14,6 +14,13 @@ from data import Cornell, Ubuntu, WMT, Reddit, TestData
 from chatbot.components import bot_ops
 from utils import io_utils
 
+test_flags = tf.app.flags
+test_flags.DEFINE_string("config", "configs/default.yml", "path to config (.yml) file.")
+test_flags.DEFINE_string("model", "{}", "Options: chatbot.{DynamicBot,Simplebot,ChatBot}.")
+test_flags.DEFINE_string("model_params", "{}", "")
+test_flags.DEFINE_string("dataset", "{}", "Options: data.{Cornell,Ubuntu,WMT}.")
+test_flags.DEFINE_string("dataset_params", "{}", "")
+TEST_FLAGS = test_flags.FLAGS
 
 def _sparse_to_dense(sampled_logits, labels, sampled, num_sampled):
     acc_hits = tf.nn.compute_accidental_hits(labels, sampled, num_true=1)
@@ -35,6 +42,18 @@ class TestDynamicModels(unittest.TestCase):
     def setUp(self):
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('TestDynamicModelsLogger')
+
+    def test_init(self):
+        """Basic check that bot creation maintains bug-free."""
+
+        config = io_utils.parse_config(TEST_FLAGS)
+        print("Setting up %s dataset." % config['dataset'])
+        dataset = locate(config['dataset'])(config['dataset_params'])
+        print("Creating", config['model'], ". . . ")
+        bot = locate(config['model'])(dataset, config['model_params'])
+
+
+
 
 
     def test_freeze(self):

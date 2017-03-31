@@ -44,11 +44,11 @@ class TestConfig(unittest.TestCase):
             self.assertIsNotNone(key)
 
     def test_merge_params(self):
-        """Checks how parameters passed to FLAGS interact with
+        """Checks how parameters passed to TEST_FLAGS interact with
         parameters from yaml files. Expected behavior is that any
-        params in FLAGS will override those from files, but that
+        params in TEST_FLAGS will override those from files, but that
         all values from file will be used if not explicitly passed to
-        FLAGS.
+        TEST_FLAGS.
         """
 
         # Set values to typical use case.

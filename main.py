@@ -36,7 +36,7 @@ def start_chatting(bot):
     bot.chat()
 
 
-def main():
+def main(argv):
 
     # Extract merge configs/dictionaries.
     config = io_utils.parse_config(FLAGS)

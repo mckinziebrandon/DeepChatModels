@@ -32,9 +32,12 @@ class DynamicBot(Model):
 
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('DynamicBotLogger')
-
         # Let superclass handle the boring stuff (dirs/more instance variables).
         super(DynamicBot, self).__init__(self.log, dataset, model_params)
+        self.build_computation_graph(dataset, model_params)
+        self.compile()
+
+    def build_computation_graph(self, dataset, model_params):
 
         # Grab the model classes (Constructors) specified by user in model_params.
         encoder_class = locate(model_params['encoder.class'])
@@ -84,9 +87,11 @@ class DynamicBot(Model):
         # Explicitly tag inputs and outputs by name should we want to freeze the model.
         inputs  = tf.identity(self.encoder_inputs, name="inputs")
         outputs = tf.identity(decoder_outputs, name="outputs")
+        tf.add_to_collection("freezer", inputs)
+        tf.add_to_collection("freezer", outputs)
+
         # Merge any summaries floating around in the aether into one object.
         self.merged = tf.summary.merge_all()
-        self.compile()
 
     def compile(self):
         """ TODO: perhaps merge this into __init__?

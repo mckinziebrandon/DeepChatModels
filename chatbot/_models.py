@@ -70,6 +70,7 @@ class Model(object):
         # Good practice to set as None in constructor.
         self.loss               = None
         self.file_writer        = None
+        self.merged             = None
         self.train_op           = None
         self.saver              = None
 
