@@ -38,7 +38,7 @@ DEFAULT_PARAMS = {
     "num_layers": 3,
     "num_samples": 512,
     "optimizer": "Adam",
-    "reset_model": False,
+    "reset_model": True,
     "sampled_loss": False,
     "steps_per_ckpt": 200,
     "temperature": 0.0,
@@ -50,6 +50,14 @@ class Model(object):
     """
 
     def __init__(self, logger, dataset, model_params):
+        """
+        Args:
+            logger: returned by getLogger & called by subclasses. Passed
+                    here so we know what object to use for info/warn/error.
+            dataset: object that inherits from data.Dataset.
+            model_params: (dict) user-specified params that override those in
+                           DEFAULT_PARAMS above.
+        """
 
         self.__dict__['__params'] = Model.fill_params(dataset, model_params)
         self.log    = logger
@@ -100,7 +108,6 @@ class Model(object):
         """
         Args:
             summaries: merged summary instance returned by session.run.
-            save_dir: where to save checkpoints. defaults to self.ckpt_dir.
         """
 
         if self.saver is None:
@@ -114,7 +121,11 @@ class Model(object):
             self.log.info("Save called without summaries.")
 
     def close(self):
-        """Call then when training session is terminated."""
+        """Call then when training session is terminated.
+            - Saves the current model/checkpoint state.
+            - Freezes the model into a protobuf file in self.ckpt_dir.
+            - Closes context managers for file_writing and session.
+        """
         # First save the checkpoint as usual.
         self.save()
         # Freeze me, for I am infinite.

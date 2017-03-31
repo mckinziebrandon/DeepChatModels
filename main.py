@@ -19,7 +19,7 @@ FLAGS = flags.FLAGS
 
 
 def start_training(dataset, bot):
-    """Train bot. Will expand this function later to aid interactivity/updates. Maybe."""
+    """Train bot. Will expand this function later to aid interactivity/updates."""
     print("Training bot. CTRL-C to stop training.")
     bot.train(dataset)
 
