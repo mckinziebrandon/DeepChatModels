@@ -60,8 +60,9 @@ class Model(object):
         os.popen('mkdir -p %s' % self.ckpt_dir)  # Just in case :)
         self.projector_config = projector.ProjectorConfig()
         # Good practice to set as None in constructor.
+        self.loss               = None
         self.file_writer        = None
-        self.train_op    = None
+        self.train_op           = None
         self.saver              = None
 
     def compile(self):

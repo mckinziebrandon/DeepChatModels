@@ -32,25 +32,31 @@ class DynamicBot(Model):
 
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('DynamicBotLogger')
+
         # Let superclass handle the boring stuff (dirs/more instance variables).
         super(DynamicBot, self).__init__(self.log, dataset, model_params)
 
         # Grab the model classes (Constructors) specified by user in model_params.
         encoder_class = locate(model_params['encoder.class'])
         decoder_class = locate(model_params['decoder.class'])
-        assert encoder_class is not None, "Couldn't find requested %s." % model_params['encoder.class']
-        assert decoder_class is not None, "Couldn't find requested %s." % model_params['decoder.class']
-
-        # Organize full input pipeline inside single graph node for clean visualization.
-        with tf.variable_scope("input_layer"):
-            self.pipeline = InputPipeline(dataset.paths, self.batch_size, is_chatting=self.is_chatting)
-            self.encoder_inputs = self.pipeline.encoder_inputs
-            self.decoder_inputs = self.pipeline.decoder_inputs
+        assert encoder_class is not None, "Couldn't find requested %s." % \
+                                          model_params['encoder.class']
+        assert decoder_class is not None, "Couldn't find requested %s." % \
+                                          model_params['decoder.class']
 
         # Create embedder object -- handles all of your embedding needs!
         # By passing scope to embedder calls, we can easily create distinct embeddings,
         # while storing inside the same embedder object.
         self.embedder = Embedder(self.vocab_size, self.embed_size, l1_reg=self.l1_reg)
+
+        # Organize full input pipeline inside single graph node for clean visualization.
+        with tf.variable_scope("input_pipeline") as scope:
+            self.pipeline = InputPipeline(dataset.paths, self.batch_size,
+                                          is_chatting=self.is_chatting,
+                                          scope=scope)
+            self.encoder_inputs = self.pipeline.encoder_inputs
+            self.decoder_inputs = self.pipeline.decoder_inputs
+
         with tf.variable_scope("encoder") as scope:
             embedded_enc_inputs = self.embedder(self.encoder_inputs, scope=scope)
             # Create the encoder & decoder objects.
@@ -60,9 +66,6 @@ class DynamicBot(Model):
             # Applying embedded inputs to encoder yields the final (context) state.
             _, encoder_state = self.encoder(embedded_enc_inputs)
 
-        # Decoder construction depends greatly on whether or not we need to train,
-        # as opposed to dynamic chat session. Luckily, the user need not worry about
-        # such details, just
         with tf.variable_scope("decoder") as scope:
             embedded_dec_inputs = self.embedder(self.decoder_inputs, scope=scope)
             self.decoder  = decoder_class(self.state_size, self.vocab_size, self.embed_size,
@@ -76,13 +79,12 @@ class DynamicBot(Model):
                                                           is_chatting=self.is_chatting,
                                                           loop_embedder=self.embedder,
                                                           scope=scope)
+
+        # Explicitly tag inputs and outputs by name should we want to freeze the model.
+        inputs  = tf.identity(self.encoder_inputs, name="inputs")
+        outputs = tf.identity(decoder_outputs, name="outputs")
         # Merge any summaries floating around in the aether into one object.
-        self.inputs = tf.identity(self.encoder_inputs, name="inputs")
-        self.outputs = tf.identity(decoder_outputs, name="outputs")
         self.merged = tf.summary.merge_all()
-        # TODO: Implement freezer so we can deploy compact model version on heroku.
-        #tf.add_to_collection("freezer", self.pipeline._user_input)
-        tf.add_to_collection("freezer", self.outputs)
         self.compile()
 
     def compile(self):
@@ -97,24 +99,31 @@ class DynamicBot(Model):
             with tf.variable_scope("evaluation") as scope:
                 # Loss - target is to predict, as output, the next decoder input.
                 # target_labels has shape [batch_size, dec_inp_seq_len - 1]
-                target_labels = self.decoder_inputs[:, 1:]
-                target_weights = tf.cast(target_labels > 0, target_labels.dtype)
-                preds = self.decoder.apply_projection(self.outputs)
-                regLosses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-                l1 = tf.reduce_sum(tf.abs(regLosses))
+                target_labels   = self.decoder_inputs[:, 1:]
+                target_weights  = tf.cast(target_labels > 0, target_labels.dtype)
+                preds       = self.decoder.apply_projection(self.outputs)
+                regLosses   = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+                l1          = tf.reduce_sum(tf.abs(regLosses))
+
                 if self.sampled_loss:
                     self.log.info("Training with dynamic sampled softmax loss.")
                     assert 0 < self.num_samples < self.vocab_size, \
                         "num_samples is %d but should be between 0 and %d" \
                         % (self.num_samples, self.vocab_size)
+
                     self.loss = bot_ops.dynamic_sampled_softmax_loss(
-                        target_labels, self.outputs[:, :-1, :],
-                        self.decoder.get_projection_tensors(), self.vocab_size,
-                        num_samples=self.num_samples) + l1
+                        target_labels,
+                        self.outputs[:, :-1, :],
+                        self.decoder.get_projection_tensors(),
+                        self.vocab_size,
+                        num_samples=self.num_samples
+                    ) + l1
                 else:
                     self.loss = tf.losses.sparse_softmax_cross_entropy(
-                        labels=target_labels, logits=preds[:, :-1, :],
-                        weights=target_weights) + l1
+                        labels=target_labels,
+                        logits=preds[:, :-1, :],
+                        weights=target_weights
+                    ) + l1
 
                 self.log.info("Optimizing with %s." % self.optimizer)
                 self.train_op = tf.contrib.layers.optimize_loss(
@@ -126,10 +135,10 @@ class DynamicBot(Model):
 
                 # Compute accuracy, ensuring we use fully projected outputs.
                 with self.graph.device('/cpu:0'):
-                    correct_pred = tf.equal(tf.argmax(preds[:, :-1, :], axis=2), target_labels)
+                    correct_pred = tf.equal(tf.argmax(preds[:, :-1, :], axis=2),
+                                            target_labels)
                     accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
-                    # Surprise: no tf support for 3D tensors on yet another method. TODO
-                    #in_top_k = tf.nn.in_top_k(preds, target_labels, k=10)
+
                 tf.summary.scalar('accuracy', accuracy)
                 tf.summary.scalar('train_loss', self.loss)
                 self.merged = tf.summary.merge_all()
@@ -137,7 +146,6 @@ class DynamicBot(Model):
                 # store the training loss on accident.
                 self.valid_summ = tf.summary.scalar('valid_loss', self.loss)
 
-        # Let superclass load param values from file (if reset==False), else initialize new model.
         super(DynamicBot, self).compile()
 
     def step(self, forward_only=False):
@@ -185,8 +193,8 @@ class DynamicBot(Model):
         self.embedder.assign_visualizer(self.file_writer, 'encoder', label_paths[0])
         self.embedder.assign_visualizer(self.file_writer, 'decoder', label_paths[1])
 
-        # Note: Calling sleep(...) appears to allow sustained GPU utilization across training.
-        # Without it, looks like GPU has to wait for data to be enqueued more often. Strange.
+        # Note: Calling sleep() allows sustained GPU utilization across training.
+        # Without it, looks like GPU has to wait for data to be enqueued more often.
         print('QUEUE RUNNERS RELEASED.'); time.sleep(4)
         print('GO!')
 
@@ -261,7 +269,7 @@ class DynamicBot(Model):
         """This is how we talk to the bot."""
         # Convert input sentence to token-ids.
         encoder_inputs = io_utils.sentence_to_token_ids(
-            tf.compat.as_bytes(sentence),self.dataset.word_to_idx)
+            tf.compat.as_bytes(sentence), self.dataset.word_to_idx)
 
         encoder_inputs = np.array([encoder_inputs[::-1]])
         self.pipeline.feed_user_input(encoder_inputs)
