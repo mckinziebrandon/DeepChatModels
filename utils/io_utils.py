@@ -12,6 +12,8 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.platform import gfile
+from collections import Counter
+
 
 # Special vocabulary symbols.
 _PAD = b"_PAD"      # Append to unused space for both encoder/decoder.
@@ -32,6 +34,7 @@ _DIGIT_RE   = re.compile(br"\d")
 
 utils_dir = os.path.dirname(os.path.realpath(__file__))
 
+
 def save_hyper_params(hyper_params, fname):
     # Append to file if exists, else create.
     df = pd.DataFrame(hyper_params)
@@ -48,7 +51,7 @@ def get_sentence():
     return sys.stdin.readline().strip().lower() # Could just use input() ...
 
 
-def load_yaml(FLAGS):
+def yaml_to_dict(config_path):
     """
     Args:
         config_path: (str) location of [my config].yml file, relative to project root.
@@ -56,24 +59,52 @@ def load_yaml(FLAGS):
     Returns:
         configs: dictionary of (hyper)parameters for models/directories.
     """
-
-    flags_dict = {}
-    for stream in ['model', 'dataset', 'model_params', 'dataset_params']:
-        yaml_stream = yaml.load(FLAGS.__dict__['__flags'][stream])
-        if yaml_stream:
-            flags_dict.update({stream: yaml_stream})
-
-    config_path = os.path.join(utils_dir, '../configs', os.path.basename(FLAGS.config))
+    config_path = os.path.join(utils_dir, '../configs', os.path.basename(config_path))
     with tf.gfile.GFile(config_path) as config_file:
         configs = yaml.load(config_file)
-    return configs, flags_dict
+    return configs
 
 
-def parse_config(FLAGS):
-    yaml_config, flags_dict = load_yaml(FLAGS)
-    # Let any additions in TEST_FLAGS.model_params take precedence. For details, see:
-    # http://treyhunner.com/2016/02/how-to-merge-dictionaries-in-python/
-    return {**yaml_config, **flags_dict}
+def flags_to_dict(flags):
+    """Builds and return a dictionary from flags keys, namely
+       'model', 'dataset', 'model_params', 'dataset_params'.
+    """
+    flags_dict = {}
+    for stream in ['model', 'dataset', 'model_params', 'dataset_params']:
+        yaml_stream = yaml.load(flags.__dict__['__flags'][stream])
+        if yaml_stream:
+            flags_dict.update({stream: yaml_stream})
+    return flags_dict
+
+
+def parse_config(flags):
+    """Get configuration information from FLAGS, namely:
+        1. any configuration file (.yml) paths.
+        2. any dictionaries defined by user at command-line.
+
+    Args:
+        flags: tf.app.flags instance. Assumes supports keys from main, namely
+                model, dataset, model_params, dataset_params.
+
+    Returns:
+        merged dictionary of config info, where precedence is given to user-specified
+        params on command-line (over .yml config files).
+    """
+
+    yaml_config = yaml_to_dict(flags.config)
+    flags_dict = flags_to_dict(flags)
+    merged_dict = dict()
+    for key in yaml_config:
+        if isinstance(yaml_config[key], dict):
+            if key in flags_dict:
+                merged_dict.update(
+                    {key: {**yaml_config[key], **flags_dict[key]}})
+            else:
+                merged_dict.update(
+                    {key: yaml_config[key]})
+        else:
+            merged_dict.update({key: yaml_config[key]})
+    return merged_dict
 
 
 def basic_tokenizer(sentence):
@@ -105,7 +136,7 @@ def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size, normalize
     if gfile.Exists(vocabulary_path): return
 
     print("Creating vocabulary %s from data %s" % (vocabulary_path, data_path))
-    vocab = {}
+    vocab = Counter()
     with gfile.GFile(data_path, mode="rb") as f:
         counter = 0
         for line in f:
@@ -115,12 +146,10 @@ def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size, normalize
 
             line   = tf.compat.as_bytes(line)
             tokens = basic_tokenizer(line)
+            # Update word frequency counts in vocab counter dict.
             for w in tokens:
                 word = _DIGIT_RE.sub(b"0", w) if normalize_digits else w
-                if word in vocab:
-                    vocab[word] += 1
-                else:
-                    vocab[word] = 1
+                vocab[word] += 1
 
         # Get sorted vocabulary, from most frequent to least frequent.
         vocab_list = _START_VOCAB + sorted(vocab, key=vocab.get, reverse=True)
@@ -184,8 +213,7 @@ def data_to_token_ids(data_path, target_path, vocabulary_path, normalize_digits=
     """Tokenize data file and turn into token-ids using given vocabulary file.
 
     This function loads data line-by-line from data_path, calls the above
-    sentence_to_token_ids, and saves the result to target_path. See comment
-    for sentence_to_token_ids on the details of token-ids format.
+    sentence_to_token_ids, and saves the result to target_path.
 
     Args:
       data_path: path to the data file in one-sentence-per-line format.
@@ -203,7 +231,9 @@ def data_to_token_ids(data_path, target_path, vocabulary_path, normalize_digits=
                     counter += 1
                     if counter % 100000 == 0:
                         print("  tokenizing line %d" % counter)
-                    token_ids = sentence_to_token_ids(tf.compat.as_bytes(line), vocab, normalize_digits)
+                    token_ids = sentence_to_token_ids(tf.compat.as_bytes(line),
+                                                      vocab,
+                                                      normalize_digits)
                     tokens_file.write(" ".join([str(tok) for tok in token_ids]) + "\n")
 
 
@@ -230,92 +260,24 @@ def prepare_data(data_dir, from_train_path, to_train_path,
           (6) path to the "to language" vocabulary file.
       """
     # Create vocabularies of the appropriate sizes.
-    to_vocab_path = os.path.join(data_dir, "vocab%d.to" % to_vocabulary_size)
+    to_vocab_path   = os.path.join(data_dir, "vocab%d.to" % to_vocabulary_size)
     from_vocab_path = os.path.join(data_dir, "vocab%d.from" % from_vocabulary_size)
     create_vocabulary(to_vocab_path, to_train_path , to_vocabulary_size)
     create_vocabulary(from_vocab_path, from_train_path , from_vocabulary_size)
 
     # Create token ids for the training data.
-    to_train_ids_path = to_train_path + (".ids%d" % to_vocabulary_size)
+    to_train_ids_path   = to_train_path + (".ids%d" % to_vocabulary_size)
     from_train_ids_path = from_train_path + (".ids%d" % from_vocabulary_size)
     data_to_token_ids(to_train_path, to_train_ids_path, to_vocab_path)
     data_to_token_ids(from_train_path, from_train_ids_path, from_vocab_path)
 
     # Create token ids for the development data.
-    to_dev_ids_path = to_dev_path + (".ids%d" % to_vocabulary_size)
-    from_dev_ids_path = from_dev_path + (".ids%d" % from_vocabulary_size)
+    to_dev_ids_path     = to_dev_path + (".ids%d" % to_vocabulary_size)
+    from_dev_ids_path   = from_dev_path + (".ids%d" % from_vocabulary_size)
     data_to_token_ids(to_dev_path, to_dev_ids_path, to_vocab_path)
     data_to_token_ids(from_dev_path, from_dev_ids_path, from_vocab_path)
 
-    train_ids_path = [from_train_ids_path, to_train_ids_path]
-    dev_ids_path = [from_dev_ids_path, to_dev_ids_path]
-    vocab_path = [from_vocab_path, to_vocab_path]
+    train_ids_path  = [from_train_ids_path, to_train_ids_path]
+    dev_ids_path    = [from_dev_ids_path, to_dev_ids_path]
+    vocab_path      = [from_vocab_path, to_vocab_path]
     return (train_ids_path, dev_ids_path, vocab_path)
-
-
-def read_data(dataset, _buckets, max_train_data_size=None):
-    """(NOT USED BY DYNAMIC MODELS) This is the main, and perhaps only,
-    method that other files should use to access data.
-    :return: train and validation sets of word IDS.
-    """
-    # Setup the data in appropriate directories and return desired PATHS.
-    print("Preparing %s data in %s" % (dataset.name, dataset.data_dir))
-
-    # Read data into buckets (e.g. len(train_set) == len(buckets)).
-    train_set   = _read_data(dataset.paths['from_train'],
-                             dataset.paths['to_train'],
-                             _buckets, max_train_data_size)
-    dev_set     = _read_data(dataset.paths['from_valid'],
-                             dataset.paths['to_valid'], _buckets)
-    return train_set, dev_set
-
-
-def _read_data(source_path, target_path, _buckets, max_size=None):
-    """(NOT USED BY DYNAMIC MODELS). Read data from source and target files,
-        and put into buckets.
-
-    Args:
-    source_path: path to the files with token-ids for the source language.
-    target_path: path to the file with token-ids for the target language;
-      it must be aligned with the source file: n-th line contains the desired
-      output for n-th line from the source_path.
-    max_size: maximum number of lines to read, all other will be ignored;
-      if 0 or None, data files will be read completely (no limit).
-
-    Returns:
-    data_set: a list of length len(_buckets); data_set[n] contains a list of
-      (source, target) pairs read from the provided data files that fit
-      into the n-th bucket, i.e., such that len(source) < _buckets[n][0] and
-      len(target) < _buckets[n][1]; source and target are lists of token-ids.
-    """
-    data_set = [[] for _ in _buckets]
-    # Counter for the number of source/target pairs that couldn't fit in _buckets.
-    num_samples_too_large = 0
-    with tf.gfile.GFile(source_path, mode="r") as source_file:
-        with tf.gfile.GFile(target_path, mode="r") as target_file:
-            source, target = source_file.readline(), target_file.readline()
-            counter = 0
-            while source and target and (not max_size or counter < max_size):
-                counter += 1
-                if counter % 100000 == 0:
-                    print("  reading data line %d" % counter)
-                    sys.stdout.flush()
-                # Get source/target as list of word IDs.
-                source_ids = [int(x) for x in source.split()]
-                target_ids = [int(x) for x in target.split()]
-                target_ids.append(EOS_ID)
-                # Place the source/target pair if they fit in a bucket.
-                for bucket_id, (source_size, target_size) in enumerate(_buckets):
-                    if len(source_ids) < source_size and len(target_ids) < target_size:
-                        data_set[bucket_id].append([source_ids, target_ids])
-                        break
-                    if bucket_id == len(_buckets) - 1:
-                        num_samples_too_large += 1
-                source, target = source_file.readline(), target_file.readline()
-
-    print("Number of training samples that were too large for buckets:", num_samples_too_large)
-    return data_set
-
-
-
-

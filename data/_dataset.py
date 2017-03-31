@@ -11,7 +11,7 @@ import logging
 DEFAULT_PARAMS = {
     'data_dir': None,
     'vocab_size': 40000,
-    'max_seq_len': 50
+    'max_seq_len': 15
 }
 
 
@@ -51,7 +51,13 @@ class DatasetABC(metaclass=ABCMeta):
 class Dataset(DatasetABC):
 
     def __init__(self, dataset_params):
-        """Implements the most general of subset of operations that all classes can use."""
+        """Implements the general of subset of operations that all classes can use.
+
+        Args:
+            dataset_params: dictionary of configuration parameters. See DEFAULT_PARAMS
+                            at top of file for supported keys.
+        """
+
         self.__dict__['__params'] = Dataset.fill_params(dataset_params)
         print("max_seq_len recorded as ", self.max_seq_len)
         # We query io_utils to ensure all data files are organized properly,
@@ -88,6 +94,12 @@ class Dataset(DatasetABC):
             return self.__dict__['__params'][name]
 
     def convert_to_tf_records(self, prefix='train'):
+        """If can't find tfrecords 'prefix' files, creates them.
+
+        Args:
+            prefix: 'train' or 'valid'. Determines which tfrecords to build.
+        """
+
         from_path = self.paths['from_'+prefix]
         to_path = self.paths['to_'+prefix]
         output_path = os.path.join(
@@ -98,10 +110,6 @@ class Dataset(DatasetABC):
             return
 
         def get_sequence_example(encoder_line, decoder_line):
-            """
-            Args:
-                prefix: either 'encoder' or 'decoder', typically.
-            """
             space_needed = max(len(encoder_line.split()), len(decoder_line.split()))
             if space_needed > self.max_seq_len:
                 return None
@@ -262,10 +270,4 @@ class Dataset(DatasetABC):
     @staticmethod
     def fill_params(dataset_params):
         """Assigns default values from DEFAULT_PARAMS for keys not in dataset_params."""
-        filled_params = {}
-        for key in DEFAULT_PARAMS:
-            if key in dataset_params:
-                filled_params[key] = dataset_params[key]
-            else:
-                filled_params[key] = DEFAULT_PARAMS[key]
-        return filled_params
+        return {**DEFAULT_PARAMS, **dataset_params}

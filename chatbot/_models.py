@@ -10,6 +10,7 @@ import random
 import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.tensorboard.plugins import projector
+from chatbot.components import *
 
 from utils import io_utils
 
@@ -26,7 +27,7 @@ DEFAULT_PARAMS = {
     "data_dir": "data",
     "dataset": "cornell",
     "decode": False,
-    "batch_size": 64,
+    "batch_size": 256,
     "dropout_prob": 0.2,
     "state_size": 512,
     "embed_size": 64,
@@ -49,6 +50,14 @@ class Model(object):
     """
 
     def __init__(self, logger, dataset, model_params):
+        """
+        Args:
+            logger: returned by getLogger & called by subclasses. Passed
+                    here so we know what object to use for info/warn/error.
+            dataset: object that inherits from data.Dataset.
+            model_params: (dict) user-specified params that override those in
+                           DEFAULT_PARAMS above.
+        """
 
         self.__dict__['__params'] = Model.fill_params(dataset, model_params)
         self.log    = logger
@@ -59,8 +68,9 @@ class Model(object):
         os.popen('mkdir -p %s' % self.ckpt_dir)  # Just in case :)
         self.projector_config = projector.ProjectorConfig()
         # Good practice to set as None in constructor.
+        self.loss               = None
         self.file_writer        = None
-        self.train_op    = None
+        self.train_op           = None
         self.saver              = None
 
     def compile(self):
@@ -98,26 +108,33 @@ class Model(object):
         """
         Args:
             summaries: merged summary instance returned by session.run.
-            save_dir: where to save checkpoints. defaults to self.ckpt_dir.
         """
 
         if self.saver is None:
             raise ValueError("Tried saving model before defining a saver.")
+
         ckpt_fname = os.path.join(self.ckpt_dir, "{}.ckpt".format(self.data_name))
         # Saves the state of all global variables in a ckpt file.
         self.saver.save(self.sess, ckpt_fname, global_step=self.global_step)
+
         if summaries is not None:
             self.file_writer.add_summary(summaries, self.global_step.eval(self.sess))
         else:
             self.log.info("Save called without summaries.")
 
     def close(self):
-        """Call then when training session is terminated."""
+        """Call then when training session is terminated.
+            - Saves the current model/checkpoint state.
+            - Freezes the model into a protobuf file in self.ckpt_dir.
+            - Closes context managers for file_writing and session.
+        """
         # First save the checkpoint as usual.
         self.save()
         # Freeze me, for I am infinite.
-        Model.freeze_model(self.ckpt_dir)
+        self.freeze()
+        # Be a responsible bot and close my file writer.
         self.file_writer.close()
+        # Formally exit the session, farewell to all.
         self.sess.close()
 
     @property
@@ -127,6 +144,7 @@ class Model(object):
     @staticmethod
     def fill_params(dataset, model_params):
         """Assigns default values from DEFAULT_PARAMS for keys not in model_params."""
+
         filled_params = {**DEFAULT_PARAMS, **model_params}
         filled_params['max_seq_len']    = dataset.max_seq_len
         filled_params['vocab_size']     = dataset.vocab_size
@@ -135,34 +153,28 @@ class Model(object):
         filled_params['is_chatting']    = filled_params['decode']
         return filled_params
 
-    @staticmethod
-    def freeze_model(model_dir):
+    def freeze(self):
         """ Useful for e.g. deploying model on website.
 
         Args: directory containing model ckpt files we'd like to freeze.
         """
 
         # TODO: Need to ensure batch size set to 1 before freezing.
-        model_dir = os.path.abspath(model_dir)
-        checkpoint_state  = tf.train.get_checkpoint_state(model_dir)
-        assert checkpoint_state is not None, "No ckpt files in %s." % model_dir
-        frozen_file = os.path.join(model_dir, "frozen_model.pb")
-
-        print("mod", checkpoint_state.model_checkpoint_path)
+        checkpoint_state    = tf.train.get_checkpoint_state(self.ckpt_dir)
+        output_fname         = os.path.join(self.ckpt_dir, "frozen_model.pb")
+        output_node_names = "inputs,outputs"
         saver = tf.train.import_meta_graph(checkpoint_state.model_checkpoint_path+'.meta',
                                            clear_devices=True)
 
-        graph = tf.get_default_graph()
-        input_graph_def = graph.as_graph_def()
+        input_graph_def = tf.get_default_graph().as_graph_def()
         with tf.Session() as sess:
             saver.restore(sess, checkpoint_state.model_checkpoint_path)
-            freezer = tf.get_collection('freezer')
-
             output_graph_def = tf.graph_util.convert_variables_to_constants(
                 sess,
                 input_graph_def,
-                freezer)
-            with tf.gfile.GFile(frozen_file, 'wb') as f:
+                output_node_names.split(','))
+
+            with tf.gfile.GFile(output_fname, 'wb') as f:
                 f.write(output_graph_def.SerializeToString())
             print("%d ops in the final graph." % len(output_graph_def.node))
 

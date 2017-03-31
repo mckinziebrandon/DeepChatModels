@@ -4,13 +4,12 @@ from chatbot import DynamicBot, ChatBot, SimpleBot
 from data import Cornell, Ubuntu, WMT, Reddit, TestData
 from utils import io_utils
 import tensorflow as tf
-import sys, getopt
 from pydoc import locate
 
 # Allow user to override config values with command-line args.
 # All test_flags with default as None are not accessed unless set.
 flags = tf.app.flags
-flags.DEFINE_string("config", "configs/default.yml", "path to config (.yml) file. Defaults to DynamicBot on Cornell.")
+flags.DEFINE_string("config", "configs/default.yml", "path to config (.yml) file.")
 flags.DEFINE_string("model", "{}", "Options: chatbot.{DynamicBot,Simplebot,ChatBot}.")
 flags.DEFINE_string("model_params", "{}", "")
 flags.DEFINE_string("dataset", "{}", "Options: data.{Cornell,Ubuntu,WMT}.")
@@ -19,7 +18,7 @@ FLAGS = flags.FLAGS
 
 
 def start_training(dataset, bot):
-    """Train bot. Will expand this function later to aid interactivity/updates. Maybe."""
+    """Train bot. Will expand this function later to aid interactivity/updates."""
     print("Training bot. CTRL-C to stop training.")
     bot.train(dataset)
 
@@ -37,10 +36,13 @@ def start_chatting(bot):
     bot.chat()
 
 
-def main(argv):
+def main():
 
     # Extract merge configs/dictionaries.
     config = io_utils.parse_config(FLAGS)
+    if config['model_params']['decode']:
+        print("Setting reset to false for chat session . . . ")
+        config['model_params']['reset_model'] = False
 
     print("Setting up %s dataset." % config['dataset'])
     dataset = locate(config['dataset'])(config['dataset_params'])

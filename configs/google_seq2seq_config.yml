@@ -7,7 +7,7 @@ model_params:
   dropout: 0.2
   embed_size: 128
   encoder.class: chatbot.components.encoders.BasicEncoder
-  decoder.class: chatbot.components.decoders.SimpleDecoder
+  decoder.class: chatbot.components.decoders.BasicDecoder
   learning_rate: 1e-4
   num_layers: 4
   optimizer: Adam
