@@ -4,7 +4,6 @@ from chatbot import DynamicBot, ChatBot, SimpleBot
 from data import Cornell, Ubuntu, WMT, Reddit, TestData
 from utils import io_utils
 import tensorflow as tf
-import sys, getopt
 from pydoc import locate
 
 # Allow user to override config values with command-line args.
@@ -37,7 +36,7 @@ def start_chatting(bot):
     bot.chat()
 
 
-def main(argv):
+def main():
 
     # Extract merge configs/dictionaries.
     config = io_utils.parse_config(FLAGS)

@@ -27,7 +27,7 @@ DEFAULT_PARAMS = {
     "data_dir": "data",
     "dataset": "cornell",
     "decode": False,
-    "batch_size": 64,
+    "batch_size": 256,
     "dropout_prob": 0.2,
     "state_size": 512,
     "embed_size": 64,
@@ -112,9 +112,11 @@ class Model(object):
 
         if self.saver is None:
             raise ValueError("Tried saving model before defining a saver.")
+
         ckpt_fname = os.path.join(self.ckpt_dir, "{}.ckpt".format(self.data_name))
         # Saves the state of all global variables in a ckpt file.
         self.saver.save(self.sess, ckpt_fname, global_step=self.global_step)
+
         if summaries is not None:
             self.file_writer.add_summary(summaries, self.global_step.eval(self.sess))
         else:

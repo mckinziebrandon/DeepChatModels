@@ -110,8 +110,11 @@ def _dynamic_sampled_from_scratch(labels, logits, output_projection, vocab_size,
             with tf.name_scope("compute_sampled_logits", [weights, biases, logits, targets]):
                 targets = tf.cast(targets, tf.int64)
                 sampled_values = tf.nn.log_uniform_candidate_sampler(
-                    true_classes=tf.expand_dims(targets, -1), num_true=1, num_sampled=num_samples,
-                    unique=True, range_max=vocab_size)
+                    true_classes=tf.expand_dims(targets, -1),
+                    num_true=1,
+                    num_sampled=num_samples,
+                    unique=True,
+                    range_max=vocab_size)
                 S, Q_true, Q_samp = (tf.stop_gradient(s) for s in sampled_values)
 
                 # Get concatenated 1D tensor of shape [batch_size * None + num_samples],

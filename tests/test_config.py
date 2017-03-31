@@ -66,7 +66,6 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config['dataset'], 'data.TestData')
 
 
-
 if __name__ == '__main__':
     unittest.main()
 

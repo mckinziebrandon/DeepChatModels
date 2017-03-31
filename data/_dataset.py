@@ -11,7 +11,7 @@ import logging
 DEFAULT_PARAMS = {
     'data_dir': None,
     'vocab_size': 40000,
-    'max_seq_len': 50
+    'max_seq_len': 15
 }
 
 

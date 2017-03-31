@@ -93,7 +93,6 @@ def parse_config(flags):
 
     yaml_config = yaml_to_dict(flags.config)
     flags_dict = flags_to_dict(flags)
-    #return {**yaml_config, **flags_dict}
     merged_dict = dict()
     for key in yaml_config:
         if isinstance(yaml_config[key], dict):

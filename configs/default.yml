@@ -7,4 +7,4 @@ model_params:
   decode: False
   reset_model: True
 dataset_params:
-  data_dir: /home/brandon/terabyte/Datasets/cornell
+  data_dir: /home/brandon/Datasets/cornell
