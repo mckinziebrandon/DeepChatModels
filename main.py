@@ -41,6 +41,9 @@ def main(argv):
 
     # Extract merge configs/dictionaries.
     config = io_utils.parse_config(FLAGS)
+    if config['model_params']['decode']:
+        print("Setting reset to false for chat session . . . ")
+        config['model_params']['reset_model'] = False
 
     print("Setting up %s dataset." % config['dataset'])
     dataset = locate(config['dataset'])(config['dataset_params'])

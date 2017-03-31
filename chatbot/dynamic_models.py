@@ -80,6 +80,7 @@ class DynamicBot(Model):
                                                           loop_embedder=self.embedder,
                                                           scope=scope)
 
+        self.outputs = decoder_outputs
         # Explicitly tag inputs and outputs by name should we want to freeze the model.
         inputs  = tf.identity(self.encoder_inputs, name="inputs")
         outputs = tf.identity(decoder_outputs, name="outputs")
