@@ -1,0 +1,15 @@
+model: chatbot.DynamicBot
+dataset: data.TestData
+model_params:
+  batch_size: 4
+  state_size: 128
+  embed_size: 32
+  vocab_size: 100
+  ckpt_dir: out/test_data
+  steps_per_ckpt: 100
+  decode: False
+  reset_model: True
+  encoder.class: chatbot.components.encoders.BasicEncoder
+  decoder.class: chatbot.components.decoders.BasicDecoder
+dataset_params:
+  data_dir: /home/brandon/terabyte/Datasets/test_data

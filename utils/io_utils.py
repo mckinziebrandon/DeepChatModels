@@ -105,7 +105,6 @@ def parse_config(flags):
                     {key: yaml_config[key]})
         else:
             merged_dict.update({key: yaml_config[key]})
-        print(merged_dict)
     return merged_dict
 
 
