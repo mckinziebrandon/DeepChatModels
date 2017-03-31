@@ -1,6 +1,8 @@
 """Custom TF 'ops' as meant in the TensorFlow definition of ops."""
 
+import numpy as np
 import tensorflow as tf
+from utils import io_utils
 
 
 def dynamic_sampled_softmax_loss(labels, logits, output_projection, vocab_size,
@@ -139,23 +141,14 @@ def _dynamic_sampled_from_scratch(labels, logits, output_projection, vocab_size,
                                         dtype=tf.float32))
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+def sentence_to_inputs(sentence, word_to_idx):
+    """Purpose: make an op for translating stdin sentence input from user
+    into input suitable for **frozen** model in particular.
+    """
+    with tf.name_scope("sentence_to_inputs",
+                       values=[sentence, word_to_idx]) as scope:
+        encoder_inputs = io_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence),
+                                                        word_to_idx)
+        encoder_inputs = np.array([encoder_inputs[::-1]])
+        return tf.convert_to_tensor(encoder_inputs, name=scope)
 

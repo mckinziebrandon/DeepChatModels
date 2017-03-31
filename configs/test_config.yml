@@ -3,7 +3,7 @@ dataset: data.TestData
 model_params:
   batch_size: 4
   state_size: 128
-  embed_size: 32
+  embed_size: 64
   vocab_size: 100
   ckpt_dir: out/test_data
   steps_per_ckpt: 100

@@ -76,9 +76,9 @@ class DynamicBot(Model):
                                                           is_chatting=self.is_chatting,
                                                           loop_embedder=self.embedder,
                                                           scope=scope)
-
         # Merge any summaries floating around in the aether into one object.
-        self.outputs = decoder_outputs
+        self.inputs = tf.identity(self.encoder_inputs, name="inputs")
+        self.outputs = tf.identity(decoder_outputs, name="outputs")
         self.merged = tf.summary.merge_all()
         # TODO: Implement freezer so we can deploy compact model version on heroku.
         #tf.add_to_collection("freezer", self.pipeline._user_input)
@@ -253,7 +253,7 @@ class DynamicBot(Model):
             sentence = io_utils.get_sentence()
             if sentence == 'exit':
                 # TODO: Uncomment when freezing implemented.
-                #self.close()
+                self.close()
                 print("Farewell, human.")
                 break
 

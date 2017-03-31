@@ -117,8 +117,10 @@ class Model(object):
         # First save the checkpoint as usual.
         self.save()
         # Freeze me, for I am infinite.
-        #Model.freeze_model(self.ckpt_dir)
+        self.freeze()
+        # Be a responsible bot and close my file writer.
         self.file_writer.close()
+        # Formally exit the session, farewell to all.
         self.sess.close()
 
     @property
@@ -137,33 +139,28 @@ class Model(object):
         filled_params['is_chatting']    = filled_params['decode']
         return filled_params
 
-    @staticmethod
-    def freeze_model(model_dir):
+    def freeze(self):
         """ Useful for e.g. deploying model on website.
 
         Args: directory containing model ckpt files we'd like to freeze.
         """
 
         # TODO: Need to ensure batch size set to 1 before freezing.
-        model_dir = os.path.abspath(model_dir)
-        checkpoint_state  = tf.train.get_checkpoint_state(model_dir)
-        assert checkpoint_state is not None, "No ckpt files in %s." % model_dir
-        frozen_file = os.path.join(model_dir, "frozen_model.pb")
-
+        checkpoint_state    = tf.train.get_checkpoint_state(self.ckpt_dir)
+        output_fname         = os.path.join(self.ckpt_dir, "frozen_model.pb")
+        output_node_names = "inputs,outputs"
         saver = tf.train.import_meta_graph(checkpoint_state.model_checkpoint_path+'.meta',
                                            clear_devices=True)
 
-        graph = tf.get_default_graph()
-        input_graph_def = graph.as_graph_def()
+        input_graph_def = tf.get_default_graph().as_graph_def()
         with tf.Session() as sess:
             saver.restore(sess, checkpoint_state.model_checkpoint_path)
-            freezer = tf.get_collection('freezer')
             output_graph_def = tf.graph_util.convert_variables_to_constants(
                 sess,
                 input_graph_def,
-                freezer)
+                output_node_names.split(','))
 
-            with tf.gfile.GFile(frozen_file, 'wb') as f:
+            with tf.gfile.GFile(output_fname, 'wb') as f:
                 f.write(output_graph_def.SerializeToString())
             print("%d ops in the final graph." % len(output_graph_def.node))
 
