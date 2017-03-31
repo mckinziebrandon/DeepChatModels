@@ -33,7 +33,6 @@ def load_graph(frozen_model_dir):
             graph_def,
             input_map=None,
             return_elements=None,
-            name="freezer",
             op_dict=None,
             producer_op_list=None
         )
@@ -52,8 +51,8 @@ def unfreeze_bot(frozen_model_path):
     """
 
     bot_graph   = load_graph(frozen_model_path)
-    inputs      = bot_graph.get_tensor_by_name("freezer/inputs")
-    outputs     = bot_graph.get_tensor_by_name("freezer/outputs")
+    inputs      = bot_graph.get_tensor_by_name("import/freezer/inputs:0")
+    outputs     = bot_graph.get_tensor_by_name("import/freezer/outputs:0")
     return inputs, outputs
 
 

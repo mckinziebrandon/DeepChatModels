@@ -13,9 +13,10 @@ from chatbot import DynamicBot, ChatBot, SimpleBot
 from data import Cornell, Ubuntu, WMT, Reddit, TestData
 from chatbot.components import bot_ops
 from utils import io_utils
+from utils import bot_freezer
 
 test_flags = tf.app.flags
-test_flags.DEFINE_string("config", "configs/default.yml", "path to config (.yml) file.")
+test_flags.DEFINE_string("config", "configs/test_config.yml", "path to config (.yml) file.")
 test_flags.DEFINE_string("model", "{}", "Options: chatbot.{DynamicBot,Simplebot,ChatBot}.")
 test_flags.DEFINE_string("model_params", "{}", "")
 test_flags.DEFINE_string("dataset", "{}", "Options: data.{Cornell,Ubuntu,WMT}.")
@@ -37,6 +38,17 @@ def _sparse_to_dense(sampled_logits, labels, sampled, num_sampled):
                               default_value=0.0,validate_indices=False)
 
 
+def get_default_bot(flags=TEST_FLAGS):
+    """Creates and returns a fresh bot. Nice for testing specific methods quickly."""
+    tf.reset_default_graph()
+    config = io_utils.parse_config(flags)
+    print("Setting up %s dataset." % config['dataset'])
+    dataset = locate(config['dataset'])(config['dataset_params'])
+    print("Creating", config['model'], ". . . ")
+    bot = locate(config['model'])(dataset, config['model_params'])
+    return bot
+
+
 class TestDynamicModels(unittest.TestCase):
 
     def setUp(self):
@@ -52,30 +64,76 @@ class TestDynamicModels(unittest.TestCase):
         print("Creating", config['model'], ". . . ")
         bot = locate(config['model'])(dataset, config['model_params'])
 
+    def test_train(self):
+        flags = TEST_FLAGS
+        flags.model_params = "{ckpt_dir: out/test_data, " \
+                             "reset_model: True, " \
+                             "steps_per_ckpt: 10}"
+        bot = get_default_bot(flags)
+        #bot.train()
 
-
-
-
-    def test_freeze(self):
+    def test_manual_freeze(self):
         """Make sure we can freeze the bot, unfreeze, and still chat."""
 
-        config_path = "configs/small_model.yml"
-        configs = io_utils.parse_config(config_path)
-        self.log.info(configs)
-        model_name = configs['model']
-        dataset_name = configs['dataset']
-        dataset_params = configs['dataset_params']
-        model_params = configs['model_params']
+        # ================================================
+        # 1. Create & train bot.
+        # ================================================
+        flags = TEST_FLAGS
+        flags.model_params = "{ckpt_dir: out/test_data, " \
+                             "reset_model: True, " \
+                             "steps_per_ckpt: 10}"
+        bot = get_default_bot(flags)
+        # Simulate small train sesh on bot.
+        self._quick_train(bot)
 
-        self.log.info("Setting up %s dataset." % dataset_name)
-        self.log.info(locate("Cornell"))
-        dataset = locate(dataset_name)(dataset_params)
-        self.log.info("Creating %s" % model_name)
-        bot = locate(model_name)(dataset, model_params)
-        if not model_params['decode']:
-            bot.train(dataset)
-        else:
-            bot.chat()
+        # ================================================
+        # 2. Recreate a chattable bot.
+        # ================================================
+        # Recreate bot from scratch with decode set to true.
+        self.log.info("Resetting default graph . . . ")
+        tf.reset_default_graph()
+        flags.model_params = "{ckpt_dir: out/test_data, " \
+                             "reset_model: False, " \
+                             "decode: True," \
+                             "steps_per_ckpt: 10}"
+        bot = get_default_bot(flags)
+        self.assertTrue(bot.is_chatting)
+        self.assertTrue(bot.decode)
+
+        # ================================================
+        # 3. Freeze the chattable bot.
+        # ================================================
+        self.log.info("Calling bot.freeze() . . . ")
+        bot.freeze()
+
+        # ================================================
+        # 4. Try to unfreeze and use it.
+        # ================================================
+        self.log.info("Resetting default graph . . . ")
+        tf.reset_default_graph()
+        self.log.info("Importing frozen graph into default . . . ")
+        frozen_graph = bot_freezer.load_graph(bot.ckpt_dir)
+        for op in frozen_graph.get_operations():
+            self.log.info(op.name)
+
+        self.log.info("Checking graph for freezer collection . . . ")
+        freezer_collection = frozen_graph.get_collection("freezer")
+        self.log.info(freezer_collection)
+
+        #inputs, outputs = bot_freezer.unfreeze_bot(bot.ckpt_dir)
+        #self.assertIsNotNone(inputs)
+        #self.assertIsNotNone(outputs)
+
+    def _quick_train(self, bot):
+        """Quickly train manually on some test data."""
+        coord   = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(sess=bot.sess, coord=coord)
+        for _ in range(10):
+            bot.step()
+        summaries, loss, _ = bot.step()
+        bot.save(summaries=summaries)
+        coord.request_stop()
+        coord.join(threads)
 
 
     def test_chat(self):

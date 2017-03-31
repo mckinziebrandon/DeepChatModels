@@ -37,7 +37,10 @@ class DynamicBot(Model):
         self.build_computation_graph(dataset, model_params)
         self.compile()
 
-    def build_computation_graph(self, dataset, model_params):
+    def build_computation_graph(self, dataset, model_params=None):
+        if model_params is None:
+            assert self.__dict__['__params'] is not None, "Shame."
+            model_params = self.__dict__['__params']
 
         # Grab the model classes (Constructors) specified by user in model_params.
         encoder_class = locate(model_params['encoder.class'])
@@ -181,12 +184,15 @@ class DynamicBot(Model):
             summaries, step_loss = self.sess.run(fetches)
             return summaries, step_loss, None
 
-    def train(self, dataset):
+    def train(self, dataset=None):
         """Train bot on inputs until user types CTRL-C or queues run out of data.
 
         Args:
-            dataset: any instance of the Dataset class.
+            dataset: any instance of the Dataset class. Will be removed soon.
         """
+
+        if dataset is None:
+            dataset = self.dataset
 
         def perplexity(loss): return np.exp(float(loss)) if loss < 300 else float("inf")
 
@@ -244,7 +250,18 @@ class DynamicBot(Model):
             coord.request_stop()
         finally:
             coord.join(threads)
+            # Before closing, which will freeze our graph to a file,
+            # rebuild it so that it's ready for chatting when unfreezed,
+            # to make it easier for the user. Training can still be resumed
+            # with no issue since it doesn't load frozen models, just ckpts.
+            self._set_chat_params()
+            self.build_computation_graph(self.dataset)
             self.close()
+
+    def _set_chat_params(self):
+        self.decode = self.is_chatting = True
+        self.batch_size = 1
+        self.reset_model = False
 
     def chat(self):
         """Alias to decode."""
@@ -267,7 +284,7 @@ class DynamicBot(Model):
             sentence = io_utils.get_sentence()
             if sentence == 'exit':
                 # TODO: Uncomment when freezing implemented.
-                self.close()
+                #self.close()
                 print("Farewell, human.")
                 break
 
