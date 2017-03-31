@@ -10,7 +10,7 @@ import numpy as np
 import tensorflow as tf
 from chatbot._models import Model
 from chatbot.components import bot_ops
-from chatbot.components import InputPipeline, Embedder, BasicEncoder, SimpleDecoder
+from chatbot.components import InputPipeline, Embedder, BasicEncoder, BasicDecoder
 from utils import io_utils
 from pydoc import locate
 
@@ -252,7 +252,8 @@ class DynamicBot(Model):
             print("Robot:", response)
             sentence = io_utils.get_sentence()
             if sentence == 'exit':
-                self.close()
+                # TODO: Uncomment when freezing implemented.
+                #self.close()
                 print("Farewell, human.")
                 break
 

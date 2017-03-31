@@ -187,14 +187,6 @@ class TestTFGeneral(unittest.TestCase):
             # No more hanging for the main process, no more waiting for the GPU
             sess.run(y)
             sess.run(y)
-            sess.run(y)
-            sess.run(y)
-            sess.run(y)
-            sess.run(y)
-            sess.run(y)
-            sess.run(y)
-            sess.run(y)
-            sess.run(y)
 
             # We request our child threads to stop ...
             coord.request_stop()
@@ -242,40 +234,6 @@ class TestRNN(unittest.TestCase):
                                            dtype=tf.float32)
 
 
-@unittest.skip("Uses methods that will likely be removed.")
-class TestTensorboard(unittest.TestCase):
-
-    # setUp is called by unittest before any/all test(s).
-    def setUp(self):
-        self.dataset = Cornell()
-        self.bot = DynamicBot(self.dataset,
-                              ckpt_dir="out",
-                              batch_size=16,
-                              state_size=128,
-                              embed_size=32,
-                              learning_rate=0.1,
-                              lr_decay=0.8,
-                              is_chatting=False)
-        print("Compiling DynamicBot.")
-        self.bot.compile(max_gradient=5.0, reset=True)
-
-    def test_train_step(self):
-        """Check for expected outputs of chatbot.step."""
-        # Get training data as batch_padded lists.
-        encoder_inputs_train, decoder_inputs_train = batch_padded(self.dataset.train_data, self.bot.batch_size)
-        # Get validation data as batch-padded lists.
-        encoder_inputs_valid, decoder_inputs_valid = batch_padded(self.dataset.valid_data, self.bot.batch_size)
-        train_gen = batch_generator(encoder_inputs_train, decoder_inputs_train)
-        valid_gen = batch_generator(encoder_inputs_valid, decoder_inputs_valid)
-        i_step = 0
-        for encoder_batch, decoder_batch in train_gen:
-            summary, loss, _ = self.bot.step(encoder_batch, decoder_batch)
-            # Confirmed: The following line WILL save the summary to the file, and online.
-            self.bot.file_writer.add_summary(summary, i_step)
-            assert summary is not None, "Returned summary was None."
-            i_step += 1
-
-
 class TestTensorflowSaver(unittest.TestCase):
 
     def test_simple_save(self):
@@ -321,6 +279,67 @@ class TestTensorflowSaver(unittest.TestCase):
         tf.add_to_collection(name="test_save_placeholder", value=[place_holder,place_holder_2])
 
 
+    def test_freezer(self):
+        """Simple start-to-finish testing of tensorflow model freezing."""
+
+        batch_size = 32
+        state_size = 512
+        vocab_size = 1000
+        inputs = tf.placeholder(dtype=tf.int32, shape=(batch_size, state_size))
+        h = tf.add(inputs, 42)
+        y = tf.multiply(h, 3)
+
+
+        with tf.Session() as sess:
+            x = np.random.randint(vocab_size, size=(batch_size, state_size))
+            print(sess.run(y, {inputs: x}))
+
+
 if __name__ == '__main__':
     unittest.main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

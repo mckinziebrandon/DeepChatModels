@@ -10,6 +10,7 @@ import random
 import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.tensorboard.plugins import projector
+from chatbot.components import *
 
 from utils import io_utils
 
@@ -116,7 +117,7 @@ class Model(object):
         # First save the checkpoint as usual.
         self.save()
         # Freeze me, for I am infinite.
-        Model.freeze_model(self.ckpt_dir)
+        #Model.freeze_model(self.ckpt_dir)
         self.file_writer.close()
         self.sess.close()
 
@@ -127,6 +128,7 @@ class Model(object):
     @staticmethod
     def fill_params(dataset, model_params):
         """Assigns default values from DEFAULT_PARAMS for keys not in model_params."""
+
         filled_params = {**DEFAULT_PARAMS, **model_params}
         filled_params['max_seq_len']    = dataset.max_seq_len
         filled_params['vocab_size']     = dataset.vocab_size

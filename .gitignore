@@ -1,6 +1,3 @@
-flags.txt
-run.sh
-
 **/images/hidden/*
 
 # Note: Any leading '**' need to be followed by a '/'. 
@@ -17,7 +14,6 @@ run.sh
 .cache/**
 **/.cache/**
 **/notebooks/*.txt
-**/pretrained/**
 .DS*
 **/.DS*
 

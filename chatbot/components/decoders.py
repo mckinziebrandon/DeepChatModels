@@ -153,21 +153,21 @@ class Decoder(RNN):
         return self._projection
 
 
-class SimpleDecoder(Decoder):
+class BasicDecoder(Decoder):
 
     def __init__(self, state_size, output_size, embed_size,
                  dropout_prob=1.0, num_layers=2, temperature=0.0, max_seq_len=50):
-        super(SimpleDecoder, self).__init__(state_size, output_size, embed_size,
-                                             dropout_prob, num_layers, temperature, max_seq_len)
+        super(BasicDecoder, self).__init__(state_size, output_size, embed_size,
+                                           dropout_prob, num_layers, temperature, max_seq_len)
 
 
     def __call__(self, inputs, initial_state=None, is_chatting=False, loop_embedder=None, scope=None):
-        return super(SimpleDecoder, self).__call__("dynamic_rnn",
-                                                   inputs,
-                                                   initial_state=initial_state,
-                                                   is_chatting=is_chatting,
-                                                   loop_embedder=loop_embedder,
-                                                   scope=scope)
+        return super(BasicDecoder, self).__call__("dynamic_rnn",
+                                                  inputs,
+                                                  initial_state=initial_state,
+                                                  is_chatting=is_chatting,
+                                                  loop_embedder=loop_embedder,
+                                                  scope=scope)
 
 
 class AttentionDecoder(Decoder):
