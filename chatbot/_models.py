@@ -150,7 +150,6 @@ class Model(object):
         assert checkpoint_state is not None, "No ckpt files in %s." % model_dir
         frozen_file = os.path.join(model_dir, "frozen_model.pb")
 
-        print("mod", checkpoint_state.model_checkpoint_path)
         saver = tf.train.import_meta_graph(checkpoint_state.model_checkpoint_path+'.meta',
                                            clear_devices=True)
 
@@ -159,11 +158,11 @@ class Model(object):
         with tf.Session() as sess:
             saver.restore(sess, checkpoint_state.model_checkpoint_path)
             freezer = tf.get_collection('freezer')
-
             output_graph_def = tf.graph_util.convert_variables_to_constants(
                 sess,
                 input_graph_def,
                 freezer)
+
             with tf.gfile.GFile(frozen_file, 'wb') as f:
                 f.write(output_graph_def.SerializeToString())
             print("%d ops in the final graph." % len(output_graph_def.node))
