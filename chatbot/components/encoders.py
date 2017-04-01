@@ -1,11 +1,4 @@
 import tensorflow as tf
-import pdb
-from utils.io_utils import EOS_ID, UNK_ID, GO_ID, PAD_ID
-from tensorflow.contrib.tensorboard.plugins import projector
-from tensorflow.contrib.training import bucket_by_sequence_length
-from tensorflow.contrib.rnn import GRUCell, LSTMCell, MultiRNNCell
-from tensorflow.contrib.rnn import LSTMBlockFusedCell, LSTMBlockCell, GRUBlockCell
-from tensorflow.contrib.cudnn_rnn.python.ops import cudnn_rnn_ops
 from chatbot.components._rnn import RNN, Cell
 
 
