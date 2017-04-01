@@ -100,6 +100,25 @@ class TestDynamicModels(unittest.TestCase):
         self.assertTrue(bot.is_chatting)
         self.assertTrue(bot.decode)
 
+        print("Testing quick chat sesh . . . ")
+        config = io_utils.parse_config(flags)
+        dataset         = locate(config['dataset'])(config['dataset_params'])
+        user_input      = io_utils.get_sentence()
+        encoder_inputs  = io_utils.sentence_to_token_ids(
+            tf.compat.as_bytes(user_input),
+            dataset.word_to_idx
+        )
+        encoder_inputs = np.array([encoder_inputs[::-1]])
+        bot.pipeline._feed_dict = {
+            bot.pipeline.user_input: encoder_inputs
+        }
+
+        # Get output sentence from the chatbot.
+        _, _, response = bot.step(forward_only=True)
+        # response has shape [1, response_length] and it's last elemeot is EOS_ID. :)
+        print("Robot:", dataset.as_words(response[0][:-1]))
+
+
         # ================================================
         # 3. Freeze the chattable bot.
         # ================================================
@@ -113,16 +132,32 @@ class TestDynamicModels(unittest.TestCase):
         tf.reset_default_graph()
         self.log.info("Importing frozen graph into default . . . ")
         frozen_graph = bot_freezer.load_graph(bot.ckpt_dir)
-        for op in frozen_graph.get_operations():
-            self.log.info(op.name)
+        self._print_op_names(frozen_graph)
 
-        self.log.info("Checking graph for freezer collection . . . ")
-        freezer_collection = frozen_graph.get_collection("freezer")
-        self.log.info(freezer_collection)
+        self.log.info("Extracting input/output tensors.")
+        tensors = bot_freezer.unfreeze_bot(bot.ckpt_dir)
+        keys = ['user_input', 'encoder_inputs', 'outputs']
+        for k in keys:
+            self.assertIsNotNone(tensors[k])
 
-        #inputs, outputs = bot_freezer.unfreeze_bot(bot.ckpt_dir)
-        #self.assertIsNotNone(inputs)
-        #self.assertIsNotNone(outputs)
+
+        with tf.Session(graph=frozen_graph) as sess:
+            raw_input = io_utils.get_sentence()
+            encoder_inputs  = io_utils.sentence_to_token_ids(
+            tf.compat.as_bytes(raw_input),
+            dataset.word_to_idx
+            )
+            encoder_inputs = np.array([encoder_inputs[::-1]])
+            feed_dict = {tensors['user_input'].name: encoder_inputs}
+            plz = sess.run(tensors['outputs'], feed_dict=feed_dict)
+            print('plz:', plz)
+
+
+
+    def _print_op_names(self, g):
+        print("List of Graph Ops:")
+        for op in g.get_operations():
+            print(op.name)
 
     def _quick_train(self, bot):
         """Quickly train manually on some test data."""

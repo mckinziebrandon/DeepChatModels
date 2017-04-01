@@ -162,8 +162,10 @@ class Model(object):
 
         # TODO: Need to ensure batch size set to 1 before freezing.
         checkpoint_state    = tf.train.get_checkpoint_state(self.ckpt_dir)
-        output_fname         = os.path.join(self.ckpt_dir, "frozen_model.pb")
-        output_node_names = "inputs,outputs"
+        output_fname        = os.path.join(self.ckpt_dir, "frozen_model.pb")
+        output_node_names   = ("{0}/user_input,"
+                               "{0}/encoder_inputs,"
+                               "{0}/outputs".format("freezer"))
         saver = tf.train.import_meta_graph(checkpoint_state.model_checkpoint_path+'.meta',
                                            clear_devices=True)
 

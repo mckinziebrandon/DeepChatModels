@@ -51,9 +51,10 @@ def unfreeze_bot(frozen_model_path):
     """
 
     bot_graph   = load_graph(frozen_model_path)
-    inputs      = bot_graph.get_tensor_by_name("import/freezer/inputs:0")
-    outputs     = bot_graph.get_tensor_by_name("import/freezer/outputs:0")
-    return inputs, outputs
+    keys = ['user_input', 'encoder_inputs', 'outputs']
+    tensors = {k: bot_graph.get_tensor_by_name('import/freezer/{}:0'.format(k))
+               for k in keys}
+    return tensors
 
 
 def unfreeze_and_chat(config):
