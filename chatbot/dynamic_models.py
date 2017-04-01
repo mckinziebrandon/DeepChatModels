@@ -254,8 +254,8 @@ class DynamicBot(Model):
             # rebuild it so that it's ready for chatting when unfreezed,
             # to make it easier for the user. Training can still be resumed
             # with no issue since it doesn't load frozen models, just ckpts.
-            self._set_chat_params()
-            self.build_computation_graph(self.dataset)
+            #self._set_chat_params()
+            #self.build_computation_graph(self.dataset)
             self.close()
 
     def _set_chat_params(self):
