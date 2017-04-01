@@ -1,8 +1,8 @@
-import copy
 import tensorflow as tf
-from chatbot.components._rnn import RNN, Cell
-from chatbot.components.google_base import Encoder, EncoderOutput
-from tensorflow.contrib.rnn import GRUCell, LSTMCell, MultiRNNCell
+from tensorflow.contrib.rnn import GRUCell
+
+from chatbot.components.base import Encoder
+from chatbot.components.base._rnn import RNN
 
 
 class BasicEncoder(RNN):

@@ -33,7 +33,7 @@ class TestConfig(unittest.TestCase):
         self.log = logging.getLogger('TestRNNLogger')
 
     def test_path(self):
-        conf_path = os.path.abspath('../basic_config.yml')
+        conf_path = os.path.abspath('../test_config.yml')
         with tf.gfile.GFile(conf_path) as file:
             config_dict = yaml.load(file)
 

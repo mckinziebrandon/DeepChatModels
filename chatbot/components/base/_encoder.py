@@ -4,14 +4,14 @@ Abstract base class for encoders.
 
 from collections import namedtuple
 from abc import abstractmethod
-from chatbot.components.google_base import GraphModule, Configurable
+from chatbot.components.base import GraphComponent, Component
 
 EncoderOutput = namedtuple(
     "EncoderOutput",
     "outputs final_state attention_values attention_values_length")
 
 
-class Encoder(GraphModule, Configurable):
+class Encoder(GraphComponent, Component):
     """Abstract encoder class. All encoders should inherit from this.
 
     Args:
@@ -20,8 +20,8 @@ class Encoder(GraphModule, Configurable):
     """
 
     def __init__(self, params, name):
-        GraphModule.__init__(self, name)
-        Configurable.__init__(self, params)
+        GraphComponent.__init__(self, name)
+        Component.__init__(self, params)
 
     def _build(self, inputs, *args, **kwargs):
         return self(inputs, *args, **kwargs)
