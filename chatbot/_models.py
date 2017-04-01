@@ -29,7 +29,6 @@ DEFAULT_PARAMS = {
     "decode": False,
     "batch_size": 256,
     "dropout_prob": 0.2,
-    "state_size": 512,
     "embed_size": 64,
     "learning_rate": 0.01,
     "l1_reg": 1e-6,
@@ -40,6 +39,7 @@ DEFAULT_PARAMS = {
     "optimizer": "Adam",
     "reset_model": True,
     "sampled_loss": False,
+    "state_size": 512,
     "steps_per_ckpt": 200,
     "temperature": 0.0,
 }
