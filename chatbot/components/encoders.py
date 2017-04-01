@@ -1,5 +1,38 @@
+import copy
 import tensorflow as tf
 from chatbot.components._rnn import RNN, Cell
+from chatbot.components.google_base import Encoder, EncoderOutput
+from tensorflow.contrib.rnn import GRUCell, LSTMCell, MultiRNNCell
+
+
+def _default_encoder_params():
+    return {
+      "cell_class": "GRUCell",
+      "cell_params": {
+          "num_units": 512
+      },
+      "dropout_input_keep_prob": 1.0,
+      "dropout_output_keep_prob": 1.0,
+      "num_layers": 1,
+    }
+
+
+class UniEncoder(Encoder):
+    def __init__(self, params, mode, name="forward_rnn_encoder"):
+        super(UniEncoder, self).__init__(params, mode, name)
+
+    @staticmethod
+    def default_params():
+        return {"rnn_cell": _default_encoder_params()}
+
+    def __call__(self, inputs, **kwargs):
+        scope = tf.get_variable_scope()
+        scope.set_initializer(tf.random_uniform_initializer(-0.04, 0.04))
+        cell = GRUCell(512)
+        _, state = tf.nn.dynamic_rnn(cell,
+                                     inputs,
+                                     dtype=tf.float32)
+        return None, state
 
 
 class BasicEncoder(RNN):
