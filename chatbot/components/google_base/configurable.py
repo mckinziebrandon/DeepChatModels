@@ -79,7 +79,7 @@ def _parse_params(params, default_params):
     return result
 
 
-class Configurable(metaclass=ABCMeta):
+class Configurable(object):
     """Interface for all classes that are configurable
     via a parameters dictionary.
 
@@ -96,7 +96,7 @@ class Configurable(metaclass=ABCMeta):
         classname = self.__class__.__name__
         tf.logging.info("\n%s", yaml.dump({classname: self._params}))
 
-    @abstractproperty
+    @property
     def params(self):
         """Returns a dictionary of parsed parameters."""
         return self._params

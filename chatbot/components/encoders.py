@@ -5,46 +5,6 @@ from chatbot.components.google_base import Encoder, EncoderOutput
 from tensorflow.contrib.rnn import GRUCell, LSTMCell, MultiRNNCell
 
 
-def _default_encoder_params():
-    return {
-        "cell_class": "GRUCell",
-        "cell_params": {
-          "num_units": 512
-        },
-        "dropout_input_keep_prob": 1.0,
-        "dropout_output_keep_prob": 1.0,
-        "num_layers": 1,
-        "state_size": 512,
-        "embed_size": 64,
-        "dropout_prob": 0.2,
-        "num_layers": 3
-    }
-
-
-class UniEncoder(Encoder):
-    #def __init__(self, params, mode, name="forward_rnn_encoder"):
-    def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2):
-        params = self.default_params()
-        params['rnn_cell']['state_size'] = state_size
-        params['rnn_cell']['embed_size'] = embed_size
-        params['rnn_cell']['dropout_prob'] = dropout_prob
-        params['rnn_cell']['num_layers'] = num_layers
-        super(UniEncoder, self).__init__(params, "uniencoder")
-
-    @staticmethod
-    def default_params():
-        return {"rnn_cell": _default_encoder_params()}
-
-    def __call__(self, inputs, **kwargs):
-        scope = tf.get_variable_scope()
-        scope.set_initializer(tf.random_uniform_initializer(-0.04, 0.04))
-        cell = GRUCell(512)
-        _, state = tf.nn.dynamic_rnn(cell,
-                                     inputs,
-                                     dtype=tf.float32)
-        return None, state
-
-
 class BasicEncoder(RNN):
     def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2):
         """
@@ -119,6 +79,37 @@ class BidirectionalEncoder(RNN):
                                     bridge,
                                     name="final_state_matmul")
             return outputs, final_state
+
+
+class UniEncoder(Encoder):
+    def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2):
+        params = self.default_params()
+        params['rnn_cell']['state_size'] = state_size
+        params['rnn_cell']['embed_size'] = embed_size
+        params['rnn_cell']['dropout_prob'] = dropout_prob
+        params['rnn_cell']['num_layers'] = num_layers
+        super(UniEncoder, self).__init__(params, "uniencoder")
+
+    @staticmethod
+    def default_params():
+        return {"rnn_cell": {"cell_class": "GRUCell",
+                             "cell_params": {"num_units": 512},
+                             "dropout_input_keep_prob": 1.0,
+                             "dropout_output_keep_prob": 1.0,
+                             "num_layers": 1,
+                             "state_size": 512,
+                             "embed_size": 64,
+                             "dropout_prob": 0.2,
+                             "num_layers": 3}}
+
+    def __call__(self, inputs, initial_state=None, scope=None):
+        scope = scope or tf.get_variable_scope()
+        scope.set_initializer(tf.random_uniform_initializer(-0.04, 0.04))
+        cell = GRUCell(512)
+        _, state = tf.nn.dynamic_rnn(cell,
+                                     inputs,
+                                     dtype=tf.float32)
+        return None, state
 
 
 

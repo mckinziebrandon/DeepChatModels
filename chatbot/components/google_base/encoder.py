@@ -4,8 +4,7 @@ Abstract base class for encoders.
 
 from collections import namedtuple
 from abc import abstractmethod
-from seq2seq.configurable import Configurable
-from seq2seq.graph_module import GraphModule
+from chatbot.components.google_base import GraphModule, Configurable
 
 EncoderOutput = namedtuple(
     "EncoderOutput",
