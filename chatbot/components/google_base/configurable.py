@@ -19,22 +19,9 @@ a parameters dictionary.
 import abc
 import copy
 from pydoc import locate
-
-import six
+from abc import ABCMeta, abstractmethod, abstractproperty
 import yaml
-
 import tensorflow as tf
-
-
-class abstractstaticmethod(staticmethod):
-    """Decorates a method as abstract and static"""
-    __slots__ = ()
-
-    def __init__(self, function):
-        super(abstractstaticmethod, self).__init__(function)
-        function.__isabstractmethod__ = True
-
-    __isabstractmethod__ = True
 
 
 def _create_from_dict(dict_, default_module, *args, **kwargs):
@@ -54,7 +41,7 @@ def _maybe_load_yaml(item):
     """Parses `item` only if it is a string. If `item` is a dictionary
     it is returned as-is.
     """
-    if isinstance(item, six.string_types):
+    if isinstance(item, str):
         return yaml.load(item)
     elif isinstance(item, dict):
         return item
@@ -105,8 +92,7 @@ def _parse_params(params, default_params):
     return result
 
 
-@six.add_metaclass(abc.ABCMeta)
-class Configurable(object):
+class Configurable(metaclass=ABCMeta):
     """Interface for all classes that are configurable
     via a parameters dictionary.
 
@@ -126,17 +112,18 @@ class Configurable(object):
         tf.logging.info("Creating %s in mode=%s", classname, self._mode)
         tf.logging.info("\n%s", yaml.dump({classname: self._params}))
 
-    @property
+    @abstractproperty
     def mode(self):
         """Returns a value in tf.contrib.learn.ModeKeys."""
         return self._mode
 
-    @property
+    @abstractproperty
     def params(self):
         """Returns a dictionary of parsed parameters."""
         return self._params
 
-    @abstractstaticmethod
+    @staticmethod
+    @abstractmethod
     def default_params():
         """Returns a dictionary of default parameters. The default parameters
         are used to define the expected type of passed parameters. Missing
