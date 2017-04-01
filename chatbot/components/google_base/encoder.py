@@ -20,23 +20,13 @@ class Encoder(GraphModule, Configurable):
     name: A variable scope for the encoder graph.
     """
 
-    def __init__(self, params, mode, name):
+    def __init__(self, params, name):
         GraphModule.__init__(self, name)
-        Configurable.__init__(self, params, mode)
+        Configurable.__init__(self, params)
 
     def _build(self, inputs, *args, **kwargs):
         return self(inputs, *args, **kwargs)
 
     @abstractmethod
-    def __call__(self, *args, **kwargs):
-        """
-        Encodes an input sequence.
-
-        Args:
-          inputs: The inputs to encode. A float32 tensor of shape [B, T, ...].
-          sequence_length: The length of each input. An int32 tensor of shape [T].
-
-        Returns:
-          An `EncoderOutput` tuple containing the outputs and final state.
-        """
+    def __call__(self, *args):
         raise NotImplementedError

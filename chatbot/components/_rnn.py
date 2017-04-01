@@ -57,3 +57,6 @@ class RNN(object):
             return Cell(self.state_size, self.num_layers,
                         dropout_prob=self.dropout_prob)
 
+    def __call__(self, *args):
+        raise NotImplemented
+

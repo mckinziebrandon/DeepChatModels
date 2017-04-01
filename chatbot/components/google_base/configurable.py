@@ -1,16 +1,3 @@
-# Copyright 2017 Google Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 """
 Abstract base class for objects that are configurable using
 a parameters dictionary.
@@ -98,24 +85,16 @@ class Configurable(metaclass=ABCMeta):
 
     Args:
     params: A dictionary of parameters.
-    mode: A value in tf.contrib.learn.ModeKeys
     """
 
-    def __init__(self, params, mode):
+    def __init__(self, params):
         self._params = _parse_params(params, self.default_params())
-        self._mode = mode
         self._print_params()
 
     def _print_params(self):
         """Logs parameter values"""
         classname = self.__class__.__name__
-        tf.logging.info("Creating %s in mode=%s", classname, self._mode)
         tf.logging.info("\n%s", yaml.dump({classname: self._params}))
-
-    @abstractproperty
-    def mode(self):
-        """Returns a value in tf.contrib.learn.ModeKeys."""
-        return self._mode
 
     @abstractproperty
     def params(self):
