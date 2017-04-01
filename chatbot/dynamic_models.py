@@ -90,8 +90,6 @@ class DynamicBot(Model):
         # Explicitly tag inputs and outputs by name should we want to freeze the model.
         inputs  = tf.identity(self.encoder_inputs, name="inputs")
         outputs = tf.identity(decoder_outputs, name="outputs")
-        tf.add_to_collection("freezer", inputs)
-        tf.add_to_collection("freezer", outputs)
 
         # Merge any summaries floating around in the aether into one object.
         self.merged = tf.summary.merge_all()
