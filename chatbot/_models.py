@@ -78,13 +78,15 @@ class Model(object):
         """ Configure training process and initialize model. Inspired by Keras.
 
         Either restore model parameters or create fresh ones.
-            - Checks if we can both (1) find a checkpoint state, and (2) a valid V1/V2 checkpoint path.
+            - Checks if we can both (1) find a checkpoint state, and (2) a
+            valid V1/V2 checkpoint path.
             - If we can't, then just re-initialize model with fresh params.
         """
         print("Checking for checkpoints . . .")
         checkpoint_state  = tf.train.get_checkpoint_state(self.ckpt_dir)
         # Note: If you want to prevent from loading models trained on different dataset,
-        # you should store them in their own out/dataname folder, and pass that as the ckpt_dir to config.
+        # you should store them in their own out/dataname folder, and pass that as
+        # the ckpt_dir to config.
         if not self.reset_model and checkpoint_state \
                 and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
             print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)

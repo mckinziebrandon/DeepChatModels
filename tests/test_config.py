@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore", message="numpy.dtype size changed")
 # Allow user to override config values with command-line args.
 # All test_flags with default as None are not accessed unless set.
 test_flags = tf.app.flags
-test_flags.DEFINE_string("config", "configs/default.yml", "path to config (.yml) file. Defaults to DynamicBot on Cornell.")
+test_flags.DEFINE_string("config", "configs/default.yml", "path to config (.yml) file.")
 test_flags.DEFINE_string("model", "{}", "Options: chatbot.{DynamicBot,Simplebot,ChatBot}.")
 test_flags.DEFINE_string("model_params", "{}", "")
 test_flags.DEFINE_string("dataset", "{}", "Options: data.{Cornell,Ubuntu,WMT}.")

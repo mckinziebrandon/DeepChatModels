@@ -68,8 +68,10 @@ def unfreeze_and_chat(config):
 
     # We still need to translate the bot outputs (tokens) to english, for
     # simple humans to understand.
-    from_vocab_path = os.path.join(config['data_dir'], 'vocab%d.from' % config['vocab_size'])
-    to_vocab_path   = os.path.join(config['data_dir'], 'vocab%d.to' % config['vocab_size'])
+    from_vocab_path = os.path.join(config['data_dir'],
+                                   'vocab%d.from' % config['vocab_size'])
+    to_vocab_path   = os.path.join(config['data_dir'],
+                                   'vocab%d.to' % config['vocab_size'])
     word_to_idx, _  = io_utils.get_vocab_dicts(from_vocab_path)
     _, idx_to_word  = io_utils.get_vocab_dicts(to_vocab_path)
 
