@@ -66,7 +66,7 @@ def yaml_to_dict(config_path):
 
 
 def flags_to_dict(flags):
-    """Builds and return a dictionary from flags keys, namely
+    """Builds and return a dictionary from test_flags keys, namely
        'model', 'dataset', 'model_params', 'dataset_params'.
     """
     flags_dict = {}
@@ -78,12 +78,12 @@ def flags_to_dict(flags):
 
 
 def parse_config(flags):
-    """Get configuration information from FLAGS, namely:
+    """Get configuration information from TEST_FLAGS, namely:
         1. any configuration file (.yml) paths.
         2. any dictionaries defined by user at command-line.
 
     Args:
-        flags: tf.app.flags instance. Assumes supports keys from main, namely
+        flags: tf.app.test_flags instance. Assumes supports keys from main, namely
                 model, dataset, model_params, dataset_params.
 
     Returns:

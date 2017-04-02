@@ -6,6 +6,7 @@ model_params:
   embed_size: 64
   vocab_size: 100
   ckpt_dir: out/test_data
+  num_layers: 1
   steps_per_ckpt: 100
   decode: False
   reset_model: True

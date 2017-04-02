@@ -1,12 +1,8 @@
 import tensorflow as tf
-import pdb
-from utils.io_utils import EOS_ID, UNK_ID, GO_ID, PAD_ID
-from tensorflow.contrib.tensorboard.plugins import projector
-from tensorflow.contrib.training import bucket_by_sequence_length
-from tensorflow.contrib.rnn import GRUCell, LSTMCell, MultiRNNCell
-from tensorflow.contrib.rnn import LSTMBlockFusedCell, LSTMBlockCell, GRUBlockCell
-from tensorflow.contrib.cudnn_rnn.python.ops import cudnn_rnn_ops
-from chatbot.components._rnn import RNN, Cell
+from tensorflow.contrib.rnn import GRUCell
+
+from chatbot.components.base import Encoder
+from chatbot.components.base._rnn import RNN
 
 
 class BasicEncoder(RNN):
@@ -66,17 +62,54 @@ class BidirectionalEncoder(RNN):
 
             cell_fw = self.get_cell("cell_fw")
             cell_bw = self.get_cell("cell_bw")
-            outputs_tuple, states_tuple =  tf.nn.bidirectional_dynamic_rnn(
+            outputs_tuple, _ =  tf.nn.bidirectional_dynamic_rnn(
                 cell_fw=cell_fw,
                 cell_bw=cell_bw,
                 inputs=inputs,
                 dtype=tf.float32)
 
+            # This is not the best way to convert shapes, but it works.
+            # TODO: improve this please.
             outputs = tf.concat(outputs_tuple, 2)
-            state = tf.concat(states_tuple, 2)
-            print("outputs:\n", outputs)
-            print("state:\n", state)
-            return outputs, state
+            final_state = outputs[:, -1, :]  # [batch_size, 2*state_size]
+            bridge = tf.get_variable("bridge",
+                                     [2*self.state_size, self.state_size],
+                                     dtype=final_state.dtype)
+            final_state = tf.matmul(final_state,
+                                    bridge,
+                                    name="final_state_matmul")
+            return outputs, final_state
+
+
+class UniEncoder(Encoder):
+    def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2):
+        params = self.default_params()
+        params['rnn_cell']['state_size'] = state_size
+        params['rnn_cell']['embed_size'] = embed_size
+        params['rnn_cell']['dropout_prob'] = dropout_prob
+        params['rnn_cell']['num_layers'] = num_layers
+        super(UniEncoder, self).__init__(params, "uniencoder")
+
+    @staticmethod
+    def default_params():
+        return {"rnn_cell": {"cell_class": "GRUCell",
+                             "cell_params": {"num_units": 512},
+                             "dropout_input_keep_prob": 1.0,
+                             "dropout_output_keep_prob": 1.0,
+                             "num_layers": 1,
+                             "state_size": 512,
+                             "embed_size": 64,
+                             "dropout_prob": 0.2,
+                             "num_layers": 3}}
+
+    def __call__(self, inputs, initial_state=None, scope=None):
+        scope = scope or tf.get_variable_scope()
+        scope.set_initializer(tf.random_uniform_initializer(-0.04, 0.04))
+        cell = GRUCell(512)
+        _, state = tf.nn.dynamic_rnn(cell,
+                                     inputs,
+                                     dtype=tf.float32)
+        return None, state
 
 
 

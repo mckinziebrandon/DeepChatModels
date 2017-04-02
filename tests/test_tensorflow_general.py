@@ -6,16 +6,19 @@ import unittest
 import tensorflow as tf
 import numpy as np
 import time
-from utils.io_utils import *
 from chatbot import DynamicBot
 from data import Cornell, Ubuntu, TestData
+from chatbot.components import bot_ops
+from utils import io_utils
+from utils import bot_freezer
 
-import warnings
-warnings.filterwarnings("ignore", message="numpy.dtype size changed")
-
-TEMP="/home/brandon/terabyte/Datasets/ubuntu_dialogue_corpus"
-BASE='/home/brandon/Documents/seq2seq_projects/tests'
-
+test_flags = tf.app.flags
+test_flags.DEFINE_string("config", "configs/test_config.yml", "path to config (.yml) file.")
+test_flags.DEFINE_string("model", "{}", "Options: chatbot.{DynamicBot,Simplebot,ChatBot}.")
+test_flags.DEFINE_string("model_params", "{}", "")
+test_flags.DEFINE_string("dataset", "{}", "Options: data.{Cornell,Ubuntu,WMT}.")
+test_flags.DEFINE_string("dataset_params", "{}", "")
+TEST_FLAGS = test_flags.FLAGS
 
 class TestTFGeneral(unittest.TestCase):
     """ --------  Notes: unittest module. --------
@@ -194,46 +197,6 @@ class TestTFGeneral(unittest.TestCase):
             coord.join(threads)
 
 
-class TestRNN(unittest.TestCase):
-    """Test behavior of tf.contrib.rnn after migrating to r1.0."""
-
-    def setUp(self):
-        self.batch_size = 32
-        self.input_size = 1000
-        self.seq_len = 20
-        logging.basicConfig(level=logging.INFO)
-        self.log = logging.getLogger('TestRNNLogger')
-
-    def test_static_rnn(self):
-        self.log.info("\n")
-
-        with tf.variable_scope("inputs"):
-            inp_name = "static_rnn_input"
-            inp_shape = [self.batch_size, self.input_size]
-            inputs = [tf.placeholder(tf.float32, inp_shape, inp_name+str(i))
-                           for i in range(self.seq_len)]
-
-        with tf.variable_scope("encoder"):
-            basic_cell = tf.contrib.rnn.BasicRNNCell(num_units=128)
-            # static_rnn creates the network and returns the list of outputs at each step,
-            # and the final state in Tensor form.
-            encoder_outputs, encoder_state = tf.contrib.rnn.static_rnn(basic_cell,
-                                                                       inputs,
-                                                                       dtype=tf.float32)
-            self.log.info("\nType information:")
-            self.log.info("\ttype(encoder_outputs): {}".format(type(encoder_outputs)))
-            self.log.info("\ttype(encoder_state): {}".format(type(encoder_state)))
-
-    def test_dynamic_rnn(self):
-        basic_cell = tf.contrib.rnn.BasicRNNCell(num_units=128)
-
-        inputs = tf.placeholder(tf.float32, [self.batch_size, self.seq_len, self.input_size])
-        # "fully dynamic unrolling of inputs."
-        outputs, state = tf.nn.dynamic_rnn(basic_cell,
-                                           inputs,
-                                           dtype=tf.float32)
-
-
 class TestTensorflowSaver(unittest.TestCase):
 
     def test_simple_save(self):
@@ -279,20 +242,58 @@ class TestTensorflowSaver(unittest.TestCase):
         tf.add_to_collection(name="test_save_placeholder", value=[place_holder,place_holder_2])
 
 
-    def test_freezer(self):
-        """Simple start-to-finish testing of tensorflow model freezing."""
+class TestGraphOps(unittest.TestCase):
 
-        batch_size = 32
-        state_size = 512
-        vocab_size = 1000
-        inputs = tf.placeholder(dtype=tf.int32, shape=(batch_size, state_size))
-        h = tf.add(inputs, 42)
-        y = tf.multiply(h, 3)
+    def setUp(self):
+        logging.basicConfig(level=logging.INFO)
+        self.log = logging.getLogger('TestGraphOps')
+        self._build_simple_graph()
+
+    def _build_simple_graph(self):
+
+        self.batch_size = 32
+        self.state_size = 512
+        self.vocab_size = 1000
+        self.x = tf.placeholder(dtype=tf.int32,
+                                shape=(self.batch_size, self.state_size),
+                                name="x")
+        self.W = tf.get_variable(name="W",
+                                 shape=(self.state_size, self.vocab_size),
+                                 dtype=tf.float32)
+        self.h = tf.matmul(tf.cast(self.x, tf.float32), self.W)
+        self.y = tf.add(self.h, 2., name="y")
+
+    def _print_op_names(self, g):
+        print("List of Graph Ops:")
+        for op in g.get_operations():
+            print(op.name)
+
+    def test_collections(self):
+        g = tf.get_default_graph()
+        self._print_op_names(g)
+
+        collection_name = "test_coll"
+        print("Adding x and y to collection %s" % collection_name)
+        tf.add_to_collection(collection_name, self.x)
+        tf.add_to_collection(collection_name, self.y)
+
+        print("All collection keys:")
+        print(g.get_all_collection_keys())
+
+        print("tf.get_collection({}) = {}".format(
+            collection_name, tf.get_collection(collection_name)
+        ))
 
 
-        with tf.Session() as sess:
-            x = np.random.randint(vocab_size, size=(batch_size, state_size))
-            print(sess.run(y, {inputs: x}))
+    def test_load(self):
+
+        config = io_utils.parse_config(TEST_FLAGS)
+        frozen_graph = bot_freezer.load_graph(config['model_params']['ckpt_dir'])
+        self._print_op_names(frozen_graph)
+
+        print("frozen_graph:\n", frozen_graph)
+        print("frozen_graph.get_all_collection_keys() =",
+              frozen_graph.get_all_collection_keys())
 
 
 if __name__ == '__main__':

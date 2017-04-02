@@ -29,7 +29,6 @@ DEFAULT_PARAMS = {
     "decode": False,
     "batch_size": 256,
     "dropout_prob": 0.2,
-    "state_size": 512,
     "embed_size": 64,
     "learning_rate": 0.01,
     "l1_reg": 1e-6,
@@ -40,6 +39,7 @@ DEFAULT_PARAMS = {
     "optimizer": "Adam",
     "reset_model": True,
     "sampled_loss": False,
+    "state_size": 512,
     "steps_per_ckpt": 200,
     "temperature": 0.0,
 }
@@ -70,6 +70,7 @@ class Model(object):
         # Good practice to set as None in constructor.
         self.loss               = None
         self.file_writer        = None
+        self.merged             = None
         self.train_op           = None
         self.saver              = None
 
@@ -161,8 +162,10 @@ class Model(object):
 
         # TODO: Need to ensure batch size set to 1 before freezing.
         checkpoint_state    = tf.train.get_checkpoint_state(self.ckpt_dir)
-        output_fname         = os.path.join(self.ckpt_dir, "frozen_model.pb")
-        output_node_names = "inputs,outputs"
+        output_fname        = os.path.join(self.ckpt_dir, "frozen_model.pb")
+        output_node_names   = ("{0}/user_input,"
+                               "{0}/encoder_inputs,"
+                               "{0}/outputs".format("freezer"))
         saver = tf.train.import_meta_graph(checkpoint_state.model_checkpoint_path+'.meta',
                                            clear_devices=True)
 
@@ -302,40 +305,6 @@ class BucketModel(Model):
           bucket_id: which bucket of the model to use.
         """
         raise NotImplemented
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

@@ -1,3 +1,4 @@
+experimental.sh
 **/images/hidden/*
 
 # Note: Any leading '**' need to be followed by a '/'. 
