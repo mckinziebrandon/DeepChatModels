@@ -53,10 +53,32 @@ def get_sentence(lower=True):
     else: return sentence.lower()
 
 
+def get_yaml_config(path):
+    with open(path) as file:
+        config = yaml.load(file)
+    return config
+
+
+def load_pretrained_config(pretrained_dir):
+    config_path = os.path.join(pretrained_dir, "config.yml")
+    config = get_yaml_config(config_path)
+    # The loaded config will have "training" values, so we need
+    # to set some of them to "chatting" values, instead of requiring
+    # user to specify them (since they are mandatory for any chat sesion).
+    config['model_params']['decode']        = True
+    config['model_params']['is_chatting']   = True  # alias
+    config['model_params']['reset_model']   = False
+    return config
+
+
 def flags_to_dict(flags):
     """Builds and return a dictionary from test_flags keys, namely
        'model', 'dataset', 'model_params', 'dataset_params'.
     """
+
+    if flags.pretrained_dir is not None:
+        return load_pretrained_config(flags.pretrained_dir)
+
     flags_dict = {}
     for stream in DEFAULT_FULL_CONFIG:
         yaml_stream = yaml.load(getattr(flags, stream))
@@ -108,7 +130,7 @@ def parse_config(flags):
 
     config = flags_to_dict(flags)
     if flags.config is not None:
-        with open(flags.config) as f: yaml_config = yaml.load(f)
+        yaml_config = get_yaml_config(flags.config)
         config = merge_dicts(default_dict=yaml_config, preference_dict=config)
     else:
         # Get mandatory info from user.

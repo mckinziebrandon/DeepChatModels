@@ -17,7 +17,7 @@ Typical use cases:
 
     3.  Load a pretrained model that was saved in path_to/pretrained_dir,
         which is assumed to be relative to the project root.
-            ./main.py --load_pretrained path_to/pretrained_dir
+            ./main.py --pretrained_dir path_to/pretrained_dir
 
 """
 
@@ -25,6 +25,7 @@ from chatbot import DynamicBot, ChatBot, SimpleBot
 from data import Cornell, Ubuntu, WMT, Reddit, TestData
 from pprint import pprint
 from utils import io_utils
+import os
 import tensorflow as tf
 from pydoc import locate
 
@@ -34,7 +35,7 @@ from pydoc import locate
 # Allow user to override config values with command-line args.
 # All test_flags with default as None are not accessed unless set.
 flags = tf.app.flags
-flags.DEFINE_string("load_pretrained", None, "path to pretrained model dir.")
+flags.DEFINE_string("pretrained_dir", None, "path to pretrained model dir.")
 flags.DEFINE_string("config", None, "path to config (.yml) file.")
 flags.DEFINE_string("model", "{}", "Options: chatbot.{DynamicBot,Simplebot,ChatBot}.")
 flags.DEFINE_string("model_params", "{}", "")
@@ -72,7 +73,10 @@ def main(argv):
     # If user specified non-default model params, show them the result.
     if FLAGS.model_params != "{}":
         pprint("Model parameters:\n%r" % config['model_params'], compact=True)
-
+    # If loading from pretrained, double-check that certain values are correct.
+    if FLAGS.pretrained_dir is not None:
+        assert config['model_params']['decode'] \
+               and not config['model_params']['reset_model']
 
     print("Setting up %s dataset." % config['dataset'])
     dataset = locate(config['dataset'])(config['dataset_params'])
