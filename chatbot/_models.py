@@ -105,7 +105,7 @@ class Model(object):
         # First save the checkpoint as usual.
         self.save()
         # Store full model specifications in ckpt dir for easy loading.
-        with open(os.path.join(self.ckpt_dir, 'config.yml'), 'w') as f:
+        with open(str(os.path.join(self.ckpt_dir, 'config.yml')), 'w') as f:
             yaml.dump(getattr(self, "params"), f, default_flow_style=False)
         # Freeze me, for I am infinite.
         self.freeze()
@@ -159,7 +159,8 @@ class Model(object):
 
     def __getattr__(self, name):
         if name == 'params':
-            return self.__dict__['__params']
+            replace_dict = {'dataset': "data."+self.data_name.title()}
+            return {**self.__dict__['__params'], **replace_dict}
         elif name in DEFAULT_FULL_CONFIG: # Requesting a top-level key.
             return self.__dict__['__params'][name]
         else:
