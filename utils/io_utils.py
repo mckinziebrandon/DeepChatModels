@@ -7,12 +7,14 @@ import os
 import re
 import sys
 import yaml
+import copy
 import pandas as pd
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.python.platform import gfile
 from collections import Counter
+from tensorflow.python.platform import gfile
+from chatbot.globals import DEFAULT_FULL_CONFIG
 
 
 # Special vocabulary symbols.
@@ -32,8 +34,6 @@ UNK_ID  = 3
 _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
 _DIGIT_RE   = re.compile(br"\d")
 
-utils_dir = os.path.dirname(os.path.realpath(__file__))
-
 
 def save_hyper_params(hyper_params, fname):
     # Append to file if exists, else create.
@@ -42,27 +42,15 @@ def save_hyper_params(hyper_params, fname):
         df.to_csv(f, header=False)
 
 
-def get_sentence():
+def get_sentence(lower=True):
     """Simple function to prompt user for input and return it w/o newline.
     Frequently used in chat sessions, of course.
     """
     sys.stdout.write("Human: ")
     sys.stdout.flush()
-    return sys.stdin.readline().strip().lower() # Could just use input() ...
-
-
-def yaml_to_dict(config_path):
-    """
-    Args:
-        config_path: (str) location of [my config].yml file, relative to project root.
-
-    Returns:
-        configs: dictionary of (hyper)parameters for models/directories.
-    """
-    config_path = os.path.join(utils_dir, '../configs', os.path.basename(config_path))
-    with tf.gfile.GFile(config_path) as config_file:
-        configs = yaml.load(config_file)
-    return configs
+    sentence = sys.stdin.readline().strip() # Could just use input() ...
+    if not lower: return sentence
+    else: return sentence.lower()
 
 
 def flags_to_dict(flags):
@@ -70,11 +58,38 @@ def flags_to_dict(flags):
        'model', 'dataset', 'model_params', 'dataset_params'.
     """
     flags_dict = {}
-    for stream in ['model', 'dataset', 'model_params', 'dataset_params']:
-        yaml_stream = yaml.load(flags.__dict__['__flags'][stream])
+    for stream in DEFAULT_FULL_CONFIG:
+        yaml_stream = yaml.load(getattr(flags, stream))
         if yaml_stream:
             flags_dict.update({stream: yaml_stream})
+        elif stream in ['model_params', 'dataset_params']:
+            flags_dict[stream] = {}
     return flags_dict
+
+
+def merge_dicts(default_dict, preference_dict):
+    """ Preferentially (and recursively) merge input dictionaries.
+        - Ensures that all values in preference dict are used, and
+          all other (i.e. unspecified) items are from default dict.
+        - Updates default_dict to have the correct values, and
+          returns the updated default_dict when done.
+    """
+
+    merged_dict = copy.deepcopy(default_dict)
+    for pref_key in preference_dict:
+        if isinstance(preference_dict[pref_key], dict) and pref_key in merged_dict:
+            # Dictionaries are expected to have the same type structure.
+            # So if any preference_dict[key] is a dict, then requre default_dict[key]
+            # must also be a dict (if it exists, that is).
+            assert isinstance(merged_dict[pref_key], dict), \
+            "Expected default_dict[%r]=%r to have type dict." % \
+            (pref_key, merged_dict[pref_key])
+            # Since these are both dictionaries, can just recurse.
+            merged_dict[pref_key] = merge_dicts(merged_dict[pref_key],
+                                                 preference_dict[pref_key])
+        else:
+            merged_dict[pref_key] = preference_dict[pref_key]
+    return merged_dict
 
 
 def parse_config(flags):
@@ -91,20 +106,22 @@ def parse_config(flags):
         params on command-line (over .yml config files).
     """
 
-    yaml_config = yaml_to_dict(flags.config)
-    flags_dict = flags_to_dict(flags)
-    merged_dict = dict()
-    for key in yaml_config:
-        if isinstance(yaml_config[key], dict):
-            if key in flags_dict:
-                merged_dict.update(
-                    {key: {**yaml_config[key], **flags_dict[key]}})
-            else:
-                merged_dict.update(
-                    {key: yaml_config[key]})
-        else:
-            merged_dict.update({key: yaml_config[key]})
-    return merged_dict
+    config = flags_to_dict(flags)
+    if flags.config is not None:
+        with open(flags.config) as f: yaml_config = yaml.load(f)
+        config = merge_dicts(default_dict=yaml_config, preference_dict=config)
+    else:
+        # Get mandatory info from user.
+        if 'ckpt_dir' not in config['model_params']:
+            print('Robot: Please enter a directory for saving checkpoints:')
+            config['model_params']['ckpt_dir'] = get_sentence(lower=False)
+        if 'data_dir' not in config['dataset_params']:
+            print('Robot: Please enter full path to directory containing data:')
+            config['dataset_params']['data_dir'] = get_sentence(lower=False)
+    # Then, fill in any blanks with the full default config.
+    config = merge_dicts(default_dict=DEFAULT_FULL_CONFIG,
+                         preference_dict=config)
+    return config
 
 
 def basic_tokenizer(sentence):

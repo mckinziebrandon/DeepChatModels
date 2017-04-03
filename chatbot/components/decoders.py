@@ -42,13 +42,13 @@ class Decoder(RNN):
         Args:
             rnn_name: one of the keys in DYNAMIC_RNNS (top of file).
             inputs: Tensor with shape [batch_size, max_time, embed_size].
-            initial_state: Tensor with shape [batch_size, state_size] to initialize decoder cell.
+            initial_state: Tensor with shape [batch_size, state_size].
             is_chatting: boolean. Determines how we retrieve the outputs and the
                          returned Tensor shape.
             loop_embedder: required if is_chatting=False.
                            Embedder instance needed to feed decoder outputs as next inputs.
         Returns:
-            outputs: if not is_chatting, tensor of shape [batch_size, max_time, output_size].
+            outputs: if not chatting, tensor of shape [batch_size, max_time, output_size].
                      else, tensor of response IDs with shape [batch_size, max_time].
             state:   if not is_chatting, tensor of shape [batch_size, state_size].
                      else, None.
@@ -66,12 +66,14 @@ class Decoder(RNN):
             # Project to full output state during inference time.
             outputs = self.apply_projection(outputs)
             if loop_embedder is None:
-                raise ValueError("Loop function is required to feed decoder outputs as inputs.")
+                raise ValueError("Loop function required to feed outputs as inputs.")
 
             def body(response, state):
                 """Input callable for tf.while_loop. See below."""
                 dec_scope.reuse_variables()
-                decoder_input = loop_embedder(tf.reshape(response[-1], (1, 1)), scope=dec_scope, reuse=True)
+                decoder_input = loop_embedder(tf.reshape(response[-1], (1, 1)),
+                                              scope=dec_scope,
+                                              reuse=True)
                 outputs, state = DYNAMIC_RNNS[rnn_name](
                     self.cell, inputs=decoder_input, initial_state=state,
                     sequence_length=[1], dtype=tf.float32)
@@ -89,18 +91,18 @@ class Decoder(RNN):
             response = tf.reshape(response, [1,], name='response')
             dec_scope.reuse_variables()
 
-            # ================== BEHOLD: The tensorflow while loop. =======================
+            # ================== BEHOLD: The tensorflow while loop. ======================
             # This allows us to sample dynamically. It also makes me happy!
             # -- Repeat 'body' while the 'cond' returns true.
-            # -- 'cond' is a callable returning a boolean scalar tensor.
-            # -- 'body' is a callable returning a tuple of tensors of same arity as loop_vars.
+            # -- 'cond': callable returning a boolean scalar tensor.
+            # -- 'body': callable returning a tuple of tensors of same arity as loop_vars.
             # -- 'loop_vars' is a tuple of tensors that is passed to 'cond' and 'body'.
             response, _ = tf.while_loop(
                 cond, body, (response, state),
                 shape_invariants=(tf.TensorShape([None]), self.cell.shape),
                 back_prop=False
             )
-            # ================== FAREWELL: The tensorflow while loop. =======================
+            # ================== FAREWELL: The tensorflow while loop. ====================
 
             outputs = tf.expand_dims(response, 0)
             return outputs, None
@@ -109,11 +111,13 @@ class Decoder(RNN):
         """Defines & applies the affine transformation from state space to output space.
 
         Args:
-            outputs: Tensor of shape [batch_size, max_time, state_size] returned by tf dynamic_rnn.
+            outputs: Tensor of shape [batch_size, max_time, state_size] returned by
+                     tf dynamic_rnn.
             scope: (optional) variable scope for any created here.
 
         Returns:
-            Tensor of shape [batch_size, max_time, output_size] representing the projected outputs.
+            Tensor of shape [batch_size, max_time, output_size] representing the
+            projected outputs.
         """
 
         with tf.variable_scope(scope, "proj_scope", [outputs]):
@@ -156,7 +160,8 @@ class BasicDecoder(Decoder):
                                            dropout_prob, num_layers, temperature, max_seq_len)
 
 
-    def __call__(self, inputs, initial_state=None, is_chatting=False, loop_embedder=None, scope=None):
+    def __call__(self, inputs, initial_state=None, is_chatting=False,
+                 loop_embedder=None, scope=None):
         return super(BasicDecoder, self).__call__("dynamic_rnn",
                                                   inputs,
                                                   initial_state=initial_state,
@@ -170,11 +175,17 @@ class AttentionDecoder(Decoder):
 
     def __init__(self, state_size, output_size, embed_size,
                  dropout_prob=1.0, num_layers=2, temperature=0.0, max_seq_len=50):
-        super(AttentionDecoder, self).__init__(state_size, output_size, embed_size,
-                                             dropout_prob, num_layers, temperature, max_seq_len)
+        super(AttentionDecoder, self).__init__(state_size=state_size,
+                                               output_size=output_size,
+                                               embed_size=embed_size,
+                                               dropout_prob=dropout_prob,
+                                               num_layers=num_layers,
+                                               temperature=temperature,
+                                               max_seq_len=max_seq_len)
 
 
-    def __call__(self, inputs, initial_state=None, is_chatting=False, loop_embedder=None, scope=None):
+    def __call__(self, inputs, initial_state=None, is_chatting=False,
+                 loop_embedder=None, scope=None):
         return super(AttentionDecoder, self).__call__("bidirectional_rnn", inputs,
                                             initial_state=initial_state,
                                             is_chatting=is_chatting,

@@ -17,7 +17,7 @@ from pydoc import locate
 
 class DynamicBot(Model):
 
-    def __init__(self, dataset, model_params):
+    def __init__(self, dataset, params):
         """ General sequence-to-sequence model for conversations. Will eventually support
             attention, beam search, and a wider variety of cell options. At present, supports
             multi-layer encoder/decoders, GRU/LSTM cells, and fully dynamic unrolling
@@ -26,29 +26,26 @@ class DynamicBot(Model):
 
         Args:
             dataset: any instance inheriting from data.DataSet.
-            model_params: dictionary of hyperparameters.
-                          See DEFAULT_PARAMS in chatbot._models.py for supported keys.
+            params: dictionary of hyperparameters.
+                          See DEFAULT_FULL_CONFIG in chatbot._models.py for supported keys.
         """
 
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('DynamicBotLogger')
         # Let superclass handle the boring stuff (dirs/more instance variables).
-        super(DynamicBot, self).__init__(self.log, dataset, model_params)
-        self.build_computation_graph(dataset, model_params)
+        super(DynamicBot, self).__init__(self.log, dataset, params)
+        self.build_computation_graph(dataset)
         self.compile()
 
-    def build_computation_graph(self, dataset, model_params=None):
-        if model_params is None:
-            assert self.__dict__['__params'] is not None, "Shame."
-            model_params = self.__dict__['__params']
+    def build_computation_graph(self, dataset):
 
-        # Grab the model classes (Constructors) specified by user in model_params.
-        encoder_class = locate(model_params['encoder.class'])
-        decoder_class = locate(model_params['decoder.class'])
+        # Grab the model classes (Constructors) specified by user in params.
+        encoder_class = locate(self.model_params['encoder.class'])
+        decoder_class = locate(self.model_params['decoder.class'])
         assert encoder_class is not None, "Couldn't find requested %s." % \
-                                          model_params['encoder.class']
+                                          self.model_params['encoder.class']
         assert decoder_class is not None, "Couldn't find requested %s." % \
-                                          model_params['decoder.class']
+                                          self.model_params['decoder.class']
 
         # Create embedder object -- handles all of your embedding needs!
         # By passing scope to embedder calls, we can easily create distinct embeddings,

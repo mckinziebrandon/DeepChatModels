@@ -13,7 +13,10 @@ class BasicEncoder(RNN):
             output_size: dimension of output space for projections.
             embed_size: dimension size of word-embedding space.
         """
-        super(BasicEncoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
+        super(BasicEncoder, self).__init__(state_size,
+                                           embed_size,
+                                           dropout_prob,
+                                           num_layers)
 
     def __call__(self, inputs, initial_state=None, scope=None):
         """Run the inputs on the encoder and return the output(s).
@@ -21,7 +24,8 @@ class BasicEncoder(RNN):
         Args:
             inputs: Tensor with shape [batch_size, max_time, embed_size].
             return_sequence: if True, also return the outputs at each time step.
-            initial_state: (optional) Tensor with shape [batch_size, state_size] to initialize decoder cell.
+            initial_state: (optional) Tensor with shape [batch_size, state_size] to
+                            initialize decoder cell.
 
         Returns:
             outputs: (only if return_sequence is True)
@@ -46,7 +50,10 @@ class BidirectionalEncoder(RNN):
             output_size: dimension of output space for projections.
             embed_size: dimension size of word-embedding space.
         """
-        super(BidirectionalEncoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
+        super(BidirectionalEncoder, self).__init__(state_size,
+                                                   embed_size,
+                                                   dropout_prob,
+                                                   num_layers)
 
     def __call__(self, inputs, initial_state=None, scope=None):
         """Run the inputs on the encoder and return the output(s).

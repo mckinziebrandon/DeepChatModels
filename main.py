@@ -1,15 +1,41 @@
 #!/usr/bin/env python3
-"""This shows how to run the new dynamic models (work in progress)."""
+"""
+This shows how to run the new dynamic models (work in progress).
+
+Typical use cases:
+    1.  Train a model specified by yaml config file, located at
+        path_to/my_config.yml, where paths are relative to project root:
+            ./main.py --config path_to/my_config.yml
+
+    2.  Train using mix of yaml config and cmd-line args, with
+        command-line args taking precedence over any values.
+            ./main.py \
+                --config path_to/my_config.yml \
+                --model_params "
+                    batch_size: 32,
+                    optimizer: 'RMSProp' "
+
+    3.  Load a pretrained model that was saved in path_to/pretrained_dir,
+        which is assumed to be relative to the project root.
+            ./main.py --load_pretrained path_to/pretrained_dir
+
+"""
+
 from chatbot import DynamicBot, ChatBot, SimpleBot
 from data import Cornell, Ubuntu, WMT, Reddit, TestData
+from pprint import pprint
 from utils import io_utils
 import tensorflow as tf
 from pydoc import locate
 
+# =================================================================================
+# =================================================================================
+
 # Allow user to override config values with command-line args.
 # All test_flags with default as None are not accessed unless set.
 flags = tf.app.flags
-flags.DEFINE_string("config", "configs/default.yml", "path to config (.yml) file.")
+flags.DEFINE_string("load_pretrained", None, "path to pretrained model dir.")
+flags.DEFINE_string("config", None, "path to config (.yml) file.")
 flags.DEFINE_string("model", "{}", "Options: chatbot.{DynamicBot,Simplebot,ChatBot}.")
 flags.DEFINE_string("model_params", "{}", "")
 flags.DEFINE_string("dataset", "{}", "Options: data.{Cornell,Ubuntu,WMT}.")
@@ -43,11 +69,15 @@ def main(argv):
     if config['model_params']['decode']:
         print("Setting reset to false for chat session . . . ")
         config['model_params']['reset_model'] = False
+    # If user specified non-default model params, show them the result.
+    if FLAGS.model_params != "{}":
+        pprint("Model parameters:\n%r" % config['model_params'], compact=True)
+
 
     print("Setting up %s dataset." % config['dataset'])
     dataset = locate(config['dataset'])(config['dataset_params'])
     print("Creating", config['model'], ". . . ")
-    bot = locate(config['model'])(dataset, config['model_params'])
+    bot = locate(config['model'])(dataset, config)
 
     if 'decode' not in config['model_params'] or not config['model_params']['decode']:
         start_training(dataset, bot)
