@@ -1,17 +1,25 @@
 from flask import render_template
 from flask import request
 
-from webpage.deepchat import app, csrf
+from chatbot import DynamicBot, ChatBot, SimpleBot
+from data import Cornell, Ubuntu, WMT, Reddit, TestData
+from utils import io_utils
+from pydoc import locate
+import tensorflow as tf
+
+from webpage.deepchat import app, csrf, dataset, config
 from .forms import ChatForm
 
-
-@app.route('/', methods=[ 'GET' ])
-@app.route('/index', methods=[ 'GET' ])
+@app.route('/', methods=['GET'])
+@app.route('/index', methods=['GET'])
 def index():
+    print('ay lmao')
     chat_form = ChatForm()
     return render_template('index.html', form=chat_form)
 
-@app.route('/chat/', methods=[ 'POST' ])
+@app.route('/chat/', methods=['POST'])
 def chat():
+    print('chat lmao')
+    bot = locate(config['model'])(dataset, config)
     chat_form = ChatForm()
-    return chat_form.message.data[::-1]
+    return bot(chat_form.message.data)

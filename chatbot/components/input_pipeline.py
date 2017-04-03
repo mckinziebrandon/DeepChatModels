@@ -1,5 +1,6 @@
 import tensorflow as tf
-from utils.io_utils import GO_ID
+from utils import io_utils
+#from utils.io_utils import GO_ID
 from tensorflow.contrib.training import bucket_by_sequence_length
 
 LENGTHS = {'encoder_sequence_length': tf.FixedLenFeature([], dtype=tf.int64),
@@ -85,7 +86,7 @@ class InputPipeline:
             return self._cond_input('decoder')
         else:
             # In a chat session, we just give the bot the go-ahead to respond!
-            return tf.convert_to_tensor([[GO_ID]])
+            return tf.convert_to_tensor([[io_utils.GO_ID]])
 
     @property
     def user_input(self):
