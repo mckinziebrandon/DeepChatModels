@@ -69,7 +69,7 @@ class BidirectionalEncoder(RNN):
 
             cell_fw = self.get_cell("cell_fw")
             cell_bw = self.get_cell("cell_bw")
-            outputs_tuple, _ =  tf.nn.bidirectional_dynamic_rnn(
+            outputs_tuple, final_state_tuple = tf.nn.bidirectional_dynamic_rnn(
                 cell_fw=cell_fw,
                 cell_bw=cell_bw,
                 inputs=inputs,
@@ -78,13 +78,16 @@ class BidirectionalEncoder(RNN):
             # This is not the best way to convert shapes, but it works.
             # TODO: improve this please.
             outputs = tf.concat(outputs_tuple, 2)
-            final_state = outputs[:, -1, :]  # [batch_size, 2*state_size]
-            bridge = tf.get_variable("bridge",
-                                     [2*self.state_size, self.state_size],
-                                     dtype=final_state.dtype)
-            final_state = tf.matmul(final_state,
-                                    bridge,
-                                    name="final_state_matmul")
+            bridge = tf.get_variable("bridge", [2 * self.state_size, self.state_size],
+                                     dtype=outputs.dtype)
+            if self.num_layers == 1:
+                final_state = tf.concat(final_state_tuple, 1)
+                final_state = tf.matmul(final_state, bridge)
+            else:
+                final_state = tf.concat(final_state_tuple, 2)
+                def fn(s): return tf.matmul(s, bridge)
+                final_state = tf.map_fn(fn, final_state)
+                final_state = tuple(tf.unstack(final_state))
             return outputs, final_state
 
 

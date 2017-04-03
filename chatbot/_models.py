@@ -69,6 +69,9 @@ class Model(object):
             # Recursively delete all files in output but keep directories.
             os.popen("find {0}".format(self.ckpt_dir)+" -type f -exec rm {} \;")
             self.file_writer    = tf.summary.FileWriter(self.ckpt_dir)
+            # Store full model specifications in ckpt dir for easy loading later.
+            with open(os.path.join(self.ckpt_dir, 'config.yml'), 'w') as f:
+                yaml.dump(getattr(self, "params"), f, default_flow_style=False)
             # Add operation for calling all variable initializers.
             init_op = tf.global_variables_initializer()
             # Construct saver (adds save/restore ops to all).
@@ -104,9 +107,6 @@ class Model(object):
         """
         # First save the checkpoint as usual.
         self.save()
-        # Store full model specifications in ckpt dir for easy loading.
-        with open(str(os.path.join(self.ckpt_dir, 'config.yml')), 'w') as f:
-            yaml.dump(getattr(self, "params"), f, default_flow_style=False)
         # Freeze me, for I am infinite.
         self.freeze()
         # Be a responsible bot and close my file writer.
@@ -126,6 +126,8 @@ class Model(object):
         # Replace (string) specification of dataset with the actual instance.
         params['dataset'] = dataset
         params['dataset_params']['data_name'] = dataset.name
+        if params['model_params']['ckpt_dir'] == 'out':
+            params['model_params']['ckpt_dir'] += '/'+dataset.name
         # Define alias in case older models still use it.
         params['model_params']['is_chatting'] = params['model_params']['decode']
         return params
