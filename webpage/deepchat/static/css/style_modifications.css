@@ -68,7 +68,8 @@ header .intro-text .intro-heading {
   color: black;
   background-color: white;
 
-  overflow: auto;
+  overflow-y: auto;
+  word-wrap: break-word;
 }
 
 #chat-form {
