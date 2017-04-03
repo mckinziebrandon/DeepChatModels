@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from chatbot.components.base._rnn import RNN
-from utils.io_utils import EOS_ID
+from utils import io_utils
 
 DYNAMIC_RNNS = {
     "dynamic_rnn": tf.nn.dynamic_rnn,
@@ -82,7 +82,7 @@ class Decoder(RNN):
 
             def cond(response, s):
                 """Input callable for tf.while_loop. See below."""
-                return tf.logical_and(tf.not_equal(response[-1], EOS_ID),
+                return tf.logical_and(tf.not_equal(response[-1], io_utils.EOS_ID),
                                       tf.less(tf.size(response), self.max_seq_len))
 
             # Create integer (tensor) list of output ID responses.

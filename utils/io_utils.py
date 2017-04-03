@@ -68,6 +68,7 @@ def load_pretrained_config(pretrained_dir):
     config['model_params']['decode']        = True
     config['model_params']['is_chatting']   = True  # alias
     config['model_params']['reset_model']   = False
+    config['model_params']['ckpt_dir'] = pretrained_dir
     return config
 
 
