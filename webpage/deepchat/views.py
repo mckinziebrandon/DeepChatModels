@@ -1,6 +1,7 @@
 from flask import render_template
 from flask import request
 
+# IMPORT ALL THE THINGS.
 from chatbot import DynamicBot, ChatBot, SimpleBot
 from data import Cornell, Ubuntu, WMT, Reddit, TestData
 from utils import io_utils
@@ -13,13 +14,11 @@ from .forms import ChatForm
 @app.route('/', methods=['GET'])
 @app.route('/index', methods=['GET'])
 def index():
-    print('ay lmao')
     chat_form = ChatForm()
     return render_template('index.html', form=chat_form)
 
 @app.route('/chat/', methods=['POST'])
 def chat():
-    print('chat lmao')
     bot = locate(config['model'])(dataset, config)
     chat_form = ChatForm()
     return bot(chat_form.message.data)
