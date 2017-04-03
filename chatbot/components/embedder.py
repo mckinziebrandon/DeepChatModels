@@ -30,7 +30,7 @@ class Embedder:
                 raise TypeError("Embedded inputs should be of type Tensor.")
             if len(embedded_inputs.shape) != 3:
                 raise ValueError("Embedded sentence has incorrect shape.")
-            tf.summary.histogram('embedding_encoder', params)
+            tf.summary.histogram(scope.name, params)
         return embedded_inputs
 
     def assign_visualizer(self, writer, scope, metadata_path):

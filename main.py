@@ -82,7 +82,7 @@ def main(argv):
     print("Creating", config['model'], ". . . ")
     bot = locate(config['model'])(dataset, config)
 
-    if config['model_params']['decode']:
+    if not config['model_params']['decode']:
         start_training(dataset, bot)
     else:
         start_chatting(bot)

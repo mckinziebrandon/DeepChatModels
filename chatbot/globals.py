@@ -25,6 +25,7 @@ DEFAULT_FULL_CONFIG = {
         "l1_reg": 1e-6,
         "lr_decay": 0.98,
         "max_gradient": 5.0,
+        "max_steps": int(1e6),
         "num_layers": 3,
         "num_samples": 512,
         "optimizer": "Adam",

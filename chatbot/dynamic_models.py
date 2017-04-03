@@ -212,9 +212,10 @@ class DynamicBot(Model):
         print('GO!')
 
         try:
-            i_step = 0
             avg_loss = avg_step_time = 0.0
             while not coord.should_stop():
+
+                i_step = self.sess.run(self.global_step)
 
                 start_time = time.time()
                 summaries, step_loss, _ = self.step()
@@ -242,7 +243,10 @@ class DynamicBot(Model):
                     # Reset the running averages and exit checkpoint.
                     avg_loss = avg_step_time = 0.0
 
-                i_step += 1
+                if i_step >= self.max_steps:
+                    print("Maximum step", i_step, "reached. Terminating training.")
+                    raise SystemExit
+
         except (KeyboardInterrupt, SystemExit):
             print("Training halted. Cleaning up . . . ")
             coord.request_stop()

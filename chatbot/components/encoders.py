@@ -1,6 +1,7 @@
+"""Classes for the dynamic encoders."""
+
 import tensorflow as tf
 from tensorflow.contrib.rnn import GRUCell
-
 from chatbot.components.base import Encoder
 from chatbot.components.base._rnn import RNN
 
@@ -92,6 +93,8 @@ class BidirectionalEncoder(RNN):
 
 
 class UniEncoder(Encoder):
+    """Experimental encoder inheriting from new base class."""
+
     def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2):
         params = self.default_params()
         params['rnn_cell']['state_size'] = state_size

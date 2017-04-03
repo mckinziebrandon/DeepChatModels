@@ -18,6 +18,8 @@
 .DS*
 **/.DS*
 
+# Muh training scripts.
+overnight.sh
 experimental.sh
 tests/macros/**
 
