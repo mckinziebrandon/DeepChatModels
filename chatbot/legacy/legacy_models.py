@@ -33,11 +33,11 @@ class ChatBot(BucketModel):
                         (when training) or we feed its previous output as its next input (chatting).
     """
 
-    def __init__(self, buckets, dataset, model_params):
+    def __init__(self, buckets, dataset, params):
 
         logging.basicConfig(level=logging.INFO)
         logger = logging.getLogger('ChatBotLogger')
-        super(ChatBot, self).__init__(logger, dataset, model_params)
+        super(ChatBot, self).__init__(logger, dataset, params)
 
         if len(buckets) > 1:
             self.log.error("ChatBot requires len(buckets) be 1 since tensorflow's"
@@ -213,11 +213,11 @@ class SimpleBot(BucketModel):
             4. DynamicDecoder: Single GRUCell.
     """
 
-    def __init__(self, dataset, model_params):
+    def __init__(self, dataset, params):
 
         logging.basicConfig(level=logging.INFO)
         logger = logging.getLogger('SimpleBotLogger')
-        super(SimpleBot, self).__init__(logger, dataset, model_params)
+        super(SimpleBot, self).__init__(logger, dataset, params)
 
         # SimpleBot allows user to not worry about making their own buckets.
         # SimpleBot does that for you. SimpleBot cares.

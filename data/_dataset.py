@@ -8,11 +8,8 @@ import random
 from utils.io_utils import EOS_ID, PAD_ID, GO_ID, UNK_ID
 import logging
 
-DEFAULT_PARAMS = {
-    'data_dir': None,
-    'vocab_size': 40000,
-    'max_seq_len': 15
-}
+from chatbot.globals import DEFAULT_FULL_CONFIG
+DEFAULT_PARAMS = DEFAULT_FULL_CONFIG['dataset_params']
 
 
 class DatasetABC(metaclass=ABCMeta):
@@ -54,12 +51,11 @@ class Dataset(DatasetABC):
         """Implements the general of subset of operations that all classes can use.
 
         Args:
-            dataset_params: dictionary of configuration parameters. See DEFAULT_PARAMS
+            dataset_params: dictionary of configuration parameters. See DEFAULT_FULL_CONFIG
                             at top of file for supported keys.
         """
 
         self.__dict__['__params'] = Dataset.fill_params(dataset_params)
-        print("max_seq_len recorded as ", self.max_seq_len)
         # We query io_utils to ensure all data files are organized properly,
         # and io_utils returns the paths to files of interest.
         paths_triplet = io_utils.prepare_data(self.data_dir,
@@ -269,5 +265,5 @@ class Dataset(DatasetABC):
 
     @staticmethod
     def fill_params(dataset_params):
-        """Assigns default values from DEFAULT_PARAMS for keys not in dataset_params."""
+        """Assigns default values from DEFAULT_FULL_CONFIG for keys not in dataset_params."""
         return {**DEFAULT_PARAMS, **dataset_params}
