@@ -13,7 +13,7 @@ Typical use cases:
                 --config path_to/my_config.yml \
                 --model_params "
                     batch_size: 32,
-                    optimizer: 'RMSProp' "
+                    optimizer: RMSProp "
 
     3.  Load a pretrained model that was saved in path_to/pretrained_dir,
         which is assumed to be relative to the project root.
@@ -63,7 +63,7 @@ def start_chatting(bot):
 
 def main(argv):
 
-    # Extract merge configs/dictionaries.
+    # Extract the merged configs/dictionaries.
     config = io_utils.parse_config(FLAGS)
     if config['model_params']['decode'] and config['model_params']['reset_model']:
         print("Setting reset to false for chat session . . . ")
@@ -82,7 +82,7 @@ def main(argv):
     print("Creating", config['model'], ". . . ")
     bot = locate(config['model'])(dataset, config)
 
-    if 'decode' not in config['model_params'] or not config['model_params']['decode']:
+    if config['model_params']['decode']:
         start_training(dataset, bot)
     else:
         start_chatting(bot)

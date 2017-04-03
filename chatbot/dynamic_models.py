@@ -19,15 +19,16 @@ class DynamicBot(Model):
 
     def __init__(self, dataset, params):
         """ General sequence-to-sequence model for conversations. Will eventually support
-            attention, beam search, and a wider variety of cell options. At present, supports
-            multi-layer encoder/decoders, GRU/LSTM cells, and fully dynamic unrolling
-            (online decoding included). Additionally, will soon support biologically inspired
-            mechanisms for learning, such as hebbian-based update rules. Stay tuned, folks.
+            attention, beam search, and a wider variety of cell options. At present,
+            supports multi-layer encoder/decoders, GRU/LSTM cells, and fully dynamic
+            unrolling (online decoding included). Additionally, will soon support
+            biologically inspired mechanisms for learning, such as hebbian-based
+            update rules.
 
         Args:
             dataset: any instance inheriting from data.DataSet.
             params: dictionary of hyperparameters.
-                          See DEFAULT_FULL_CONFIG in chatbot._models.py for supported keys.
+                    See DEFAULT_FULL_CONFIG in chatbot._models.py for supported keys.
         """
 
         logging.basicConfig(level=logging.WARN)
@@ -71,12 +72,14 @@ class DynamicBot(Model):
 
         with tf.variable_scope("decoder") as scope:
             embedded_dec_inputs = self.embedder(self.decoder_inputs, scope=scope)
-            self.decoder  = decoder_class(self.state_size, self.vocab_size, self.embed_size,
+            self.decoder  = decoder_class(self.state_size,
+                                          self.vocab_size,
+                                          self.embed_size,
                                           dropout_prob=self.dropout_prob,
                                           num_layers=self.num_layers,
                                           max_seq_len=dataset.max_seq_len,
                                           temperature=self.temperature)
-            # For decoder, we want the full sequence of output states, not simply the last.
+            # For decoder, we want the full sequence of outputs, not simply the last.
             decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
                                                           initial_state=encoder_state,
                                                           is_chatting=self.is_chatting,
@@ -85,7 +88,7 @@ class DynamicBot(Model):
 
         self.outputs = decoder_outputs
         with tf.name_scope("freezer"):
-            # Explicitly tag inputs and outputs by name should we want to freeze the model.
+            # Tag inputs and outputs by name should we want to freeze the model.
             user_input      = tf.identity(self.pipeline.user_input, name="user_input")
             encoder_inputs  = tf.identity(self.encoder_inputs, name="encoder_inputs")
             outputs         = tf.identity(decoder_outputs, name="outputs")
@@ -97,7 +100,7 @@ class DynamicBot(Model):
         """ TODO: perhaps merge this into __init__?
         Originally, this function accepted training/evaluation specific parameters.
         However, since moving the configuration parameters to .yaml files and interfacing
-        with the dictionary, no args are needed here, and thus would mainly just be a hassle
+        with the dictionary, no args are needed here, and thus would mainly be a hassle
         to have to call before training. Will decide later.
         """
 
@@ -108,8 +111,8 @@ class DynamicBot(Model):
                 target_labels   = self.decoder_inputs[:, 1:]
                 target_weights  = tf.cast(target_labels > 0, target_labels.dtype)
                 preds       = self.decoder.apply_projection(self.outputs)
-                regLosses   = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-                l1          = tf.reduce_sum(tf.abs(regLosses))
+                reg_losses   = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+                l1          = tf.reduce_sum(tf.abs(reg_losses))
 
                 if self.sampled_loss:
                     self.log.info("Training with dynamic sampled softmax loss.")
@@ -146,11 +149,11 @@ class DynamicBot(Model):
                     accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
                 tf.summary.scalar('accuracy', accuracy)
-                tf.summary.scalar('train_loss', self.loss)
+                tf.summary.scalar('loss_train', self.loss)
                 self.merged = tf.summary.merge_all()
                 # Note: Important not to merge in the validation loss, don't want to
                 # store the training loss on accident.
-                self.valid_summ = tf.summary.scalar('valid_loss', self.loss)
+                self.valid_summ = tf.summary.scalar('loss_valid', self.loss)
 
         super(DynamicBot, self).compile()
 

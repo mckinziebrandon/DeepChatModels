@@ -11,9 +11,9 @@ import random
 import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.tensorboard.plugins import projector
+from utils import io_utils
 from chatbot.components import *
 from chatbot.globals import DEFAULT_FULL_CONFIG, OPTIMIZERS
-from utils import io_utils
 
 
 class Model(object):
@@ -65,9 +65,9 @@ class Model(object):
             self.saver = tf.train.Saver(tf.global_variables())
             self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
         else:
-            print("Created model with fresh parameters:\n", self.ckpt_dir)
+            print("Created model with fresh parameters:\n\t", self.ckpt_dir)
             # Recursively delete all files in output but keep directories.
-            os.popen("find {0}".format(self.ckpt_dir)+" -type f -exec rm {} \;")
+            os.popen("find {0}".format(self.ckpt_dir) + " -type f -exec rm {} \;")
             self.file_writer    = tf.summary.FileWriter(self.ckpt_dir)
             # Store full model specifications in ckpt dir for easy loading later.
             with open(os.path.join(self.ckpt_dir, 'config.yml'), 'w') as f:

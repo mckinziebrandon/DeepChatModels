@@ -22,7 +22,7 @@ DEFAULT_FULL_CONFIG = {
         "encoder.class": "chatbot.components.encoders.BasicEncoder",
         "embed_size": 64,
         "learning_rate": 0.002,
-        "l1_reg": 1e-7,
+        "l1_reg": 1e-6,
         "lr_decay": 0.98,
         "max_gradient": 5.0,
         "num_layers": 3,
