@@ -26,13 +26,9 @@ os.environ['TF_CPP_MIN_LOG_LEVEL']='1'
 
 from chatbot import DynamicBot, ChatBot, SimpleBot
 from data import Cornell, Ubuntu, WMT, Reddit, TestData
-from pprint import pprint
 from utils import io_utils
 import tensorflow as tf
 from pydoc import locate
-
-# =================================================================================
-# =================================================================================
 
 # Allow user to override config values with command-line args.
 # All test_flags with default as None are not accessed unless set.
