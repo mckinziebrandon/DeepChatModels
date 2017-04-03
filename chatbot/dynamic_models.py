@@ -30,7 +30,7 @@ class DynamicBot(Model):
                           See DEFAULT_FULL_CONFIG in chatbot._models.py for supported keys.
         """
 
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=logging.WARN)
         self.log = logging.getLogger('DynamicBotLogger')
         # Let superclass handle the boring stuff (dirs/more instance variables).
         super(DynamicBot, self).__init__(self.log, dataset, params)
@@ -272,18 +272,13 @@ class DynamicBot(Model):
         self.batch_size = 1
         assert self.is_chatting
         # Decode from standard input.
-        print("Type \"exit\" to exit.")
-        print("Hi human. Write stuff below and I, your robot friend, will respond.")
+        print("Type \"exit\" to exit.\n")
         sentence = io_utils.get_sentence()
-        while sentence:
+        while sentence != 'exit':
             response = self(sentence)
             print("Robot:", response)
             sentence = io_utils.get_sentence()
-            if sentence == 'exit':
-                # TODO: Uncomment when freezing implemented.
-                #self.close()
-                print("Farewell, human.")
-                break
+        print("Farewell, human.")
 
     def __call__(self, sentence):
         """This is how we talk to the bot."""

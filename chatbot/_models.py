@@ -53,7 +53,7 @@ class Model(object):
             valid V1/V2 checkpoint path.
             - If we can't, then just re-initialize model with fresh params.
         """
-        print("Checking for checkpoints . . .")
+        self.log.info("Checking for checkpoints . . .")
         checkpoint_state  = tf.train.get_checkpoint_state(self.ckpt_dir)
         # Note: If you want to prevent from loading models trained on different dataset,
         # you should store them in their own out/dataname folder, and pass that as

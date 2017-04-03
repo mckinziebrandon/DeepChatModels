@@ -71,6 +71,29 @@ def load_pretrained_config(pretrained_dir):
     return config
 
 
+def print_non_defaults(config):
+    """Prints all values in config that aren't the default values in DEFAULT_FULL_CONFIG.
+    Args:
+        config: dict of parameters with same structure as DEFAULT_FULL_CONFIG.
+    """
+
+    print("\n---------- Your non-default parameters: ----------")
+    if config['model'] != DEFAULT_FULL_CONFIG['model']:
+        print("{}: {}".format('model', config['model']))
+    if config['dataset'] != DEFAULT_FULL_CONFIG['dataset']:
+        print("{}: {}".format('dataset', config['dataset']))
+
+    for dict_id in ['model_params', 'dataset_params']:
+        print(dict_id, end=":\n")
+        for key, val in config[dict_id].items():
+            # First check if key isn't even specified by defaults.
+            if key not in DEFAULT_FULL_CONFIG[dict_id]:
+                print("\t{}: {}".format(key, val))
+            elif DEFAULT_FULL_CONFIG[dict_id][key] != val:
+                print("\t{}: {}".format(key, val))
+    print("--------------------------------------------------\n")
+
+
 def flags_to_dict(flags):
     """Builds and return a dictionary from test_flags keys, namely
        'model', 'dataset', 'model_params', 'dataset_params'.

@@ -21,11 +21,13 @@ Typical use cases:
 
 """
 
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL']='1'
+
 from chatbot import DynamicBot, ChatBot, SimpleBot
 from data import Cornell, Ubuntu, WMT, Reddit, TestData
 from pprint import pprint
 from utils import io_utils
-import os
 import tensorflow as tf
 from pydoc import locate
 
@@ -67,16 +69,17 @@ def main(argv):
 
     # Extract merge configs/dictionaries.
     config = io_utils.parse_config(FLAGS)
-    if config['model_params']['decode']:
+    if config['model_params']['decode'] and config['model_params']['reset_model']:
         print("Setting reset to false for chat session . . . ")
         config['model_params']['reset_model'] = False
-    # If user specified non-default model params, show them the result.
-    if FLAGS.model_params != "{}":
-        pprint("Model parameters:\n%r" % config['model_params'], compact=True)
     # If loading from pretrained, double-check that certain values are correct.
     if FLAGS.pretrained_dir is not None:
         assert config['model_params']['decode'] \
                and not config['model_params']['reset_model']
+
+    # Print out any non-default parameters given by user, so as to reassure
+    # them that everything is set up properly.
+    io_utils.print_non_defaults(config)
 
     print("Setting up %s dataset." % config['dataset'])
     dataset = locate(config['dataset'])(config['dataset_params'])
