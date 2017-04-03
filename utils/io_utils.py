@@ -113,7 +113,7 @@ def flags_to_dict(flags):
 
 
 def merge_dicts(default_dict, preference_dict):
-    """ Preferentially (and recursively) merge input dictionaries.
+    """Preferentially (and recursively) merge input dictionaries.
         - Ensures that all values in preference dict are used, and
           all other (i.e. unspecified) items are from default dict.
         - Updates default_dict to have the correct values, and
@@ -124,14 +124,14 @@ def merge_dicts(default_dict, preference_dict):
     for pref_key in preference_dict:
         if isinstance(preference_dict[pref_key], dict) and pref_key in merged_dict:
             # Dictionaries are expected to have the same type structure.
-            # So if any preference_dict[key] is a dict, then requre default_dict[key]
+            # So if any preference_dict[key] is a dict, then require default_dict[key]
             # must also be a dict (if it exists, that is).
             assert isinstance(merged_dict[pref_key], dict), \
             "Expected default_dict[%r]=%r to have type dict." % \
             (pref_key, merged_dict[pref_key])
             # Since these are both dictionaries, can just recurse.
             merged_dict[pref_key] = merge_dicts(merged_dict[pref_key],
-                                                 preference_dict[pref_key])
+                                                preference_dict[pref_key])
         else:
             merged_dict[pref_key] = preference_dict[pref_key]
     return merged_dict

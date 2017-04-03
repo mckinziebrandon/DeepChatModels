@@ -1,8 +1,9 @@
-from flask    import render_template
-from flask    import request
+from flask import render_template
+from flask import request
 
-from deepchat import app, csrf
-from .forms   import ChatForm
+from webpage.deepchat import app, csrf
+from .forms import ChatForm
+
 
 @app.route('/', methods=[ 'GET' ])
 @app.route('/index', methods=[ 'GET' ])
