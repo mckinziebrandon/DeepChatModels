@@ -256,42 +256,7 @@ class DynamicBot(Model):
             coord.request_stop()
         finally:
             coord.join(threads)
-            print('ok...')
             self.close(save_current=False, rebuild_for_chat=True)
-
-    def close(self, save_current=True, rebuild_for_chat=True):
-        """Before closing, which will freeze our graph to a file,
-        rebuild it so that it's ready for chatting when unfreezed,
-        to make it easier for the user. Training can still be resumed
-        with no issue since it doesn't load frozen models, just ckpts.
-        """
-        print("in close")
-        if rebuild_for_chat:
-            print("in rebuild")
-            omg = self.learning_rate.eval(session=self.sess)
-            tf.reset_default_graph()
-            print("graph reset")
-            # Gross. Am ashamed:
-            self.sess = tf.Session()
-            print("sess reset")
-            with self.graph.name_scope(tf.GraphKeys.SUMMARIES):
-                self.global_step    = tf.Variable(initial_value=0, trainable=False)
-                self.learning_rate  = tf.constant(omg)
-            self._set_chat_params()
-            print("starting rebuild")
-            self.build_computation_graph(self.dataset)
-            print("starting compile")
-            self.compile()
-        print("going to super close")
-        super(DynamicBot, self).close(save_current=save_current)
-
-    def _set_chat_params(self):
-        # TODO: use __setattr__ instead of this.
-        self.__dict__['__params']['model_params']['decode'] = True
-        self.__dict__['__params']['model_params']['is_chatting'] = True
-        self.__dict__['__params']['model_params']['batch_size'] = 1
-        self.__dict__['__params']['model_params']['reset_model'] = False
-        assert self.is_chatting and self.decode and not self.reset_model
 
     def chat(self):
         """Alias to decode."""
@@ -299,9 +264,9 @@ class DynamicBot(Model):
 
     def decode(self):
         """Sets up and manages chat session between bot and user (stdin)."""
-        # We decode one sentence at a time.
-        self.batch_size = 1
-        assert self.is_chatting
+        # Make sure params are set to chat values, just in case the user
+        # forgot to specify/doesn't know about such things.
+        self._set_chat_params()
         # Decode from standard input.
         print("Type \"exit\" to exit.\n")
         sentence = io_utils.get_sentence()
@@ -335,3 +300,33 @@ class DynamicBot(Model):
         _, _, response = self.step(forward_only=True)
         # response has shape [1, response_length] and it's last elemeot is EOS_ID. :)
         return self.dataset.as_words(response[0][:-1])
+
+    def close(self, save_current=True, rebuild_for_chat=True):
+        """Before closing, which will freeze our graph to a file,
+        rebuild it so that it's ready for chatting when unfreezed,
+        to make it easier for the user. Training can still be resumed
+        with no issue since it doesn't load frozen models, just ckpts.
+        """
+
+        if rebuild_for_chat:
+            lr_val = self.learning_rate.eval(session=self.sess)
+            tf.reset_default_graph()
+            # Gross. Am ashamed:
+            self.sess = tf.Session()
+            with self.graph.name_scope(tf.GraphKeys.SUMMARIES):
+                self.global_step    = tf.Variable(initial_value=0, trainable=False)
+                self.learning_rate  = tf.constant(lr_val)
+            self._set_chat_params()
+            self.build_computation_graph(self.dataset)
+            self.compile()
+        super(DynamicBot, self).close(save_current=save_current)
+
+    def _set_chat_params(self):
+        """Set all training-specific param values to chatting-specific values."""
+        # TODO: use __setattr__ instead of this.
+        self.__dict__['__params']['model_params']['decode'] = True
+        self.__dict__['__params']['model_params']['is_chatting'] = True
+        self.__dict__['__params']['model_params']['batch_size'] = 1
+        self.__dict__['__params']['model_params']['reset_model'] = False
+        assert self.is_chatting and self.decode and not self.reset_model
+
