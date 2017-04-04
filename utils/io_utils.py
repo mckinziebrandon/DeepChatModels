@@ -152,6 +152,18 @@ def parse_config(flags):
         params on command-line (over .yml config files).
     """
 
+    # Quick implementation to support passing path string to pretrained model (website).
+    if isinstance(flags, str):
+        # TODO: should be some warning/exception catching here to ensure that
+        # flags (str) is a path to a pretrained model.
+        path_to_pretrained = flags
+        _flags = tf.app.flags
+        for k in ['config', 'model', 'model_params', 'dataset', 'dataset_params']:
+            _flags.DEFINE_string(k, "{}", '')
+        flags = _flags.FLAGS
+        flags.config = None
+        flags.pretrained_dir = path_to_pretrained
+
     config = flags_to_dict(flags)
     if flags.config is not None:
         yaml_config = get_yaml_config(flags.config)
