@@ -60,6 +60,17 @@ def get_yaml_config(path):
 
 
 def load_pretrained_config(pretrained_dir):
+    """Get the full configuration dictionary for a pretrained model.
+
+    Args:
+        pretrained_dir: path (relative to project root) that is assumed to contain:
+        - config.yml: full configuration file (automatically saved by all models).
+        - checkpoint(s) from training session (also saved automatically).
+
+    Returns:
+        config: dictionary loaded from config.yml, and with all training flags reset to
+                chat session flags, since the only time this is called is for chatting.
+    """
     config_path = os.path.join(pretrained_dir, "config.yml")
     config = get_yaml_config(config_path)
     # The loaded config will have "training" values, so we need
@@ -144,19 +155,25 @@ def parse_config(flags):
         2. any dictionaries defined by user at command-line.
 
     Args:
-        flags: tf.app.test_flags instance. Assumes supports keys from main, namely
-                model, dataset, model_params, dataset_params.
+        flags: either a tf.app.flags.FLAGS instance or a string.
+                If FLAGS instance: Assumes that the following keys exist: model, dataset,
+                model_params, and dataset_params.
+                If string: assumed to be the path to a pretrained model directory.
 
     Returns:
-        merged dictionary of config info, where precedence is given to user-specified
-        params on command-line (over .yml config files).
+        config: dictionary of merged config info, where precedence is given to
+        user-specified params on command-line (over .yml config files).
     """
 
     # Quick implementation to support passing path string to pretrained model (website).
     if isinstance(flags, str):
-        # TODO: should be some warning/exception catching here to ensure that
-        # flags (str) is a path to a pretrained model.
+        # Make sure flags string is a path to a pretrained model.
+        required_config_file = os.path.join(flags, 'config.yml')
+        assert gfile.Exists(required_config_file), \
+            "Cannot parse from %s. No config.yml." % flags
         path_to_pretrained = flags
+
+        # Wrap flags string inside an actual tf.app.flags object.
         _flags = tf.app.flags
         for k in ['config', 'model', 'model_params', 'dataset', 'dataset_params']:
             _flags.DEFINE_string(k, "{}", '')

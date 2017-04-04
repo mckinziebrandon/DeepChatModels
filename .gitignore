@@ -22,6 +22,7 @@
 overnight.sh
 experimental.sh
 tests/macros/**
+compact.sh
 
 # Ignore collection of useful tf files that once 
 # existed in tf repo but have since been removed. 

@@ -87,11 +87,12 @@ class DynamicBot(Model):
                                                           scope=scope)
 
         self.outputs = decoder_outputs
-        with tf.name_scope("freezer"):
-            # Tag inputs and outputs by name should we want to freeze the model.
-            user_input      = tf.identity(self.pipeline.user_input, name="user_input")
-            encoder_inputs  = tf.identity(self.encoder_inputs, name="encoder_inputs")
-            outputs         = tf.identity(decoder_outputs, name="outputs")
+        # Tag inputs and outputs by name should we want to freeze the model.
+        self.graph.add_to_collection('freezer', self.encoder_inputs)
+        self.graph.add_to_collection('freezer', decoder_outputs)
+        #tf.add_to_collection('freezer', self.pipeline.user_input, name="user_input"))
+        #tf.identity(self.encoder_inputs, name="encoder_inputs")
+        #tf.identity(decoder_outputs, name="outputs")
 
         # Merge any summaries floating around in the aether into one object.
         self.merged = tf.summary.merge_all()
@@ -255,27 +256,49 @@ class DynamicBot(Model):
             coord.request_stop()
         finally:
             coord.join(threads)
-            # Before closing, which will freeze our graph to a file,
-            # rebuild it so that it's ready for chatting when unfreezed,
-            # to make it easier for the user. Training can still be resumed
-            # with no issue since it doesn't load frozen models, just ckpts.
-            #self._set_chat_params()
-            #self.build_computation_graph(self.dataset)
-            self.close()
+            print('ok...')
+            self.close(save_current=False, rebuild_for_chat=True)
+
+    def close(self, save_current=True, rebuild_for_chat=True):
+        """Before closing, which will freeze our graph to a file,
+        rebuild it so that it's ready for chatting when unfreezed,
+        to make it easier for the user. Training can still be resumed
+        with no issue since it doesn't load frozen models, just ckpts.
+        """
+        print("in close")
+        if rebuild_for_chat:
+            print("in rebuild")
+            omg = self.learning_rate.eval(session=self.sess)
+            tf.reset_default_graph()
+            print("graph reset")
+            # Gross. Am ashamed:
+            self.sess = tf.Session()
+            print("sess reset")
+            with self.graph.name_scope(tf.GraphKeys.SUMMARIES):
+                self.global_step    = tf.Variable(initial_value=0, trainable=False)
+                self.learning_rate  = tf.constant(omg)
+            self._set_chat_params()
+            print("starting rebuild")
+            self.build_computation_graph(self.dataset)
+            print("starting compile")
+            self.compile()
+        print("going to super close")
+        super(DynamicBot, self).close(save_current=save_current)
 
     def _set_chat_params(self):
-        self.decode = self.is_chatting = True
-        self.batch_size = 1
-        self.reset_model = False
+        # TODO: use __setattr__ instead of this.
+        self.__dict__['__params']['model_params']['decode'] = True
+        self.__dict__['__params']['model_params']['is_chatting'] = True
+        self.__dict__['__params']['model_params']['batch_size'] = 1
+        self.__dict__['__params']['model_params']['reset_model'] = False
+        assert self.is_chatting and self.decode and not self.reset_model
 
     def chat(self):
         """Alias to decode."""
         self.decode()
 
     def decode(self):
-        """
-        The higher the temperature, the more varied will be the bot's responses.
-        """
+        """Sets up and manages chat session between bot and user (stdin)."""
         # We decode one sentence at a time.
         self.batch_size = 1
         assert self.is_chatting
@@ -289,7 +312,19 @@ class DynamicBot(Model):
         print("Farewell, human.")
 
     def __call__(self, sentence):
-        """This is how we talk to the bot."""
+        """This is how we talk to the bot interactively. While
+        decode(self) above sets up/manages the chat session, users can also use this
+        directly to get responses from the bot, given an input sentence. For example,
+            sentence = 'Hi, bot!'
+            response = bot(sentence)
+        is all that's required for back-and-forth with the bot.
+
+        Args:
+            sentence: (str) Input sentence from user.
+
+        Returns:
+            response string from bot.
+        """
         # Convert input sentence to token-ids.
         encoder_inputs = io_utils.sentence_to_token_ids(
             tf.compat.as_bytes(sentence), self.dataset.word_to_idx)

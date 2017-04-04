@@ -8,6 +8,7 @@ import numpy as np
 import tensorflow as tf
 from utils import io_utils
 import os
+import re
 from pydoc import locate
 
 
@@ -51,44 +52,36 @@ def unfreeze_bot(frozen_model_path):
     """
 
     bot_graph   = load_graph(frozen_model_path)
-    keys = ['user_input', 'encoder_inputs', 'outputs']
-    tensors = {k: bot_graph.get_tensor_by_name('import/freezer/{}:0'.format(k))
-               for k in keys}
-    return tensors
+    tensors = {
+        'inputs': bot_graph.get_tensor_by_name('import/input_pipeline/input_pipeline/user_input_ph:0'),
+        'outputs': bot_graph.get_tensor_by_name('import/decoder/decoder_1/ExpandDims:0')
+    }
+    return tensors, bot_graph
 
 
-def unfreeze_and_chat(config):
-    """TODO: Re-implement. This was hastily made while sketching out the model freezing
-    functionality of tensorflow, as a proof of concept for website. Bad design. """
+def unfreeze_and_chat(frozen_model_path):
+    """Summon a bot back from the dead and have a nice lil chat with it."""
 
-    # Get input and output nodes from the frozen graph def.
-    # This is the bare minimum needed to chat, and thus allows for a
-    # compact and efficent means of bot storage post-training.
-    inputs, outputs = unfreeze_bot(config['ckpt_dir'])
+    tensor_dict, graph = unfreeze_bot(frozen_model_path)
+    config  = io_utils.parse_config(frozen_model_path)
+    dataset = locate(config['dataset'])(config['dataset_params'])
 
-    # We still need to translate the bot outputs (tokens) to english, for
-    # simple humans to understand.
-    from_vocab_path = os.path.join(config['data_dir'],
-                                   'vocab%d.from' % config['vocab_size'])
-    to_vocab_path   = os.path.join(config['data_dir'],
-                                   'vocab%d.to' % config['vocab_size'])
-    word_to_idx, _  = io_utils.get_vocab_dicts(from_vocab_path)
-    _, idx_to_word  = io_utils.get_vocab_dicts(to_vocab_path)
+    with tf.Session(graph=graph) as sess:
 
-    with tf.Session() as chat_sess:
-        try:
-            while True:
-                # Extract sentence from human (stdin) and convert to robo-language.
-                human_input     = io_utils.get_sentence()
-                encoder_inputs  = io_utils.sentence_to_token_ids(
-                    tf.compat.as_bytes(human_input), word_to_idx)
-                encoder_inputs = np.array([encoder_inputs[::-1]])
+        def respond_to(sentence):
+            """Outputs response sentence (string) given input (string)."""
+            # Convert input sentence to token-ids.
+            sentence_tokens = io_utils.sentence_to_token_ids(
+                tf.compat.as_bytes(sentence), dataset.word_to_idx)
+            sentence_tokens = np.array([sentence_tokens[::-1]])
+            # Get output sentence from the chatbot.
+            response = sess.run(tensor_dict['outputs'],
+                                feed_dict={tensor_dict['inputs']: sentence_tokens})
+            return dataset.as_words(response[0][:-1])
 
-                response = chat_sess.run(outputs, feed_dict={inputs: encoder_inputs})
-                response = " ".join([tf.compat.as_str(idx_to_word[i])
-                                     for i in response[0][:-1]])
-                print("Robot:", response)
-        except (KeyboardInterrupt, SystemExit):
-            print("Training halted. Cleaning up . . . ")
-            # TODO: perhaps we also must unfreeze coordinator?
-
+        sentence = io_utils.get_sentence()
+        while sentence != 'exit':
+            resp = respond_to(sentence)
+            print("Robot:", resp)
+            sentence = io_utils.get_sentence()
+        print("Farewell, human.")
