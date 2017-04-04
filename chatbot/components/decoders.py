@@ -57,10 +57,13 @@ class Decoder(RNN):
                      else, None.
         """
 
+        cell = self.get_cell('decoder_cell')
         outputs, state = DYNAMIC_RNNS[rnn_name](
-            self.cell, inputs, initial_state=initial_state, dtype=tf.float32,
-            swap_memory=True,
-        )
+            cell, inputs, initial_state=initial_state, dtype=tf.float32,
+            swap_memory=True)
+        #    self.cell, inputs, initial_state=initial_state, dtype=tf.float32,
+        #    swap_memory=True,
+        #)
 
         if not is_chatting:
             return outputs, state
@@ -76,7 +79,7 @@ class Decoder(RNN):
             decoder_input = loop_embedder(tf.reshape(response[-1], (1, 1)),
                                           reuse=True)
             outputs, state = DYNAMIC_RNNS[rnn_name](
-                self.cell, inputs=decoder_input, initial_state=state,
+                cell, inputs=decoder_input, initial_state=state,
                 sequence_length=[1], dtype=tf.float32)
             next_id = self.sample(self.apply_projection(outputs))
             return tf.concat([response, tf.stack([next_id])], axis=0), state
@@ -100,7 +103,7 @@ class Decoder(RNN):
         # -- 'loop_vars' is a tuple of tensors that is passed to 'cond' and 'body'.
         response, _ = tf.while_loop(
             cond, body, (response, state),
-            shape_invariants=(tf.TensorShape([None]), self.cell.shape),
+            shape_invariants=(tf.TensorShape([None]), cell.shape),
             back_prop=False
         )
         # ================== FAREWELL: The tensorflow while loop. ====================
@@ -192,6 +195,7 @@ class AttentionDecoder(Decoder):
 
     def __call__(self, inputs, initial_state=None, is_chatting=False,
                  loop_embedder=None):
+        #from tensorflow.contrib.seq2seq import DynamicAttentionWrapper
         return super(AttentionDecoder, self).__call__("bidirectional_rnn", inputs,
                                             initial_state=initial_state,
                                             is_chatting=is_chatting,
