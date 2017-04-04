@@ -53,7 +53,7 @@ def unfreeze_bot(frozen_model_path):
 
     bot_graph   = load_graph(frozen_model_path)
     tensors = {
-        'inputs': bot_graph.get_tensor_by_name('import/input_pipeline/input_pipeline/user_input_ph:0'),
+        'inputs': bot_graph.get_tensor_by_name('import/input_pipeline/user_input:0'),
         'outputs': bot_graph.get_tensor_by_name('import/decoder/decoder_1/ExpandDims:0')
     }
     return tensors, bot_graph

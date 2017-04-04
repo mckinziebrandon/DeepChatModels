@@ -69,7 +69,6 @@ class Model(object):
             # Recursively delete all files in output but keep directories.
             os.popen("find {0}".format(self.ckpt_dir) + " -type f -exec rm {} \;")
             self.file_writer    = tf.summary.FileWriter(self.ckpt_dir)
-            # Store full model specifications in ckpt dir for easy loading later.
             # Add operation for calling all variable initializers.
             init_op = tf.global_variables_initializer()
             # Construct saver (adds save/restore ops to all).
@@ -78,6 +77,7 @@ class Model(object):
             self.file_writer.add_graph(self.sess.graph)
             # Initialize all model variables.
             self.sess.run(init_op)
+            # Store full model specifications in ckpt dir for easy loading later.
             with open(os.path.join(self.ckpt_dir, 'config.yml'), 'w') as f:
                 yaml.dump(getattr(self, "params"), f, default_flow_style=False)
 
@@ -144,9 +144,8 @@ class Model(object):
         output_fname        = os.path.join(self.ckpt_dir, "frozen_model.pb")
         # Note: output_node_names is only used to tell tensorflow what is can
         # throw away in the frozen graph (e.g. training ops).
-        print("freezer_col:\n", tf.get_collection('freezer'))
         output_node_names = ",".join([t.name.rstrip(':0') for t in tf.get_collection('freezer')])
-        print("output_node_names:\n", output_node_names)
+        print(output_node_names)
         # Super-duper-ultra-compression-9000. Save a graph with only the
         # bare necessities for chat sessions (forget about your worries/strife).
         output_graph_def = tf.graph_util.convert_variables_to_constants(
