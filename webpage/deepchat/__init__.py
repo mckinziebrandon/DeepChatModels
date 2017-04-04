@@ -3,7 +3,7 @@ from flask_wtf import CSRFProtect
 
 # IMPORT ALL THE THINGS.
 # Don't judge me.
-from chatbot import DynamicBot, ChatBot, SimpleBot
+import chatbot
 from data import Cornell, Ubuntu, WMT, Reddit, TestData
 from utils import io_utils
 from pydoc import locate
