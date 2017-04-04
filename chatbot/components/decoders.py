@@ -17,7 +17,7 @@ class Decoder(RNN):
     """
 
     def __init__(self, state_size, output_size, embed_size,
-                 dropout_prob, num_layers, temperature, max_seq_len, scope=None):
+                 dropout_prob, num_layers, temperature, max_seq_len):
         """
         Args:
             state_size: number of units in underlying rnn cell.
@@ -27,8 +27,7 @@ class Decoder(RNN):
         super(Decoder, self).__init__(state_size=state_size,
                                       embed_size=embed_size,
                                       dropout_prob=dropout_prob,
-                                      num_layers=num_layers,
-                                      scope=scope)
+                                      num_layers=num_layers)
         self.temperature = temperature
         self.output_size = output_size
         self.max_seq_len = max_seq_len
@@ -58,7 +57,6 @@ class Decoder(RNN):
                      else, None.
         """
 
-        #with tf.variable_scope(self._scope, "decoder", values=[inputs]) as dec_scope:
         outputs, state = DYNAMIC_RNNS[rnn_name](
             self.cell, inputs, initial_state=initial_state, dtype=tf.float32,
             swap_memory=True,
@@ -158,8 +156,7 @@ class Decoder(RNN):
 class BasicDecoder(Decoder):
 
     def __init__(self, state_size, output_size, embed_size,
-                 dropout_prob=1.0, num_layers=2, temperature=0.0, max_seq_len=50,
-                 scope=None):
+                 dropout_prob=1.0, num_layers=2, temperature=0.0, max_seq_len=50):
         super(BasicDecoder, self).__init__(
             state_size=state_size,
             output_size=output_size,
@@ -194,11 +191,10 @@ class AttentionDecoder(Decoder):
 
 
     def __call__(self, inputs, initial_state=None, is_chatting=False,
-                 loop_embedder=None, scope=None):
+                 loop_embedder=None):
         return super(AttentionDecoder, self).__call__("bidirectional_rnn", inputs,
                                             initial_state=initial_state,
                                             is_chatting=is_chatting,
-                                            loop_embedder=loop_embedder,
-                                            scope=scope)
+                                            loop_embedder=loop_embedder)
 
 

@@ -39,14 +39,12 @@ class Cell(tf.contrib.rnn.RNNCell):
 class RNN(object):
     """Base class for BasicEncoder/DynamicDecoder."""
 
-    def __init__(self, state_size, embed_size, dropout_prob, num_layers,
-                 scope=None):
+    def __init__(self, state_size, embed_size, dropout_prob, num_layers):
         """
         Args:
             state_size: number of units in underlying rnn cell.
             embed_size: dimension size of word-embedding space.
         """
-        self._scope = scope
         self.state_size = state_size
         self.embed_size = embed_size
         self.num_layers = num_layers

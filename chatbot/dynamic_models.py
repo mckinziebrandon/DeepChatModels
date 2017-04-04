@@ -54,14 +54,14 @@ class DynamicBot(Model):
         self.embedder = Embedder(self.vocab_size, self.embed_size, l1_reg=self.l1_reg)
 
         # Organize full input pipeline inside single graph node for clean visualization.
-        self.pipeline = InputPipeline(dataset.paths,
-                                      self.batch_size,
+        self.pipeline = InputPipeline(file_paths=dataset.paths,
+                                      batch_size=self.batch_size,
                                       is_chatting=self.is_chatting)
-        self.encoder_inputs = self.pipeline.encoder_inputs
+        encoder_inputs      = self.pipeline.encoder_inputs
         self.decoder_inputs = self.pipeline.decoder_inputs
 
         with tf.variable_scope('encoder'):
-            embedded_enc_inputs = self.embedder(self.encoder_inputs)
+            embedded_enc_inputs = self.embedder(encoder_inputs)
             encoder = encoder_class(
                 state_size=self.state_size,
                 embed_size=self.embed_size,
@@ -85,10 +85,10 @@ class DynamicBot(Model):
                                                           is_chatting=self.is_chatting,
                                                           loop_embedder=self.embedder)
 
-        self.outputs = decoder_outputs
+        self.outputs = tf.identity(decoder_outputs, name='outputs')
         # Tag inputs and outputs by name should we want to freeze the model.
-        self.graph.add_to_collection('freezer', self.encoder_inputs)
-        self.graph.add_to_collection('freezer', decoder_outputs)
+        self.graph.add_to_collection('freezer', encoder_inputs)
+        self.graph.add_to_collection('freezer', self.outputs)
         # Merge any summaries floating around in the aether into one object.
         self.merged = tf.summary.merge_all()
 
