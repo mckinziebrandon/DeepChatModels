@@ -35,14 +35,14 @@ This project is still very much evolving each day, but the core goals are:
               nb_epoch=FLAGS.nb_epoch,
               steps_per_ckpt=FLAGS.steps_per_ckpt)
   ```
-  + However, as the models began to grow it became clear that named parameters weren't the best option, especially considering that the typical user only interacts with a subset of them. The current solution, which allows for even more customization but with far less boilerplace is to load configuration (yaml) files. In addition, the user can also pass in parameters via command-line args, which will be merged with any config files they specify as well (precedence given to command-line args if conflict). The code for main.py, after building the configuration dictionary, is just:
+  + However, as the models began to grow it became clear that named parameters weren't the best option, especially considering that the typical user only interacts with a subset of them. The current solution, which allows for even more customization but with far less boilerplate is to load configuration (yaml) files. In addition, the user can also pass in parameters via command-line args, which will be merged with any config files they specify as well (precedence given to command-line args if conflict). The code for main.py, after building the configuration dictionary, is primarily:
     
-```python
+  ```python
     print("Setting up %s dataset." % config['dataset'])
     dataset = locate(config['dataset'])(config['dataset_params'])
     print("Creating", config['model'], ". . . ")
     bot = locate(config['model'])(dataset, config)
-```
+  ```
 
 which also makes use of `pydoc.locate`, a common practice I've seen for similar projects. See `main.py` for more details.
 
