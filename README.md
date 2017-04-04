@@ -80,7 +80,7 @@ __[Ongoing] Reference Material__: A lot of research has gone into these models, 
 * Online Resources:
     * [Metaflow blog](https://blog.metaflow.fr/): Incredibly helpful tensorflow (r1.0) tutorials.
     * [Flask Mega-Tutorial](https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-i-hello-world): For the webpage parts of the project.
-    * [Code for "Massive Exploration of Neural Machine Translation Architectures"](Massive Exploration of Neural Machine Translation Architectures): Main inspiration for switching to yaml configs and pydoc.locate. Paper is great as well.
+    * [Code for "Massive Exploration of Neural Machine Translation Architectures"](https://github.com/google/seq2seq): Main inspiration for switching to yaml configs and pydoc.locate. Paper is great as well.
     * [Tensorflow r1.0 API](https://www.tensorflow.org/api_docs/): (Of course). The new python API guides are great. 
 
 
