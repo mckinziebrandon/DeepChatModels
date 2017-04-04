@@ -60,17 +60,18 @@ class DynamicBot(Model):
         self.encoder_inputs = self.pipeline.encoder_inputs
         self.decoder_inputs = self.pipeline.decoder_inputs
 
-        with tf.variable_scope("encoder") as scope:
-            embedded_enc_inputs = self.embedder(self.encoder_inputs, scope=scope)
-            # Create the encoder & decoder objects.
-            encoder = encoder_class(self.state_size, self.embed_size,
-                                         dropout_prob=self.dropout_prob,
-                                         num_layers=self.num_layers)
+        with tf.variable_scope('encoder'):
+            embedded_enc_inputs = self.embedder(self.encoder_inputs)
+            encoder = encoder_class(
+                state_size=self.state_size,
+                embed_size=self.embed_size,
+                dropout_prob=self.dropout_prob,
+                num_layers=self.num_layers)
             # Applying embedded inputs to encoder yields the final (context) state.
             _, encoder_state = encoder(embedded_enc_inputs)
 
-        with tf.variable_scope("decoder") as scope:
-            embedded_dec_inputs = self.embedder(self.decoder_inputs, scope=scope)
+        with tf.variable_scope("decoder"):
+            embedded_dec_inputs = self.embedder(self.decoder_inputs)
             self.decoder  = decoder_class(self.state_size,
                                           self.vocab_size,
                                           self.embed_size,
@@ -82,8 +83,7 @@ class DynamicBot(Model):
             decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
                                                           initial_state=encoder_state,
                                                           is_chatting=self.is_chatting,
-                                                          loop_embedder=self.embedder,
-                                                          scope=scope)
+                                                          loop_embedder=self.embedder)
 
         self.outputs = decoder_outputs
         # Tag inputs and outputs by name should we want to freeze the model.

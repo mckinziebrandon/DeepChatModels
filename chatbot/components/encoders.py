@@ -14,12 +14,12 @@ class BasicEncoder(RNN):
             output_size: dimension of output space for projections.
             embed_size: dimension size of word-embedding space.
         """
-        super(BasicEncoder, self).__init__(state_size,
-                                           embed_size,
-                                           dropout_prob,
-                                           num_layers)
+        super(BasicEncoder, self).__init__(state_size=state_size,
+                                           embed_size=embed_size,
+                                           dropout_prob=dropout_prob,
+                                           num_layers=num_layers)
 
-    def __call__(self, inputs, initial_state=None, scope=None):
+    def __call__(self, inputs, initial_state=None):
         """Run the inputs on the encoder and return the output(s).
 
         Args:
@@ -33,28 +33,29 @@ class BasicEncoder(RNN):
                      Tensor of shape [batch_size, max_time, state_size].
             state:   The final encoder state. Tensor of shape [batch_size, state_size].
         """
-        with tf.name_scope(scope, "encoder", values=[inputs]):
 
-            cell = self.get_cell("basic_enc_cell")
-            _, state = tf.nn.dynamic_rnn(cell,
-                                         inputs,
-                                         initial_state=initial_state,
-                                         dtype=tf.float32)
-            return None, state
+        cell = self.get_cell("basic_enc_cell")
+        _, state = tf.nn.dynamic_rnn(cell,
+                                     inputs,
+                                     initial_state=initial_state,
+                                     dtype=tf.float32)
+        return None, state
 
 
 class BidirectionalEncoder(RNN):
-    def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2):
+    def __init__(self, state_size=512, embed_size=256, dropout_prob=1.0, num_layers=2,
+                 scope=None):
         """
         Args:
             state_size: number of units in underlying rnn cell.
             output_size: dimension of output space for projections.
             embed_size: dimension size of word-embedding space.
         """
-        super(BidirectionalEncoder, self).__init__(state_size,
-                                                   embed_size,
-                                                   dropout_prob,
-                                                   num_layers)
+        super(BidirectionalEncoder, self).__init__(state_size=state_size,
+                                           embed_size=embed_size,
+                                           dropout_prob=dropout_prob,
+                                           num_layers=num_layers,
+                                           scope=scope)
 
     def __call__(self, inputs, initial_state=None, scope=None):
         """Run the inputs on the encoder and return the output(s).
@@ -66,7 +67,7 @@ class BidirectionalEncoder(RNN):
             outputs: Tensor of shape [batch_size, max_time, state_size].
             state:   The final encoder state. Tensor of shape [batch_size, state_size].
         """
-        with tf.name_scope(scope, "encoder", values=[inputs]):
+        with tf.variable_scope(self._scope, "encoder", values=[inputs]):
 
             cell_fw = self.get_cell("cell_fw")
             cell_bw = self.get_cell("cell_bw")
