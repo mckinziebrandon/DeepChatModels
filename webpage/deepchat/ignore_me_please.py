@@ -1,6 +1,60 @@
-"""Nothing to see here."""
+"""Nothing to see here . . . """
+
 import os
+import re
+import numpy as np
 import tensorflow as tf
+
+# Special vocabulary symbols.
+_PAD = b"_PAD"      # Append to unused space for both encoder/decoder.
+_GO  = b"_GO"       # Prepend to each decoder input.
+_EOS = b"_EOS"      # Append to outputs only. Stopping signal when decoding.
+_UNK = b"_UNK"      # For any symbols not in our vocabulary.
+_START_VOCAB = [_PAD, _GO, _EOS, _UNK]
+
+# Enumerations for ease of use by this and other files.
+PAD_ID  = 0
+GO_ID   = 1
+EOS_ID  = 2
+UNK_ID  = 3
+
+# Regular expressions used to tokenize.
+_WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
+_DIGIT_RE   = re.compile(br"\d")
+
+def basic_tokenizer(sentence):
+    """Very basic tokenizer: split the sentence into a list of tokens."""
+    words = []
+    for space_separated_fragment in sentence.strip().split():
+        words.extend(_WORD_SPLIT.split(space_separated_fragment))
+    return [w for w in words if w]
+
+
+def sentence_to_token_ids(sentence, vocabulary, normalize_digits=True):
+    """Convert a string to list of integers representing token-ids.
+
+    For example, a sentence "I have a dog" may become tokenized into
+    ["I", "have", "a", "dog"] and with vocabulary {"I": 1, "have": 2,
+    "a": 4, "dog": 7"} this function will return [1, 2, 4, 7].
+
+    Args:
+      sentence: the sentence in bytes format to convert to token-ids.
+      vocabulary: a dictionary mapping tokens to integers.
+      normalize_digits: Boolean; if true, all digits are replaced by 0s.
+
+    Returns:
+      a list of integers, the token-ids for the sentence.
+    """
+    words = basic_tokenizer(sentence)
+
+    if not normalize_digits:
+        return [vocabulary.get(w, UNK_ID) for w in words]
+
+    # Normalize digits by 0 before looking words up in the vocabulary.
+    return [vocabulary.get(_DIGIT_RE.sub(b"0", w), UNK_ID) for w in words]
+
+
+
 
 def load_graph(frozen_model_dir):
     """Load frozen tensorflow graph into the default graph.
@@ -75,7 +129,7 @@ class FrozenBot:
     def __call__(self, sentence):
         """Outputs response sentence (string) given input (string)."""
         # Convert input sentence to token-ids.
-        sentence_tokens = io_utils.sentence_to_token_ids(
+        sentence_tokens = sentence_to_token_ids(
             tf.compat.as_bytes(sentence), self.word_to_idx)
         sentence_tokens = np.array([sentence_tokens[::-1]])
 
@@ -107,3 +161,5 @@ class FrozenBot:
             return vocab, rev_vocab
         else:
             raise ValueError("Vocabulary file %s not found.", vocabulary_path)
+
+
