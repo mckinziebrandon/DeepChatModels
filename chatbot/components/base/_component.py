@@ -67,9 +67,6 @@ class GraphComponent(object):
         self.__doc__ = self._build.__doc__
         self.__call__.__func__.__doc__ = self._build.__doc__
 
-    def _build(self, *args, **kwargs):
-        raise NotImplementedError
-
     def __call__(self, *args, **kwargs):
         return self._template(*args, **kwargs)
 

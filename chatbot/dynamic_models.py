@@ -54,45 +54,44 @@ class DynamicBot(Model):
         self.embedder = Embedder(self.vocab_size, self.embed_size, l1_reg=self.l1_reg)
 
         # Organize full input pipeline inside single graph node for clean visualization.
-        with tf.variable_scope("input_pipeline") as scope:
-            self.pipeline = InputPipeline(dataset.paths, self.batch_size,
-                                          is_chatting=self.is_chatting,
-                                          scope=scope)
-            self.encoder_inputs = self.pipeline.encoder_inputs
-            self.decoder_inputs = self.pipeline.decoder_inputs
+        self.pipeline = InputPipeline(file_paths=dataset.paths,
+                                      batch_size=self.batch_size,
+                                      is_chatting=self.is_chatting)
+        encoder_inputs      = self.pipeline.encoder_inputs
+        self.decoder_inputs = self.pipeline.decoder_inputs
 
-        with tf.variable_scope("encoder") as scope:
-            embedded_enc_inputs = self.embedder(self.encoder_inputs, scope=scope)
-            # Create the encoder & decoder objects.
-            self.encoder = encoder_class(self.state_size, self.embed_size,
-                                         dropout_prob=self.dropout_prob,
-                                         num_layers=self.num_layers)
+        with tf.variable_scope('encoder'):
+            embedded_enc_inputs = self.embedder(encoder_inputs)
+            encoder = encoder_class(
+                base_cell=self.base_cell,
+                state_size=self.state_size,
+                embed_size=self.embed_size,
+                dropout_prob=self.dropout_prob,
+                num_layers=self.num_layers)
             # Applying embedded inputs to encoder yields the final (context) state.
-            _, encoder_state = self.encoder(embedded_enc_inputs)
+            _, encoder_state = encoder(embedded_enc_inputs)
 
-        with tf.variable_scope("decoder") as scope:
-            embedded_dec_inputs = self.embedder(self.decoder_inputs, scope=scope)
-            self.decoder  = decoder_class(self.state_size,
-                                          self.vocab_size,
-                                          self.embed_size,
-                                          dropout_prob=self.dropout_prob,
-                                          num_layers=self.num_layers,
-                                          max_seq_len=dataset.max_seq_len,
-                                          temperature=self.temperature)
+        with tf.variable_scope("decoder"):
+            embedded_dec_inputs = self.embedder(self.decoder_inputs)
+            self.decoder  = decoder_class(
+                base_cell=self.base_cell,
+                state_size=self.state_size,
+                vocab_size=self.vocab_size,
+                embed_size=self.embed_size,
+                dropout_prob=self.dropout_prob,
+                num_layers=self.num_layers,
+                max_seq_len=dataset.max_seq_len,
+                temperature=self.temperature)
             # For decoder, we want the full sequence of outputs, not simply the last.
             decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
                                                           initial_state=encoder_state,
                                                           is_chatting=self.is_chatting,
-                                                          loop_embedder=self.embedder,
-                                                          scope=scope)
+                                                          loop_embedder=self.embedder)
 
-        self.outputs = decoder_outputs
-        with tf.name_scope("freezer"):
-            # Tag inputs and outputs by name should we want to freeze the model.
-            user_input      = tf.identity(self.pipeline.user_input, name="user_input")
-            encoder_inputs  = tf.identity(self.encoder_inputs, name="encoder_inputs")
-            outputs         = tf.identity(decoder_outputs, name="outputs")
-
+        self.outputs = tf.identity(decoder_outputs, name='outputs')
+        # Tag inputs and outputs by name should we want to freeze the model.
+        self.graph.add_to_collection('freezer', encoder_inputs)
+        self.graph.add_to_collection('freezer', self.outputs)
         # Merge any summaries floating around in the aether into one object.
         self.merged = tf.summary.merge_all()
 
@@ -255,30 +254,17 @@ class DynamicBot(Model):
             coord.request_stop()
         finally:
             coord.join(threads)
-            # Before closing, which will freeze our graph to a file,
-            # rebuild it so that it's ready for chatting when unfreezed,
-            # to make it easier for the user. Training can still be resumed
-            # with no issue since it doesn't load frozen models, just ckpts.
-            #self._set_chat_params()
-            #self.build_computation_graph(self.dataset)
-            self.close()
-
-    def _set_chat_params(self):
-        self.decode = self.is_chatting = True
-        self.batch_size = 1
-        self.reset_model = False
+            self.close(save_current=False, rebuild_for_chat=True)
 
     def chat(self):
         """Alias to decode."""
         self.decode()
 
     def decode(self):
-        """
-        The higher the temperature, the more varied will be the bot's responses.
-        """
-        # We decode one sentence at a time.
-        self.batch_size = 1
-        assert self.is_chatting
+        """Sets up and manages chat session between bot and user (stdin)."""
+        # Make sure params are set to chat values, just in case the user
+        # forgot to specify/doesn't know about such things.
+        self._set_chat_params()
         # Decode from standard input.
         print("Type \"exit\" to exit.\n")
         sentence = io_utils.get_sentence()
@@ -289,7 +275,19 @@ class DynamicBot(Model):
         print("Farewell, human.")
 
     def __call__(self, sentence):
-        """This is how we talk to the bot."""
+        """This is how we talk to the bot interactively. While
+        decode(self) above sets up/manages the chat session, users can also use this
+        directly to get responses from the bot, given an input sentence. For example,
+            sentence = 'Hi, bot!'
+            response = bot(sentence)
+        is all that's required for back-and-forth with the bot.
+
+        Args:
+            sentence: (str) Input sentence from user.
+
+        Returns:
+            response string from bot.
+        """
         # Convert input sentence to token-ids.
         encoder_inputs = io_utils.sentence_to_token_ids(
             tf.compat.as_bytes(sentence), self.dataset.word_to_idx)
@@ -300,3 +298,33 @@ class DynamicBot(Model):
         _, _, response = self.step(forward_only=True)
         # response has shape [1, response_length] and it's last elemeot is EOS_ID. :)
         return self.dataset.as_words(response[0][:-1])
+
+    def close(self, save_current=True, rebuild_for_chat=True):
+        """Before closing, which will freeze our graph to a file,
+        rebuild it so that it's ready for chatting when unfreezed,
+        to make it easier for the user. Training can still be resumed
+        with no issue since it doesn't load frozen models, just ckpts.
+        """
+
+        if rebuild_for_chat:
+            lr_val = self.learning_rate.eval(session=self.sess)
+            tf.reset_default_graph()
+            # Gross. Am ashamed:
+            self.sess = tf.Session()
+            with self.graph.name_scope(tf.GraphKeys.SUMMARIES):
+                self.global_step    = tf.Variable(initial_value=0, trainable=False)
+                self.learning_rate  = tf.constant(lr_val)
+            self._set_chat_params()
+            self.build_computation_graph(self.dataset)
+            self.compile()
+        super(DynamicBot, self).close(save_current=save_current)
+
+    def _set_chat_params(self):
+        """Set all training-specific param values to chatting-specific values."""
+        # TODO: use __setattr__ instead of this.
+        self.__dict__['__params']['model_params']['decode'] = True
+        self.__dict__['__params']['model_params']['is_chatting'] = True
+        self.__dict__['__params']['model_params']['batch_size'] = 1
+        self.__dict__['__params']['model_params']['reset_model'] = False
+        assert self.is_chatting and self.decode and not self.reset_model
+

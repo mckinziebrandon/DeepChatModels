@@ -69,9 +69,6 @@ class Model(object):
             # Recursively delete all files in output but keep directories.
             os.popen("find {0}".format(self.ckpt_dir) + " -type f -exec rm {} \;")
             self.file_writer    = tf.summary.FileWriter(self.ckpt_dir)
-            # Store full model specifications in ckpt dir for easy loading later.
-            with open(os.path.join(self.ckpt_dir, 'config.yml'), 'w') as f:
-                yaml.dump(getattr(self, "params"), f, default_flow_style=False)
             # Add operation for calling all variable initializers.
             init_op = tf.global_variables_initializer()
             # Construct saver (adds save/restore ops to all).
@@ -80,6 +77,9 @@ class Model(object):
             self.file_writer.add_graph(self.sess.graph)
             # Initialize all model variables.
             self.sess.run(init_op)
+            # Store full model specifications in ckpt dir for easy loading later.
+            with open(os.path.join(self.ckpt_dir, 'config.yml'), 'w') as f:
+                yaml.dump(getattr(self, "params"), f, default_flow_style=False)
 
     def save(self, summaries=None):
         """
@@ -99,14 +99,15 @@ class Model(object):
         else:
             self.log.info("Save called without summaries.")
 
-    def close(self):
+    def close(self, save_current=True):
         """Call then when training session is terminated.
             - Saves the current model/checkpoint state.
             - Freezes the model into a protobuf file in self.ckpt_dir.
             - Closes context managers for file_writing and session.
         """
         # First save the checkpoint as usual.
-        self.save()
+        if save_current:
+            self.save()
         # Freeze me, for I am infinite.
         self.freeze()
         # Be a responsible bot and close my file writer.
@@ -133,7 +134,7 @@ class Model(object):
         return params
 
     def freeze(self):
-        """ Useful for e.g. deploying model on website.
+        """Useful for e.g. deploying model on website.
 
         Args: directory containing model ckpt files we'd like to freeze.
         """
@@ -141,23 +142,18 @@ class Model(object):
         # TODO: Need to ensure batch size set to 1 before freezing.
         checkpoint_state    = tf.train.get_checkpoint_state(self.ckpt_dir)
         output_fname        = os.path.join(self.ckpt_dir, "frozen_model.pb")
-        output_node_names   = ("{0}/user_input,"
-                               "{0}/encoder_inputs,"
-                               "{0}/outputs".format("freezer"))
-        saver = tf.train.import_meta_graph(checkpoint_state.model_checkpoint_path+'.meta',
-                                           clear_devices=True)
-
-        input_graph_def = tf.get_default_graph().as_graph_def()
-        with tf.Session() as sess:
-            saver.restore(sess, checkpoint_state.model_checkpoint_path)
-            output_graph_def = tf.graph_util.convert_variables_to_constants(
-                sess,
-                input_graph_def,
-                output_node_names.split(','))
-
-            with tf.gfile.GFile(output_fname, 'wb') as f:
-                f.write(output_graph_def.SerializeToString())
-            print("%d ops in the final graph." % len(output_graph_def.node))
+        # Note: output_node_names is only used to tell tensorflow what is can
+        # throw away in the frozen graph (e.g. training ops).
+        output_node_names = ",".join([t.name.rstrip(':0') for t in tf.get_collection('freezer')])
+        print(output_node_names)
+        # Super-duper-ultra-compression-9000. Save a graph with only the
+        # bare necessities for chat sessions (forget about your worries/strife).
+        output_graph_def = tf.graph_util.convert_variables_to_constants(
+            self.sess, self.graph.as_graph_def(), output_node_names.split(',')
+        )
+        with tf.gfile.GFile(output_fname, 'wb') as f:
+            f.write(output_graph_def.SerializeToString())
+        print("%d ops in the final graph." % len(output_graph_def.node))
 
     def __getattr__(self, name):
         if name == 'params':

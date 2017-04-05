@@ -5,6 +5,7 @@ from pydoc import locate
 import os
 from webpage.deepchat import app
 from webpage.deepchat import ignore_me_please
+#from utils import bot_freezer
 from .forms import ChatForm
 
 
@@ -17,6 +18,8 @@ def load_gloabal_data():
     here = os.path.dirname(os.path.realpath(__file__))
     frozen_dir = os.path.join(here, 'static', 'assets', 'frozen_models', data_name)
     bot = ignore_me_please.FrozenBot(frozen_model_dir=frozen_dir, vocab_size=vocab_size)
+    #frozen_model_dir = os.path.join(here, 'static', 'assets', 'frozen_models', data_name)
+    #bot = bot_freezer.FrozenBot(frozen_model_dir=frozen_model_dir, vocab_size=vocab_size)
 
 
 @app.route('/', methods=['GET'])

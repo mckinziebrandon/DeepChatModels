@@ -76,8 +76,10 @@ class Dataset(DatasetABC):
         self.paths['train_tfrecords'] = None
         self.paths['valid_tfrecords'] = None
 
-        self._word_to_idx, _ = io_utils.get_vocab_dicts(self.paths['from_vocab'])
-        _, self._idx_to_word = io_utils.get_vocab_dicts(self.paths['to_vocab'])
+        self._word_to_idx, _ = io_utils.get_vocab_dicts(
+            vocabulary_path=self.paths['from_vocab'])
+        _, self._idx_to_word = io_utils.get_vocab_dicts(
+            vocabulary_path=self.paths['to_vocab'])
 
         # Create tfrecords file if not located in data_dir.
         self.convert_to_tf_records('train')

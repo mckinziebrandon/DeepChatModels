@@ -14,6 +14,7 @@ DEFAULT_FULL_CONFIG = {
     "model": "chatbot.DynamicBot",
     "dataset": "data.Cornell",
     "model_params": {
+        "base_cell": "GRUCell",
         "ckpt_dir": "out",
         "decode": False,
         "batch_size": 256,

@@ -1,6 +1,5 @@
 import tensorflow as tf
 from utils import io_utils
-#from utils.io_utils import GO_ID
 from tensorflow.contrib.training import bucket_by_sequence_length
 
 LENGTHS = {'encoder_sequence_length': tf.FixedLenFeature([], dtype=tf.int64),
@@ -10,8 +9,8 @@ SEQUENCES = {'encoder_sequence': tf.FixedLenSequenceFeature([], dtype=tf.int64),
 
 
 class InputPipeline:
-    """ [NEW] TensorFlow-only input pipeline with parallel enqueuing,
-        dynamic bucketed-batching, and more.
+    """TensorFlow-only input pipeline with parallel enqueuing,
+    dynamic bucketed-batching, and more.
 
         Overview of pipeline construction:
             1. Create ops for reading protobuf tfrecords line-by-line.
@@ -27,7 +26,7 @@ class InputPipeline:
             capacity: maximum number of examples allowed in the input queue at a time.
             is_chatting: (bool) determines whether we're feeding user input or file inputs.
         """
-        with tf.variable_scope(scope, 'input_pipeline'):
+        with tf.name_scope(scope, 'input_pipeline') as scope:
             if capacity is None:
                 self.capacity = 40 * batch_size
             self.batch_size = batch_size
@@ -36,8 +35,9 @@ class InputPipeline:
             self.control = {'train': 0, 'valid': 1}
             self.active_data = tf.convert_to_tensor(self.control['train'])
             self.is_chatting = is_chatting
-            self._user_input = tf.placeholder(tf.int32, [1, None], name='user_input_ph')
+            self._user_input = tf.placeholder(tf.int32, [1, None], name='user_input')
             self._feed_dict = None
+            self._scope = scope
 
             if not is_chatting:
                 # Create tensors that will store input batches at runtime.
@@ -52,7 +52,7 @@ class InputPipeline:
               space-efficient manner.
 
         Args:
-            name: filename prefix for desired set of data. See Dataset class for naming conventions.
+            name: filename prefix for data. See Dataset class for naming conventions.
 
         Returns:
             2-tuple (lengths, sequences):
@@ -101,18 +101,18 @@ class InputPipeline:
         self._feed_dict = {self._user_input.name: user_input}
 
     def toggle_active(self):
-        """Simple callable that toggles the input data pointer between training and validation."""
+        """Simple callable that toggles active_data between training and validation."""
         def to_valid(): return tf.constant(self.control['valid'])
         def to_train(): return tf.constant(self.control['train'])
         self.active_data = tf.cond(tf.equal(self.active_data, self.control['train']),
                                     to_valid, to_train)
 
     def _cond_input(self, prefix):
-        with tf.variable_scope(prefix + '_cond_input'):
+        with tf.name_scope(self._scope):
             def train(): return self.train_batches[prefix + '_sequence']
             def valid(): return self.valid_batches[prefix + '_sequence']
             return tf.cond(tf.equal(self.active_data, self.control['train']),
-                           train, valid)
+                           train, valid, name=prefix + '_cond_input')
 
     def _read_line(self, file):
         """Create ops for extracting lines from files.
@@ -134,15 +134,18 @@ class InputPipeline:
         """
 
         with tf.variable_scope('shuffle_queue'):
-            queue = tf.RandomShuffleQueue(capacity=self.capacity,
-                                          min_after_dequeue=3*self.batch_size,
-                                          dtypes=tf.string, shapes=[()])
+            queue = tf.RandomShuffleQueue(
+                capacity=self.capacity,
+                min_after_dequeue=3*self.batch_size,
+                dtypes=tf.string, shapes=[()])
             enqueue_op = queue.enqueue(data)
             example_dq = queue.dequeue()
             qr = tf.train.QueueRunner(queue, [enqueue_op] * 4)
             tf.train.add_queue_runner(qr)
             _sequence_lengths, _sequences = tf.parse_single_sequence_example(
-                serialized=example_dq, context_features=LENGTHS, sequence_features=SEQUENCES)
+                serialized=example_dq,
+                context_features=LENGTHS,
+                sequence_features=SEQUENCES)
         return _sequence_lengths, _sequences
 
     def _padded_bucket_batches(self, input_length, data):
@@ -153,7 +156,6 @@ class InputPipeline:
                 batch_size=self.batch_size,
                 bucket_boundaries=[8, 16, 32],
                 capacity=self.capacity,
-                dynamic_pad=True,
-            )
+                dynamic_pad=True)
         return lengths, sequences
 
