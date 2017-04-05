@@ -1,5 +1,7 @@
 # Conversation Models in Tensorflow
 
+Note to visitors: data preprocessing work is still in the active stages and we haven't (yet) provided scripts for downloading the datasets. Updates will be posted here when this is completed.
+
 __Table of Contents__
 * [Brief Overview of Completed Work](#brief-overview-of-completed-work)
 * [Faster Embedding, Encoding, and Chatting](#faster-embedding-encoding-and-chatting)
@@ -8,24 +10,19 @@ __Table of Contents__
     * [Overfitting](#check-1-ensure-a-large-dynamicbot-can-overfit-a-small-dataset)
 
 This project is still very much evolving each day, but the core goals are:
-* Create a cleaner user interface for tinkering with sequence-to-sequence models. This project will explore ways to make constructing such models feel more intuitive/customizable. The ideal result is a chatbot API with the readability of [Keras](https://keras.io/), but with a degree of flexibility closer to [TensorFlow](https://www.tensorflow.org/). For example, the following code is all that is needed (after imports, etc.) to create and train one of the models on the Cornell movie dialogs (All params with '=' are optional) :
-
-> TODO: this is somewhat out-of-date now. Now we use config files to make customizing, saving, and loading models even easier and more compact. See main.py and examples in the configs directory for more details.
-
-```python
+* Create a cleaner user interface for tinkering with sequence-to-sequence models. This project will explore ways to make constructing such models feel more intuitive/customizable. The ideal result is a chatbot API with the readability of [Keras](https://keras.io/), but with a degree of flexibility closer to [TensorFlow](https://www.tensorflow.org/). 
+  + Initially, the general API was as shown below, with named parameters being the primary way of tweaking model values. 
+  ```python
     # All datasets implement a Dataset interface, found in data/_dataset.py
     dataset = Cornell(vocab_size=FLAGS.vocab_size)
 
-    # Create chat model of choice. Pass in FLAGS values in case you want to change from defaults.
+    # Create chat model of choice. (Only a subset of available parameters shown). 
     print("Creating DynamicBot.")
     bot = DynamicBot(dataset,
                      ckpt_dir=FLAGS.ckpt_dir,
                      batch_size=FLAGS.batch_size,
                      state_size=FLAGS.state_size,
-                     embed_size=FLAGS.embed_size,
-                     learning_rate=FLAGS.learning_rate,
-                     lr_decay=FLAGS.lr_decay,
-                     is_chatting=FLAGS.decode)
+                     embed_size=FLAGS.embed_size)
 
     # Don't forget to compile! Name inspired by similar Keras method.
     print("Compiling DynamicBot.")
@@ -33,16 +30,21 @@ This project is still very much evolving each day, but the core goals are:
 
     # Train an epoch on the data. CTRL-C at any time to safely stop training.
     # Model saved in FLAGS.ckpt_dir if specified, else "./out"
-    if not FLAGS.decode:
-        print("Training bot. CTRL-C to stop training.")
-        bot.train(dataset.train_data, dataset.valid_data,
-                  nb_epoch=FLAGS.nb_epoch,
-                  steps_per_ckpt=FLAGS.steps_per_ckpt)
+    print("Training bot. CTRL-C to stop training.")
+    bot.train(dataset.train_data, dataset.valid_data,
+              nb_epoch=FLAGS.nb_epoch,
+              steps_per_ckpt=FLAGS.steps_per_ckpt)
+  ```
+  + However, as the models began to grow it became clear that named parameters weren't the best option, especially considering that the typical user only interacts with a subset of them. The current solution, which allows for even more customization but with far less boilerplate is to load configuration (yaml) files. In addition, the user can also pass in parameters via command-line args, which will be merged with any config files they specify as well (precedence given to command-line args if conflict). The code for main.py, after building the configuration dictionary, is primarily:
+    
+  ```python
+    print("Setting up %s dataset." % config['dataset'])
+    dataset = locate(config['dataset'])(config['dataset_params'])
+    print("Creating", config['model'], ". . . ")
+    bot = locate(config['model'])(dataset, config)
+  ```
 
-    else:
-        print("Initiating chat session")
-        bot.decode()
-```
+which also makes use of `pydoc.locate`, a common practice I've seen for similar projects. See `main.py` for more details.
 
 * Explore how [personalities of chatbots](https://arxiv.org/pdf/1603.06155.pdf) change when trained on different datasets, and methods for improving speaker consistency.
 * Implement and improve "teacher mode": an interactive chat session where the user can tell the bot how well they're doing, and suggest better responses that the bot can learn from.
@@ -65,11 +67,21 @@ __Datasets__:
 
 * [Cornell Movie-Dialogs](https://www.cs.cornell.edu/~cristian/Cornell_Movie-Dialogs_Corpus.html): I began with [this preprocessed](https://github.com/suriyadeepan/datasets/tree/master/seq2seq/cornell_movie_corpus) version of the Cornell corpus, and made minor modifications to reduce noise.
 
-__[Ongoing] Reference Material__: A lot of research has gone into these models, and I've been documenting my notes on the most "important" papers here in the last section of [my deep learning notes here](http://mckinziebrandon.me/assets/pdf/CondensedSummaries.pdf). I'll be updating that as the ideas from more papers make their way into this project. The following is a list of the most influential papers for the architecture approaches in no particular order.
-* [Sequence to Sequence Learning with Neural Networks. Sutskever et al., 2014.](https://papers.nips.cc/paper/5346-sequence-to-sequence-learning-with-neural-networks.pdf)
-* [On Using Very Large Target Vocabulary for Neural Machine Translation. Jean et al., 2014.](https://arxiv.org/pdf/1412.2007.pdf)
-* [Neural Machine Translation by Jointly Learning to Align and Translate. Bahdanau et al., 2016](https://arxiv.org/pdf/1409.0473.pdf)
-* [Effective Approaches to Attention-based Neural Machine Translation. Luong et al., 2015](https://arxiv.org/pdf/1508.04025.pdf)
+* [Reddit comments](https://www.reddit.com/r/datasets/comments/3bxlg7/i_have_every_publicly_available_reddit_comment/): Approx. 1.7 billion reddit comments. Currently working on preprocessing and reducing this massive dataset to suitable format for training conversation models. Will post processed dataset download links when complete!
+
+__[Ongoing] Reference Material__: A lot of research has gone into these models, and I've been documenting my notes on the most "important" papers here in the last section of [my deep learning notes here](http://mckinziebrandon.me/assets/pdf/CondensedSummaries.pdf). I'll be updating that as the ideas from more papers make their way into this project. 
+
+* Papers:
+    * [Sequence to Sequence Learning with Neural Networks. Sutskever et al., 2014.](https://papers.nips.cc/paper/5346-sequence-to-sequence-learning-with-neural-networks.pdf)
+    * [On Using Very Large Target Vocabulary for Neural Machine Translation. Jean et al., 2014.](https://arxiv.org/pdf/1412.2007.pdf)
+    * [Neural Machine Translation by Jointly Learning to Align and Translate. Bahdanau et al., 2016](https://arxiv.org/pdf/1409.0473.pdf)
+    * [Effective Approaches to Attention-based Neural Machine Translation. Luong et al., 2015](https://arxiv.org/pdf/1508.04025.pdf)
+
+* Online Resources:
+    * [Metaflow blog](https://blog.metaflow.fr/): Incredibly helpful tensorflow (r1.0) tutorials.
+    * [Flask Mega-Tutorial](https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-i-hello-world): For the webpage parts of the project.
+    * [Code for "Massive Exploration of Neural Machine Translation Architectures"](https://github.com/google/seq2seq): Main inspiration for switching to yaml configs and pydoc.locate. Paper is great as well.
+    * [Tensorflow r1.0 API](https://www.tensorflow.org/api_docs/): (Of course). The new python API guides are great. 
 
 
 ## Faster Embedding, Encoding, and Chatting
