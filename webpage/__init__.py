@@ -1,2 +1,2 @@
-from webpage import deepchat
-from webpage.deepchat import views
+#from webpage import deepchat
+#from webpage.deepchat import views

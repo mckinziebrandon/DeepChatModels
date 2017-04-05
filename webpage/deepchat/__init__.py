@@ -5,4 +5,4 @@ app = Flask(__name__)
 app.config.from_object('config') # tells flask to read / use config.py
 csrf = CSRFProtect(app)
 
-from webpage.deepchat import views       # import at the end avoids circular imports
+from deepchat import views       # import at the end avoids circular imports

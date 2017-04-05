@@ -3,8 +3,8 @@ from flask import request
 from pydoc import locate
 
 import os
-from webpage.deepchat import app
-from webpage.deepchat import ignore_me_please
+from deepchat import app
+from deepchat import ignore_me_please
 #from utils import bot_freezer
 from .forms import ChatForm
 
