@@ -17,6 +17,7 @@ class Cell(tf.contrib.rnn.RNNCell):
         self._state_size    = state_size
         self._num_layers    = num_layers
         self._dropout_prob = dropout_prob
+        self._base_cell = base_cell
 
         # Convert cell name (str) to class, and create it.
         def single_cell(): return getattr(tf.contrib.rnn, base_cell)(num_units=state_size)
@@ -33,9 +34,13 @@ class Cell(tf.contrib.rnn.RNNCell):
 
     @property
     def shape(self):
-        def cell_shape(): return tf.TensorShape([None, self._state_size])
+        def cell_shape():
+            if "LSTM" in self._base_cell:
+                return [tf.TensorShape([None, self._state_size])] * 2
+            return tf.TensorShape([None, self.state_size])
+
         if self._num_layers == 1: return cell_shape()
-        else: return tuple([cell_shape() for _ in range(self._num_layers)])
+        else: return [cell_shape() for _ in range(self._num_layers)]
 
     def __call__(self, inputs, state, scope=None):
         """TODO

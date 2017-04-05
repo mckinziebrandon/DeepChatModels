@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+from tensorflow.contrib.rnn import LSTMStateTuple, LSTMCell
 from chatbot.components.base._rnn import RNN
 from utils import io_utils
 
@@ -69,12 +70,11 @@ class Decoder(RNN):
         """
 
         cell = self.get_cell('decoder_cell')
-        outputs, state = DYNAMIC_RNNS[rnn_name](
-            cell, inputs, initial_state=initial_state, dtype=tf.float32,
-            swap_memory=True)
-        #    self.cell, inputs, initial_state=initial_state, dtype=tf.float32,
-        #    swap_memory=True,
-        #)
+        outputs, state = DYNAMIC_RNNS[rnn_name](cell=cell,
+                                                inputs=inputs,
+                                                initial_state=initial_state,
+                                                dtype=tf.float32,
+                                                swap_memory=True)
 
         if not is_chatting:
             return outputs, state
@@ -89,11 +89,25 @@ class Decoder(RNN):
             tf.get_variable_scope().reuse_variables()
             decoder_input = loop_embedder(tf.reshape(response[-1], (1, 1)),
                                           reuse=True)
-            outputs, state = DYNAMIC_RNNS[rnn_name](
-                cell, inputs=decoder_input, initial_state=state,
-                sequence_length=[1], dtype=tf.float32)
-            next_id = self.sample(self.apply_projection(outputs))
-            return tf.concat([response, tf.stack([next_id])], axis=0), state
+
+            # For handling tuple-state like LSTMCell.
+            if "LSTM" in self.base_cell:
+                if isinstance(state, list):
+                    if self.num_layers > 1:
+                        state = tuple([LSTMStateTuple(c=s[0], h=s[1]) for s in state])
+                    else:
+                        state = LSTMStateTuple(c=state[0], h=state[1])
+
+            outputs, state = DYNAMIC_RNNS[rnn_name](cell=cell,
+                                                    inputs=decoder_input,
+                                                    initial_state=state,
+                                                    sequence_length=[1],
+                                                    dtype=tf.float32)
+
+            next_id  = self.sample(self.apply_projection(outputs))
+            response =  tf.concat([response, tf.stack([next_id])], axis=0)
+            state    = self._map_state_to(list, state)
+            return response, state
 
         def cond(response, s):
             """Input callable for tf.while_loop. See below."""
@@ -113,7 +127,7 @@ class Decoder(RNN):
         # -- 'body': callable returning a tuple of tensors of same arity as loop_vars.
         # -- 'loop_vars' is a tuple of tensors that is passed to 'cond' and 'body'.
         response, _ = tf.while_loop(
-            cond, body, (response, state),
+            cond, body, (response, self._map_state_to(list, state)),
             shape_invariants=(tf.TensorShape([None]), cell.shape),
             back_prop=False
         )
@@ -165,6 +179,12 @@ class Decoder(RNN):
         Required as argument to the sampled softmax loss.
         """
         return self._projection
+
+    def _map_state_to(self, fn, state):
+        """Because LSTMStateTuple is the bane of my existence."""
+        if "LSTM" not in self.base_cell: return state
+        if self.num_layers > 1: return list(map(fn, state))
+        else: return fn(state)
 
 
 class BasicDecoder(Decoder):
