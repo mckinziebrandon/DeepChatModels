@@ -49,6 +49,8 @@ which also makes use of `pydoc.locate`, a common practice I've seen for similar 
 * Explore how [personalities of chatbots](https://arxiv.org/pdf/1603.06155.pdf) change when trained on different datasets, and methods for improving speaker consistency.
 * Implement and improve "teacher mode": an interactive chat session where the user can tell the bot how well they're doing, and suggest better responses that the bot can learn from.
 
+__NOTE__: From here on, the README is somewhat outdated. Many additions/improvements have since been made. When the project pace starts to slow a bit, I plan on rewriting essentially this whole document.
+
 ## Brief Overview of Completed Work
 
 
