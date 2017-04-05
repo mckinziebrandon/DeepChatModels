@@ -4,4 +4,4 @@ gunicorn==19.6.0
 psycopg2==2.6.1
 whitenoise==2.0.6
 requests==2.9.1
-tensorflow==1.1.0
+tensorflow>=1.1.0rc1
