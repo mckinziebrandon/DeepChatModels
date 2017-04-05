@@ -109,6 +109,8 @@ def get_frozen_vocab(config):
 class FrozenBot:
 
     def __init__(self, frozen_model_dir, vocab_size):
+        print(frozen_model_dir)
+        print(type(frozen_model_dir))
         self.tensor_dict, self.graph = unfreeze_bot(frozen_model_dir)
         self.sess = tf.Session(graph=self.graph)
 
