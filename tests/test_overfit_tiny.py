@@ -66,8 +66,8 @@ if __name__ == "__main__":
 
 
 def mini_train(bot, dataset):
-    wi_from, iw_from = io_utils.get_vocab_dicts(dataset.paths['from_vocab'])
-    wi_to, iw_to = io_utils.get_vocab_dicts(dataset.paths['to_vocab'])
+    wi_from, iw_from = io_utils.get_vocab_dicts(vocabulary_path=dataset.paths['from_vocab'])
+    wi_to, iw_to = io_utils.get_vocab_dicts(vocabulary_path=dataset.paths['to_vocab'])
 
     def print_as_words(e, d):
         print("Next batch:")

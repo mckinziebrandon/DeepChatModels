@@ -315,7 +315,7 @@ def data_to_token_ids(data_path, target_path, vocabulary_path, normalize_digits=
     """
     if not gfile.Exists(target_path):
         print("Tokenizing data in %s" % data_path)
-        vocab, _ = get_vocab_dicts(vocabulary_path)
+        vocab, _ = get_vocab_dicts(vocabulary_path=vocabulary_path)
         with gfile.GFile(data_path, mode="rb") as data_file:
             with gfile.GFile(target_path, mode="w") as tokens_file:
                 counter = 0

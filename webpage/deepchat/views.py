@@ -2,7 +2,9 @@ from flask import render_template
 from flask import request
 from pydoc import locate
 
-from webpage.deepchat import app, csrf, dataset, config
+import os
+from webpage.deepchat import app, csrf #, config
+from utils import bot_freezer
 from .forms import ChatForm
 
 
@@ -10,7 +12,12 @@ from .forms import ChatForm
 def load_gloabal_data():
     # StackOverflow: "Flask: Creating objects that remain over multiple requests"
     global bot
-    bot = locate(config['model'])(dataset, config)
+    here = os.path.dirname(os.path.realpath(__file__))
+    data_name = 'reddit'
+    frozen_model_dir = os.path.join(here, 'static', 'assets', 'frozen_models', data_name),
+    vocab_size = 23765
+    bot = bot_freezer.FrozenBot(frozen_model_dir=frozen_model_dir,
+                                vocab_size=vocab_size)
 
 
 @app.route('/', methods=['GET'])
