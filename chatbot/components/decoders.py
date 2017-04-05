@@ -1,7 +1,8 @@
 import tensorflow as tf
 
+from tensorflow.contrib.rnn import LSTMStateTuple, LSTMCell
 from chatbot.components.base._rnn import RNN
-from utils.io_utils import EOS_ID
+from utils import io_utils
 
 DYNAMIC_RNNS = {
     "dynamic_rnn": tf.nn.dynamic_rnn,
@@ -16,104 +17,136 @@ class Decoder(RNN):
        handles the decoder sub-graph construction dynamically in its entirety.
     """
 
-    def __init__(self, state_size, output_size, embed_size,
-                 dropout_prob, num_layers, temperature, max_seq_len):
+    def __init__(self,
+                 base_cell,
+                 state_size,
+                 vocab_size,
+                 embed_size,
+                 dropout_prob,
+                 num_layers,
+                 temperature,
+                 max_seq_len):
         """
         Args:
+            base_cell: (str) name of RNNCell class for underlying cell.
             state_size: number of units in underlying rnn cell.
-            output_size: dimension of output space for projections.
+            vocab_size: dimension of output space for projections.
             embed_size: dimension size of word-embedding space.
         """
-        super(Decoder, self).__init__(state_size, embed_size, dropout_prob, num_layers)
+        super(Decoder, self).__init__(
+            base_cell=base_cell,
+            state_size=state_size,
+            embed_size=embed_size,
+            dropout_prob=dropout_prob,
+            num_layers=num_layers)
+
         self.temperature = temperature
-        self.output_size = output_size
+        self.vocab_size = vocab_size
         self.max_seq_len = max_seq_len
         with tf.variable_scope('projection_tensors'):
-            w = tf.get_variable("w", [state_size, output_size], dtype=tf.float32,
+            w = tf.get_variable("w", [state_size, vocab_size], dtype=tf.float32,
                                 initializer=tf.contrib.layers.xavier_initializer())
-            b = tf.get_variable("b", [output_size], dtype=tf.float32,
+            b = tf.get_variable("b", [vocab_size], dtype=tf.float32,
                                 initializer=tf.contrib.layers.xavier_initializer())
             self._projection = (w, b)
 
-    def __call__(self, rnn_name, inputs, initial_state, is_chatting, loop_embedder, scope):
+    def __call__(self, rnn_name, inputs, initial_state, is_chatting, loop_embedder):
         """Run the inputs on the decoder. If we are chatting, then conduct dynamic sampling,
             which is the process of generating a response given inputs == GO_ID.
 
         Args:
             rnn_name: one of the keys in DYNAMIC_RNNS (top of file).
             inputs: Tensor with shape [batch_size, max_time, embed_size].
-            initial_state: Tensor with shape [batch_size, state_size] to initialize decoder cell.
+            initial_state: Tensor with shape [batch_size, state_size].
             is_chatting: boolean. Determines how we retrieve the outputs and the
                          returned Tensor shape.
             loop_embedder: required if is_chatting=False.
                            Embedder instance needed to feed decoder outputs as next inputs.
         Returns:
-            outputs: if not is_chatting, tensor of shape [batch_size, max_time, output_size].
+            outputs: if not chatting, tensor of shape [batch_size, max_time, vocab_size].
                      else, tensor of response IDs with shape [batch_size, max_time].
             state:   if not is_chatting, tensor of shape [batch_size, state_size].
                      else, None.
         """
 
-        with tf.variable_scope(scope, "decoder", values=[inputs]) as dec_scope:
-            outputs, state = DYNAMIC_RNNS[rnn_name](
-                self.cell, inputs, initial_state=initial_state, dtype=tf.float32,
-                swap_memory=True,
-            )
+        cell = self.get_cell('decoder_cell')
+        outputs, state = DYNAMIC_RNNS[rnn_name](cell=cell,
+                                                inputs=inputs,
+                                                initial_state=initial_state,
+                                                dtype=tf.float32,
+                                                swap_memory=True)
 
-            if not is_chatting:
-                return outputs, state
+        if not is_chatting:
+            return outputs, state
 
-            # Project to full output state during inference time.
-            outputs = self.apply_projection(outputs)
-            if loop_embedder is None:
-                raise ValueError("Loop function is required to feed decoder outputs as inputs.")
+        # Project to full output state during inference time.
+        outputs = self.apply_projection(outputs)
+        if loop_embedder is None:
+            raise ValueError("Loop function required to feed outputs as inputs.")
 
-            def body(response, state):
-                """Input callable for tf.while_loop. See below."""
-                dec_scope.reuse_variables()
-                decoder_input = loop_embedder(tf.reshape(response[-1], (1, 1)), scope=dec_scope, reuse=True)
-                outputs, state = DYNAMIC_RNNS[rnn_name](
-                    self.cell, inputs=decoder_input, initial_state=state,
-                    sequence_length=[1], dtype=tf.float32)
-                next_id = self.sample(self.apply_projection(outputs))
-                return tf.concat([response, tf.stack([next_id])], axis=0), state
+        def body(response, state):
+            """Input callable for tf.while_loop. See below."""
+            tf.get_variable_scope().reuse_variables()
+            decoder_input = loop_embedder(tf.reshape(response[-1], (1, 1)),
+                                          reuse=True)
 
-            def cond(response, s):
-                """Input callable for tf.while_loop. See below."""
-                return tf.logical_and(tf.not_equal(response[-1], EOS_ID),
-                                      tf.less(tf.size(response), self.max_seq_len))
+            # For handling tuple-state like LSTMCell.
+            if "LSTM" in self.base_cell:
+                if isinstance(state, list):
+                    if self.num_layers > 1:
+                        state = tuple([LSTMStateTuple(c=s[0], h=s[1]) for s in state])
+                    else:
+                        state = LSTMStateTuple(c=state[0], h=state[1])
 
-            # Create integer (tensor) list of output ID responses.
-            response = tf.stack([self.sample(outputs)])
-            # Note: This is needed so the while_loop ahead knows the shape of response.
-            response = tf.reshape(response, [1,], name='response')
-            dec_scope.reuse_variables()
+            outputs, state = DYNAMIC_RNNS[rnn_name](cell=cell,
+                                                    inputs=decoder_input,
+                                                    initial_state=state,
+                                                    sequence_length=[1],
+                                                    dtype=tf.float32)
 
-            # ================== BEHOLD: The tensorflow while loop. =======================
-            # This allows us to sample dynamically. It also makes me happy!
-            # -- Repeat 'body' while the 'cond' returns true.
-            # -- 'cond' is a callable returning a boolean scalar tensor.
-            # -- 'body' is a callable returning a tuple of tensors of same arity as loop_vars.
-            # -- 'loop_vars' is a tuple of tensors that is passed to 'cond' and 'body'.
-            response, _ = tf.while_loop(
-                cond, body, (response, state),
-                shape_invariants=(tf.TensorShape([None]), self.cell.shape),
-                back_prop=False
-            )
-            # ================== FAREWELL: The tensorflow while loop. =======================
+            next_id  = self.sample(self.apply_projection(outputs))
+            response =  tf.concat([response, tf.stack([next_id])], axis=0)
+            state    = self._map_state_to(list, state)
+            return response, state
 
-            outputs = tf.expand_dims(response, 0)
-            return outputs, None
+        def cond(response, s):
+            """Input callable for tf.while_loop. See below."""
+            return tf.logical_and(tf.not_equal(response[-1], io_utils.EOS_ID),
+                                  tf.less(tf.size(response), self.max_seq_len))
+
+        # Create integer (tensor) list of output ID responses.
+        response = tf.stack([self.sample(outputs)])
+        # Note: This is needed so the while_loop ahead knows the shape of response.
+        response = tf.reshape(response, [1,], name='response')
+        tf.get_variable_scope().reuse_variables()
+
+        # ================== BEHOLD: The tensorflow while loop. ======================
+        # This allows us to sample dynamically. It also makes me happy!
+        # -- Repeat 'body' while the 'cond' returns true.
+        # -- 'cond': callable returning a boolean scalar tensor.
+        # -- 'body': callable returning a tuple of tensors of same arity as loop_vars.
+        # -- 'loop_vars' is a tuple of tensors that is passed to 'cond' and 'body'.
+        response, _ = tf.while_loop(
+            cond, body, (response, self._map_state_to(list, state)),
+            shape_invariants=(tf.TensorShape([None]), cell.shape),
+            back_prop=False
+        )
+        # ================== FAREWELL: The tensorflow while loop. ====================
+
+        outputs = tf.expand_dims(response, 0)
+        return outputs, None
 
     def apply_projection(self, outputs, scope=None):
         """Defines & applies the affine transformation from state space to output space.
 
         Args:
-            outputs: Tensor of shape [batch_size, max_time, state_size] returned by tf dynamic_rnn.
+            outputs: Tensor of shape [batch_size, max_time, state_size] returned by
+                     tf dynamic_rnn.
             scope: (optional) variable scope for any created here.
 
         Returns:
-            Tensor of shape [batch_size, max_time, output_size] representing the projected outputs.
+            Tensor of shape [batch_size, max_time, vocab_size] representing the
+            projected outputs.
         """
 
         with tf.variable_scope(scope, "proj_scope", [outputs]):
@@ -125,7 +158,7 @@ class Decoder(RNN):
             def proj_op(b): return tf.matmul(b, self._projection[0]) + self._projection[1]
             # Get projected output states; 3D Tensor with shape [batch_size, seq_len, ouput_size].
             projected_state = tf.map_fn(proj_op, time_major_outputs)
-        return tf.reshape(projected_state, [-1, seq_len, self.output_size])
+        return tf.reshape(projected_state, [-1, seq_len, self.vocab_size])
 
     def sample(self, projected_output):
         """Return integer ID tensor representing the sampled word.
@@ -147,38 +180,64 @@ class Decoder(RNN):
         """
         return self._projection
 
+    def _map_state_to(self, fn, state):
+        """Because LSTMStateTuple is the bane of my existence."""
+        if "LSTM" not in self.base_cell: return state
+        if self.num_layers > 1: return list(map(fn, state))
+        else: return fn(state)
+
 
 class BasicDecoder(Decoder):
 
-    def __init__(self, state_size, output_size, embed_size,
-                 dropout_prob=1.0, num_layers=2, temperature=0.0, max_seq_len=50):
-        super(BasicDecoder, self).__init__(state_size, output_size, embed_size,
-                                           dropout_prob, num_layers, temperature, max_seq_len)
+    def __init__(self,
+                 base_cell,
+                 state_size,
+                 vocab_size,
+                 embed_size,
+                 dropout_prob=1.0,
+                 num_layers=2,
+                 temperature=0.0,
+                 max_seq_len=50):
+        super(BasicDecoder, self).__init__(
+            base_cell=base_cell,
+            state_size=state_size,
+            vocab_size=vocab_size,
+            embed_size=embed_size,
+            dropout_prob=dropout_prob,
+            num_layers=num_layers,
+            temperature=temperature,
+            max_seq_len=max_seq_len)
 
 
-    def __call__(self, inputs, initial_state=None, is_chatting=False, loop_embedder=None, scope=None):
+    def __call__(self, inputs, initial_state=None, is_chatting=False,
+                 loop_embedder=None):
         return super(BasicDecoder, self).__call__("dynamic_rnn",
                                                   inputs,
                                                   initial_state=initial_state,
                                                   is_chatting=is_chatting,
-                                                  loop_embedder=loop_embedder,
-                                                  scope=scope)
+                                                  loop_embedder=loop_embedder)
 
 
 class AttentionDecoder(Decoder):
     """TODO"""
 
-    def __init__(self, state_size, output_size, embed_size,
+    def __init__(self, base_cell, state_size, vocab_size, embed_size,
                  dropout_prob=1.0, num_layers=2, temperature=0.0, max_seq_len=50):
-        super(AttentionDecoder, self).__init__(state_size, output_size, embed_size,
-                                             dropout_prob, num_layers, temperature, max_seq_len)
+        super(AttentionDecoder, self).__init__(state_size=state_size,
+                                               vocab_size=vocab_size,
+                                               embed_size=embed_size,
+                                               dropout_prob=dropout_prob,
+                                               num_layers=num_layers,
+                                               temperature=temperature,
+                                               max_seq_len=max_seq_len)
 
 
-    def __call__(self, inputs, initial_state=None, is_chatting=False, loop_embedder=None, scope=None):
+    def __call__(self, inputs, initial_state=None, is_chatting=False,
+                 loop_embedder=None):
+        #from tensorflow.contrib.seq2seq import DynamicAttentionWrapper
         return super(AttentionDecoder, self).__call__("bidirectional_rnn", inputs,
                                             initial_state=initial_state,
                                             is_chatting=is_chatting,
-                                            loop_embedder=loop_embedder,
-                                            scope=scope)
+                                            loop_embedder=loop_embedder)
 
 

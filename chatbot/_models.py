@@ -5,61 +5,32 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import yaml
 import random
 
 import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.tensorboard.plugins import projector
-from chatbot.components import *
-
 from utils import io_utils
-
-OPTIMIZERS = {
-    'Adagrad':  tf.train.AdagradOptimizer,
-    'Adam':     tf.train.AdamOptimizer,
-    'SGD':      tf.train.GradientDescentOptimizer,
-    'RMSProp':  tf.train.RMSPropOptimizer,
-}
-
-# Default values for parameters that could be used by a model, training or otherwise.
-DEFAULT_PARAMS = {
-    "ckpt_dir": "out",
-    "data_dir": "data",
-    "dataset": "cornell",
-    "decode": False,
-    "batch_size": 256,
-    "dropout_prob": 0.2,
-    "embed_size": 64,
-    "learning_rate": 0.01,
-    "l1_reg": 1e-6,
-    "lr_decay": 0.98,
-    "max_gradient": 5.0,
-    "num_layers": 3,
-    "num_samples": 512,
-    "optimizer": "Adam",
-    "reset_model": True,
-    "sampled_loss": False,
-    "state_size": 512,
-    "steps_per_ckpt": 200,
-    "temperature": 0.0,
-}
+from chatbot.components import *
+from chatbot.globals import DEFAULT_FULL_CONFIG, OPTIMIZERS
 
 
 class Model(object):
     """Superclass of all subsequent model classes.
     """
 
-    def __init__(self, logger, dataset, model_params):
+    def __init__(self, logger, dataset, params):
         """
         Args:
             logger: returned by getLogger & called by subclasses. Passed
                     here so we know what object to use for info/warn/error.
             dataset: object that inherits from data.Dataset.
-            model_params: (dict) user-specified params that override those in
-                           DEFAULT_PARAMS above.
+            params: (dict) user-specified params that override those in
+                           DEFAULT_FULL_CONFIG above.
         """
 
-        self.__dict__['__params'] = Model.fill_params(dataset, model_params)
+        self.__dict__['__params'] = Model.fill_params(dataset, params)
         self.log    = logger
         self.sess   = tf.Session()
         with self.graph.name_scope(tf.GraphKeys.SUMMARIES):
@@ -78,13 +49,15 @@ class Model(object):
         """ Configure training process and initialize model. Inspired by Keras.
 
         Either restore model parameters or create fresh ones.
-            - Checks if we can both (1) find a checkpoint state, and (2) a valid V1/V2 checkpoint path.
+            - Checks if we can both (1) find a checkpoint state, and (2) a
+            valid V1/V2 checkpoint path.
             - If we can't, then just re-initialize model with fresh params.
         """
-        print("Checking for checkpoints . . .")
+        self.log.info("Checking for checkpoints . . .")
         checkpoint_state  = tf.train.get_checkpoint_state(self.ckpt_dir)
         # Note: If you want to prevent from loading models trained on different dataset,
-        # you should store them in their own out/dataname folder, and pass that as the ckpt_dir to config.
+        # you should store them in their own out/dataname folder, and pass that as
+        # the ckpt_dir to config.
         if not self.reset_model and checkpoint_state \
                 and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
             print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
@@ -92,18 +65,21 @@ class Model(object):
             self.saver = tf.train.Saver(tf.global_variables())
             self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
         else:
-            print("Created model with fresh parameters:\n", self.ckpt_dir)
+            print("Created model with fresh parameters:\n\t", self.ckpt_dir)
             # Recursively delete all files in output but keep directories.
-            os.popen("find {0}".format(self.ckpt_dir)+" -type f -exec rm {} \;")
+            os.popen("find {0}".format(self.ckpt_dir) + " -type f -exec rm {} \;")
             self.file_writer    = tf.summary.FileWriter(self.ckpt_dir)
             # Add operation for calling all variable initializers.
             init_op = tf.global_variables_initializer()
             # Construct saver (adds save/restore ops to all).
-            self.saver = tf.train.Saver(tf.global_variables())
+            self.saver = tf.train.Saver(tf.global_variables(), max_to_keep=3)
             # Add the fully-constructed graph to the event file.
             self.file_writer.add_graph(self.sess.graph)
             # Initialize all model variables.
             self.sess.run(init_op)
+            # Store full model specifications in ckpt dir for easy loading later.
+            with open(os.path.join(self.ckpt_dir, 'config.yml'), 'w') as f:
+                yaml.dump(getattr(self, "params"), f, default_flow_style=False)
 
     def save(self, summaries=None):
         """
@@ -123,14 +99,15 @@ class Model(object):
         else:
             self.log.info("Save called without summaries.")
 
-    def close(self):
+    def close(self, save_current=True):
         """Call then when training session is terminated.
             - Saves the current model/checkpoint state.
             - Freezes the model into a protobuf file in self.ckpt_dir.
             - Closes context managers for file_writing and session.
         """
         # First save the checkpoint as usual.
-        self.save()
+        if save_current:
+            self.save()
         # Freeze me, for I am infinite.
         self.freeze()
         # Be a responsible bot and close my file writer.
@@ -143,19 +120,21 @@ class Model(object):
         return self.sess.graph
 
     @staticmethod
-    def fill_params(dataset, model_params):
-        """Assigns default values from DEFAULT_PARAMS for keys not in model_params."""
-
-        filled_params = {**DEFAULT_PARAMS, **model_params}
-        filled_params['max_seq_len']    = dataset.max_seq_len
-        filled_params['vocab_size']     = dataset.vocab_size
-        filled_params['data_name']      = dataset.name
-        filled_params['dataset']        = dataset # get...this...outta here...
-        filled_params['is_chatting']    = filled_params['decode']
-        return filled_params
+    def fill_params(dataset, params):
+        """For now, essentially just returns params, but placed in func in case
+            I want to customize later (likely).
+        """
+        # Replace (string) specification of dataset with the actual instance.
+        params['dataset'] = dataset
+        params['dataset_params']['data_name'] = dataset.name
+        if params['model_params']['ckpt_dir'] == 'out':
+            params['model_params']['ckpt_dir'] += '/'+dataset.name
+        # Define alias in case older models still use it.
+        params['model_params']['is_chatting'] = params['model_params']['decode']
+        return params
 
     def freeze(self):
-        """ Useful for e.g. deploying model on website.
+        """Useful for e.g. deploying model on website.
 
         Args: directory containing model ckpt files we'd like to freeze.
         """
@@ -163,29 +142,32 @@ class Model(object):
         # TODO: Need to ensure batch size set to 1 before freezing.
         checkpoint_state    = tf.train.get_checkpoint_state(self.ckpt_dir)
         output_fname        = os.path.join(self.ckpt_dir, "frozen_model.pb")
-        output_node_names   = ("{0}/user_input,"
-                               "{0}/encoder_inputs,"
-                               "{0}/outputs".format("freezer"))
-        saver = tf.train.import_meta_graph(checkpoint_state.model_checkpoint_path+'.meta',
-                                           clear_devices=True)
-
-        input_graph_def = tf.get_default_graph().as_graph_def()
-        with tf.Session() as sess:
-            saver.restore(sess, checkpoint_state.model_checkpoint_path)
-            output_graph_def = tf.graph_util.convert_variables_to_constants(
-                sess,
-                input_graph_def,
-                output_node_names.split(','))
-
-            with tf.gfile.GFile(output_fname, 'wb') as f:
-                f.write(output_graph_def.SerializeToString())
-            print("%d ops in the final graph." % len(output_graph_def.node))
+        # Note: output_node_names is only used to tell tensorflow what is can
+        # throw away in the frozen graph (e.g. training ops).
+        output_node_names = ",".join([t.name.rstrip(':0') for t in tf.get_collection('freezer')])
+        print(output_node_names)
+        # Super-duper-ultra-compression-9000. Save a graph with only the
+        # bare necessities for chat sessions (forget about your worries/strife).
+        output_graph_def = tf.graph_util.convert_variables_to_constants(
+            self.sess, self.graph.as_graph_def(), output_node_names.split(',')
+        )
+        with tf.gfile.GFile(output_fname, 'wb') as f:
+            f.write(output_graph_def.SerializeToString())
+        print("%d ops in the final graph." % len(output_graph_def.node))
 
     def __getattr__(self, name):
-        if name not in self.__dict__['__params']:
-            raise AttributeError(name)
-        else:
+        if name == 'params':
+            replace_dict = {'dataset': "data."+self.data_name.title()}
+            return {**self.__dict__['__params'], **replace_dict}
+        elif name in DEFAULT_FULL_CONFIG: # Requesting a top-level key.
             return self.__dict__['__params'][name]
+        else:
+            for k in DEFAULT_FULL_CONFIG.keys():
+                if not isinstance(self.__dict__['__params'][k], dict):
+                    continue
+                if name in self.__dict__['__params'][k]:
+                    return self.__dict__['__params'][k][name]
+        raise AttributeError(name)
 
 
 class BucketModel(Model):
@@ -195,8 +177,8 @@ class BucketModel(Model):
         directory, bucketed or not, r1.0 or r0.12.
     """
 
-    def __init__(self, logger, buckets, dataset, model_params):
-        super(BucketModel, self).__init__(logger, dataset, model_params)
+    def __init__(self, logger, buckets, dataset, params):
+        super(BucketModel, self).__init__(logger, dataset, params)
         self.buckets = buckets
 
     def compile(self, optimizer=None, max_gradient=5.0, reset=False):

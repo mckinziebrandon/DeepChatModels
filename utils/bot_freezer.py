@@ -8,7 +8,11 @@ import numpy as np
 import tensorflow as tf
 from utils import io_utils
 import os
+import re
 from pydoc import locate
+
+#from collections import namedtuple
+#FrozenVocab = namedtuple('FrozenVocab', ['from', 'to'])
 
 
 def load_graph(frozen_model_dir):
@@ -51,42 +55,93 @@ def unfreeze_bot(frozen_model_path):
     """
 
     bot_graph   = load_graph(frozen_model_path)
-    keys = ['user_input', 'encoder_inputs', 'outputs']
-    tensors = {k: bot_graph.get_tensor_by_name('import/freezer/{}:0'.format(k))
-               for k in keys}
-    return tensors
+    tensors = {'inputs': bot_graph.get_tensor_by_name('import/input_pipeline/user_input:0'),
+               'outputs': bot_graph.get_tensor_by_name('import/outputs:0')}
+    return tensors, bot_graph
 
 
-def unfreeze_and_chat(config):
-    """TODO: Re-implement. This was hastily made while sketching out the model freezing
-    functionality of tensorflow, as a proof of concept for website. Bad design. """
+def unfreeze_and_chat(frozen_model_path):
+    """Summon a bot back from the dead and have a nice lil chat with it."""
 
-    # Get input and output nodes from the frozen graph def.
-    # This is the bare minimum needed to chat, and thus allows for a
-    # compact and efficent means of bot storage post-training.
-    inputs, outputs = unfreeze_bot(config['ckpt_dir'])
+    tensor_dict, graph = unfreeze_bot(frozen_model_path)
+    config  = io_utils.parse_config(frozen_model_path)
+    word_to_idx, idx_to_word = get_frozen_vocab(config)
 
-    # We still need to translate the bot outputs (tokens) to english, for
-    # simple humans to understand.
-    from_vocab_path = os.path.join(config['data_dir'], 'vocab%d.from' % config['vocab_size'])
-    to_vocab_path   = os.path.join(config['data_dir'], 'vocab%d.to' % config['vocab_size'])
-    word_to_idx, _  = io_utils.get_vocab_dicts(from_vocab_path)
-    _, idx_to_word  = io_utils.get_vocab_dicts(to_vocab_path)
+    def as_words(sentence):
+        return " ".join([tf.compat.as_str(idx_to_word[i]) for i in sentence])
 
-    with tf.Session() as chat_sess:
-        try:
-            while True:
-                # Extract sentence from human (stdin) and convert to robo-language.
-                human_input     = io_utils.get_sentence()
-                encoder_inputs  = io_utils.sentence_to_token_ids(
-                    tf.compat.as_bytes(human_input), word_to_idx)
-                encoder_inputs = np.array([encoder_inputs[::-1]])
+    with tf.Session(graph=graph) as sess:
 
-                response = chat_sess.run(outputs, feed_dict={inputs: encoder_inputs})
-                response = " ".join([tf.compat.as_str(idx_to_word[i])
-                                     for i in response[0][:-1]])
-                print("Robot:", response)
-        except (KeyboardInterrupt, SystemExit):
-            print("Training halted. Cleaning up . . . ")
-            # TODO: perhaps we also must unfreeze coordinator?
+        def respond_to(sentence):
+            """Outputs response sentence (string) given input (string)."""
+
+            # Convert input sentence to token-ids.
+            sentence_tokens = io_utils.sentence_to_token_ids(
+                tf.compat.as_bytes(sentence), word_to_idx)
+            sentence_tokens = np.array([sentence_tokens[::-1]])
+
+            # Get output sentence from the chatbot.
+            fetches = tensor_dict['outputs']
+            feed_dict={tensor_dict['inputs']: sentence_tokens}
+            response = sess.run(fetches=fetches, feed_dict=feed_dict)
+            return as_words(response[0][:-1])
+
+        sentence = io_utils.get_sentence()
+        while sentence != 'exit':
+            resp = respond_to(sentence)
+            print("Robot:", resp)
+            sentence = io_utils.get_sentence()
+        print("Farewell, human.")
+
+
+def get_frozen_vocab(config):
+    """Helper function to get dictionaries for translating between tokens and words."""
+    data_dir    = config['dataset_params']['data_dir']
+    vocab_size  = config['dataset_params']['vocab_size']
+    vocab_paths = {
+        'from_vocab': os.path.join(data_dir, 'vocab{}.from'.format(vocab_size)),
+        'to_vocab': os.path.join(data_dir, 'vocab{}.to'.format(vocab_size))}
+    word_to_idx, _ = io_utils.get_vocab_dicts(vocabulary_path=vocab_paths['from_vocab'])
+    _, idx_to_word = io_utils.get_vocab_dicts(vocabulary_path=vocab_paths['to_vocab'])
+    return word_to_idx, idx_to_word
+
+
+class FrozenBot:
+
+    def __init__(self, frozen_model_dir, vocab_size):
+        print(frozen_model_dir)
+        print(type(frozen_model_dir))
+        self.tensor_dict, self.graph = unfreeze_bot(frozen_model_dir)
+        self.sess = tf.Session(graph=self.graph)
+
+        self.config = {'dataset_params': {
+            'data_dir': frozen_model_dir, 'vocab_size': vocab_size}}
+        self.word_to_idx, self.idx_to_word = self.get_frozen_vocab()
+
+    def get_frozen_vocab(self):
+        """Helper function to get dictionaries for translating between tokens and words."""
+        data_dir    = self.config['dataset_params']['data_dir']
+        vocab_size  = self.config['dataset_params']['vocab_size']
+        vocab_paths = {
+            'from_vocab': os.path.join(data_dir, 'vocab{}.from'.format(vocab_size)),
+            'to_vocab': os.path.join(data_dir, 'vocab{}.to'.format(vocab_size))}
+        word_to_idx, _ = io_utils.get_vocab_dicts(vocabulary_path=vocab_paths['from_vocab'])
+        _, idx_to_word = io_utils.get_vocab_dicts(vocabulary_path=vocab_paths['to_vocab'])
+        return word_to_idx, idx_to_word
+
+    def as_words(self, sentence):
+        return " ".join([tf.compat.as_str(self.idx_to_word[i]) for i in sentence])
+
+    def __call__(self, sentence):
+        """Outputs response sentence (string) given input (string)."""
+        # Convert input sentence to token-ids.
+        sentence_tokens = io_utils.sentence_to_token_ids(
+            tf.compat.as_bytes(sentence), self.word_to_idx)
+        sentence_tokens = np.array([sentence_tokens[::-1]])
+
+        # Get output sentence from the chatbot.
+        fetches = self.tensor_dict['outputs']
+        feed_dict={self.tensor_dict['inputs']: sentence_tokens}
+        response = self.sess.run(fetches=fetches, feed_dict=feed_dict)
+        return self.as_words(response[0][:-1])
 

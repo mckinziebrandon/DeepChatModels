@@ -1,0 +1,32 @@
+# Example of good parameters for the cornell dataset.
+# Note that most "good" parameters here are good for all the datasets,
+# and so most of these are actually the default values.
+# This file is just meant to illustrate what the user can change.
+model: chatbot.DynamicBot
+dataset: data.Cornell
+model_params:
+  base_cell: LSTMCell
+  ckpt_dir: out
+  decode: False
+  batch_size: 256
+  dropout_prob: 0.2
+  decoder.class: chatbot.components.decoders.BasicDecoder
+  encoder.class: chatbot.components.encoders.BidirectionalEncoder
+  embed_size: 64
+  learning_rate: 0.002
+  l1_reg: 1e-6
+  lr_decay: 0.98
+  max_gradient: 5.0
+  max_steps: int(1e6)
+  num_layers: 3
+  num_samples: 512
+  optimizer: Adam
+  reset_model: True
+  sampled_loss: False
+  state_size: 512
+  steps_per_ckpt: 200
+  temperature: 0.0
+dataset_params:
+  data_dir: None    # The only truly 'mandatory' parameter.
+  vocab_size: 40000
+  max_seq_len: 10
