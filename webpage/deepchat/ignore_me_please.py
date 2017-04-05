@@ -128,6 +128,7 @@ class FrozenBot:
 
     def __call__(self, sentence):
         """Outputs response sentence (string) given input (string)."""
+        print('calling')
         # Convert input sentence to token-ids.
         sentence_tokens = sentence_to_token_ids(
             tf.compat.as_bytes(sentence), self.word_to_idx)
@@ -137,6 +138,7 @@ class FrozenBot:
         fetches = self.tensor_dict['outputs']
         feed_dict={self.tensor_dict['inputs']: sentence_tokens}
         response = self.sess.run(fetches=fetches, feed_dict=feed_dict)
+        print('resp:', response)
         return self.as_words(response[0][:-1])
 
     def get_vocab_dicts(self, vocabulary_path):
