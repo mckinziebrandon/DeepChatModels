@@ -98,6 +98,7 @@ class Decoder(RNN):
                     else:
                         state = LSTMStateTuple(c=state[0], h=state[1])
 
+
             outputs, state = DYNAMIC_RNNS[rnn_name](cell=cell,
                                                     inputs=decoder_input,
                                                     initial_state=state,
