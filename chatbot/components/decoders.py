@@ -16,25 +16,36 @@ class Decoder(RNN):
        handles the decoder sub-graph construction dynamically in its entirety.
     """
 
-    def __init__(self, state_size, output_size, embed_size,
-                 dropout_prob, num_layers, temperature, max_seq_len):
+    def __init__(self,
+                 base_cell,
+                 state_size,
+                 vocab_size,
+                 embed_size,
+                 dropout_prob,
+                 num_layers,
+                 temperature,
+                 max_seq_len):
         """
         Args:
+            base_cell: (str) name of RNNCell class for underlying cell.
             state_size: number of units in underlying rnn cell.
-            output_size: dimension of output space for projections.
+            vocab_size: dimension of output space for projections.
             embed_size: dimension size of word-embedding space.
         """
-        super(Decoder, self).__init__(state_size=state_size,
-                                      embed_size=embed_size,
-                                      dropout_prob=dropout_prob,
-                                      num_layers=num_layers)
+        super(Decoder, self).__init__(
+            base_cell=base_cell,
+            state_size=state_size,
+            embed_size=embed_size,
+            dropout_prob=dropout_prob,
+            num_layers=num_layers)
+
         self.temperature = temperature
-        self.output_size = output_size
+        self.vocab_size = vocab_size
         self.max_seq_len = max_seq_len
         with tf.variable_scope('projection_tensors'):
-            w = tf.get_variable("w", [state_size, output_size], dtype=tf.float32,
+            w = tf.get_variable("w", [state_size, vocab_size], dtype=tf.float32,
                                 initializer=tf.contrib.layers.xavier_initializer())
-            b = tf.get_variable("b", [output_size], dtype=tf.float32,
+            b = tf.get_variable("b", [vocab_size], dtype=tf.float32,
                                 initializer=tf.contrib.layers.xavier_initializer())
             self._projection = (w, b)
 
@@ -51,7 +62,7 @@ class Decoder(RNN):
             loop_embedder: required if is_chatting=False.
                            Embedder instance needed to feed decoder outputs as next inputs.
         Returns:
-            outputs: if not chatting, tensor of shape [batch_size, max_time, output_size].
+            outputs: if not chatting, tensor of shape [batch_size, max_time, vocab_size].
                      else, tensor of response IDs with shape [batch_size, max_time].
             state:   if not is_chatting, tensor of shape [batch_size, state_size].
                      else, None.
@@ -120,7 +131,7 @@ class Decoder(RNN):
             scope: (optional) variable scope for any created here.
 
         Returns:
-            Tensor of shape [batch_size, max_time, output_size] representing the
+            Tensor of shape [batch_size, max_time, vocab_size] representing the
             projected outputs.
         """
 
@@ -133,7 +144,7 @@ class Decoder(RNN):
             def proj_op(b): return tf.matmul(b, self._projection[0]) + self._projection[1]
             # Get projected output states; 3D Tensor with shape [batch_size, seq_len, ouput_size].
             projected_state = tf.map_fn(proj_op, time_major_outputs)
-        return tf.reshape(projected_state, [-1, seq_len, self.output_size])
+        return tf.reshape(projected_state, [-1, seq_len, self.vocab_size])
 
     def sample(self, projected_output):
         """Return integer ID tensor representing the sampled word.
@@ -158,11 +169,19 @@ class Decoder(RNN):
 
 class BasicDecoder(Decoder):
 
-    def __init__(self, state_size, output_size, embed_size,
-                 dropout_prob=1.0, num_layers=2, temperature=0.0, max_seq_len=50):
+    def __init__(self,
+                 base_cell,
+                 state_size,
+                 vocab_size,
+                 embed_size,
+                 dropout_prob=1.0,
+                 num_layers=2,
+                 temperature=0.0,
+                 max_seq_len=50):
         super(BasicDecoder, self).__init__(
+            base_cell=base_cell,
             state_size=state_size,
-            output_size=output_size,
+            vocab_size=vocab_size,
             embed_size=embed_size,
             dropout_prob=dropout_prob,
             num_layers=num_layers,
@@ -182,10 +201,10 @@ class BasicDecoder(Decoder):
 class AttentionDecoder(Decoder):
     """TODO"""
 
-    def __init__(self, state_size, output_size, embed_size,
+    def __init__(self, base_cell, state_size, vocab_size, embed_size,
                  dropout_prob=1.0, num_layers=2, temperature=0.0, max_seq_len=50):
         super(AttentionDecoder, self).__init__(state_size=state_size,
-                                               output_size=output_size,
+                                               vocab_size=vocab_size,
                                                embed_size=embed_size,
                                                dropout_prob=dropout_prob,
                                                num_layers=num_layers,

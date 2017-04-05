@@ -63,6 +63,7 @@ class DynamicBot(Model):
         with tf.variable_scope('encoder'):
             embedded_enc_inputs = self.embedder(encoder_inputs)
             encoder = encoder_class(
+                base_cell=self.base_cell,
                 state_size=self.state_size,
                 embed_size=self.embed_size,
                 dropout_prob=self.dropout_prob,
@@ -72,13 +73,15 @@ class DynamicBot(Model):
 
         with tf.variable_scope("decoder"):
             embedded_dec_inputs = self.embedder(self.decoder_inputs)
-            self.decoder  = decoder_class(self.state_size,
-                                          self.vocab_size,
-                                          self.embed_size,
-                                          dropout_prob=self.dropout_prob,
-                                          num_layers=self.num_layers,
-                                          max_seq_len=dataset.max_seq_len,
-                                          temperature=self.temperature)
+            self.decoder  = decoder_class(
+                base_cell=self.base_cell,
+                state_size=self.state_size,
+                vocab_size=self.vocab_size,
+                embed_size=self.embed_size,
+                dropout_prob=self.dropout_prob,
+                num_layers=self.num_layers,
+                max_seq_len=dataset.max_seq_len,
+                temperature=self.temperature)
             # For decoder, we want the full sequence of outputs, not simply the last.
             decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
                                                           initial_state=encoder_state,
