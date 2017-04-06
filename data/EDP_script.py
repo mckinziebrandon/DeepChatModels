@@ -25,11 +25,11 @@ _WORD_SPLIT = re.compile(r'([.,!?\"\':;)(])|\s')
 # files & directories, and keeps an eye on memory usage.
 data_helper = DataHelper()
 # Max number of words in any saved sentence.
-MAX_SEQ_LEN = 10
+MAX_SEQ_LEN = 20
 # Number of CPU cores available.
-NUM_CORES = 4
+NUM_CORES = 8
 # How many chunks we should split dataframes into at any given time.
-NUM_PARTITIONS = 10
+NUM_PARTITIONS = NUM_CORES * 4
 
 
 def timed_function(*expected_args):
@@ -63,7 +63,7 @@ def parallel_map_list(fn, l):
     """Based on great explanation from 'Pandas in Parallel' (racketracer.com)."""
     partitioned_list = np.array_split(l, NUM_PARTITIONS)
     pool = Pool(NUM_CORES)
-    new_list = np.array((pool.map(fn, partitioned_list))).flatten().tolist()
+    new_list = np.concatenate(pool.map(fn, partitioned_list))
     pool.close()
     pool.join()
     return new_list
@@ -83,6 +83,19 @@ def basic_tokenizer(sentences):
 
     if len(tokenized) == 1: tokenized = tokenized[0]
     return tokenized
+
+
+def sentence_score(sentences):
+    word_freq = data_helper.word_freq
+    d = enchant.Dict('en_US')
+
+    scores = []
+    for sentence in sentences:
+        word_count = len(sentences) + 1e-20
+        sent_score = sum([1.0 / ((word_freq[w] + 1e-20) * word_count)
+                      for w in sentence if not d.check(w)])
+        scores.append(sent_score)
+    return scores
 
 
 def root_comments(df):
@@ -147,6 +160,7 @@ def expand_contractions(df):
     return df
 
 
+@timed_function('children_dict')
 def children_dict(df):
     """Returns a dictionary with keys being the root comments and
     values being their immediate root_to_children. Assumes that df has 'root' column.
@@ -164,54 +178,35 @@ def children_dict(df):
     return children
 
 
-def main():
+
+#def main():
+if __name__ == '__main__':
 
     # Get up to max_mem GiB of data.
-    df = data_helper.safe_load(max_mem=0.7)
+    df = data_helper.safe_load(max_mem=0.6)
     df = initial_clean(df)
     df = regex_replacements(df)
     df = remove_large_comments(max_len=MAX_SEQ_LEN, df=df)
     df = expand_contractions(df)
 
     sentences = parallel_map_list(fn=basic_tokenizer, l=df['body'])
-
     print('Obtained list of %d sentences.' % len(sentences))
-    exit()
-
-    #sentences = list(pool.map(basic_tokenizer, df['body']))
+    print(sentences[:5])
     words = [word for sentence in sentences for word in sentence]
-    word_freq = Counter(chain(words))
-    words = None
-
-    def sentence_score(sentence):
-        d = enchant.Dict('en_US')
-        word_count = len(sentence)+1e-20
-        sent_score = [1.0/((word_freq[w]+1e-20)*word_count)
-                      for w in sentence if not d.check(w)]
-        return sent_score
-
-    def add_sentence_scores(sentences):
-        scores = []
-        pbar = ProgressBar()
-        i = 0
-        for sentence in pbar(sentences):
-            scores.append(sentence_score(sentence))
-        df['score'] = scores
+    print('\n')
+    print(words[:5])
+    data_helper.set_word_freq(Counter(chain(words)))
+    print('\n')
 
     print('Bout to score!')
-    pool    = multiprocessing.Pool()
-    scores  = list(pool.map(sentence_score, sentences))
-    df['score'] = [sum(s) for s in scores]
-    scores  = None
-    df      = df.loc[df.score < 0.008]
+    df['score'] = parallel_map_list(fn=sentence_score, l=sentences)
+    df = df.loc[df.score < 0.008]
 
     print('Prepping for the grand finale.')
     comments_dict       = pd.Series(df.body.values, index=df.name).to_dict()
     root_to_children    = children_dict(df)
-    data_helper.generate_files(
-        "from_file.txt", "to_file.txt", root_to_children, comments_dict
-    )
-
-
-if __name__ == '__main__':
-    main()
+    data_helper.generate_files(from_file_path="from_file.txt",
+                               to_file_path="to_file.txt",
+                               root_to_children=root_to_children,
+                               comments_dict=comments_dict)
+    #main()

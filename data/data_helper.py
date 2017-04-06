@@ -3,11 +3,9 @@ paths and filenames. Right now, is mainly for use by Brandon/Ivan. Will extend t
 general users in the future.
 """
 import os
+import pdb
 import logging
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import nltk
 from pprint import pprint
 from pympler.asizeof import asizeof # for profiling memory usage
 import json
@@ -31,8 +29,7 @@ class DataHelper:
         self.file_counter = 0
 
         self.log = logging.getLogger('DataHelperLogger')
-        print("Hi. I'm new to this. "
-              "I currently only support helping with the reddit dataset. "
+        print("Hi. I currently only support helping with the reddit dataset. "
               "If you're working with another dataset, I'm sorry.")
 
         # 1. Get user name. We can associate info with a given user as we go.
@@ -68,6 +65,9 @@ class DataHelper:
             json_data = [json.loads(l) for l in f]
             # TODO: more descriptive names for the 'modify_' objects here would be nice.
             self.modify_list, self.modify_value, self.contractions = json_data
+
+
+        self._word_freq = None
 
     def df_generator(self):
         """Generates df from single files at a time."""
@@ -110,27 +110,28 @@ class DataHelper:
         self.log.info("Column names from raw data file: %r" % df.columns)
         return df
 
-    def generate_files(self, from_file_path, to_file_path, conversation_ids, data):
+    def set_word_freq(self, wf):
+        self._word_freq = wf
+
+    @property
+    def word_freq(self):
+        return self._word_freq
+
+    def generate_files(self, from_file_path, to_file_path, root_to_children, comments_dict):
         """Generates two files, [from_file_path] and [to_file_path] of one-to-one comments
         """
         from_file_path = os.path.join(self.data_root, from_file_path)
         to_file_path = os.path.join(self.data_root, to_file_path)
 
-        # Open the files and clear them.
-        from_file   = open(from_file_path, 'w')
-        to_file     = open(to_file_path, 'w')
-        from_file.write("")
-        to_file.write("")
-        from_file.close()
-        to_file.close()
-        for context, responses in conversation_ids:
-            from_file = open(from_file_path, 'a')
-            to_file = open(to_file_path, 'a')
-            for resp in responses:
-                try:
-                    from_file.write(data[context].replace('\n', '').replace('\r', ' ').replace('&gt', '') + "\n")
-                    to_file.write(data[resp].replace('\n', '').replace('\r', ' ').replace('&gt', '') + "\n")
-                except KeyError:
-                    pass
-        from_file.close()
-        to_file.close()
+        prev_id = -1
+        with open(from_file_path, 'w') as from_file:
+            with open(to_file_path, 'w') as to_file:
+                for root_ID in root_to_children:
+                    for child_ID in root_to_children[root_ID]:
+                        if child_ID == prev_id: continue
+                        prev_id = child_ID
+                        try:
+                            from_file.write(comments_dict[root_ID].strip() + '\n')
+                            to_file.write(comments_dict[child_ID].strip() + '\n')
+                        except KeyError:
+                            pass
