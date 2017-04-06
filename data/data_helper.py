@@ -13,7 +13,7 @@ from progressbar import ProgressBar
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 DATA_ROOTS = {'brandon': '/home/brandon/Datasets/reddit',
-              'ivan': '/Users/ivan/Documents/sp_17/reddit_data'}
+        'ivan': '/Users/ivan/Documents/sp_17/reddit_data'}
 # Maximum memory usage allowed in GiB.
 MAX_MEM = 2.0
 
@@ -30,7 +30,7 @@ class DataHelper:
 
         self.log = logging.getLogger('DataHelperLogger')
         print("Hi. I currently only support helping with the reddit dataset. "
-              "If you're working with another dataset, I'm sorry.")
+                "If you're working with another dataset, I'm sorry.")
 
         # 1. Get user name. We can associate info with a given user as we go.
         print("User name:", end=" ")
@@ -54,9 +54,9 @@ class DataHelper:
         for y in years:
             rel_paths = os.listdir(os.path.join(self.data_root, 'raw_data', y))
             self.file_paths.extend(
-                [os.path.join(self.data_root, 'raw_data', y, f) for f in rel_paths]
-            )
-        print("These are the files I found:")
+                    [os.path.join(self.data_root, 'raw_data', y, f) for f in rel_paths]
+                    )
+            print("These are the files I found:")
         pprint(self.file_paths)
         print()
 
@@ -64,7 +64,7 @@ class DataHelper:
         with open(os.path.join(HERE, 'dicts.json'), 'r') as f:
             json_data = [json.loads(l) for l in f]
             # TODO: more descriptive names for the 'modify_' objects here would be nice.
-            self.modify_list, self.modify_value, self.contractions = json_data
+            self.modify_list, self.contractions = json_data
 
 
         self._word_freq = None
@@ -123,15 +123,16 @@ class DataHelper:
         from_file_path = os.path.join(self.data_root, from_file_path)
         to_file_path = os.path.join(self.data_root, to_file_path)
 
+
         prev_id = -1
         with open(from_file_path, 'w') as from_file:
             with open(to_file_path, 'w') as to_file:
-                for root_ID in root_to_children:
-                    for child_ID in root_to_children[root_ID]:
-                        if child_ID == prev_id: continue
-                        prev_id = child_ID
+                for root_ID, child_IDs in root_to_children.items():
+                    for child_ID in child_IDs:
                         try:
-                            from_file.write(comments_dict[root_ID].strip() + '\n')
-                            to_file.write(comments_dict[child_ID].strip() + '\n')
+                            #from_file.write(comments_dict[root_ID].strip() + '\n')
+                            #to_file.write(comments_dict[child_ID].strip() + '\n')
+                            from_file.write(comments_dict[root_ID].replace('\n', '').replace('\r', '').replace('&gt', '') + "\n")
+                            to_file.write(comments_dict[child_ID].replace('\n', '').replace('\r', '').replace('&gt', '') + "\n")
                         except KeyError:
                             pass

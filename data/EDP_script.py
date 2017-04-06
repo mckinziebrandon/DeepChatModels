@@ -25,11 +25,11 @@ _WORD_SPLIT = re.compile(r'([.,!?\"\':;)(])|\s')
 # files & directories, and keeps an eye on memory usage.
 data_helper = DataHelper()
 # Max number of words in any saved sentence.
-MAX_SEQ_LEN = 20
+MAX_SEQ_LEN = 11
 # Number of CPU cores available.
 NUM_CORES = 8
 # How many chunks we should split dataframes into at any given time.
-NUM_PARTITIONS = NUM_CORES * 4
+NUM_PARTITIONS = 256
 
 
 def timed_function(*expected_args):
@@ -51,37 +51,30 @@ def timed_function(*expected_args):
 @timed_function('parallel_map_df')
 def parallel_map_df(fn, df):
     """Based on great explanation from 'Pandas in Parallel' (racketracer.com)."""
-    df_partitions = np.array_split(df, NUM_PARTITIONS)
+    df = np.array_split(df, NUM_PARTITIONS)
     pool = Pool(NUM_CORES)
-    df   = pd.concat(pool.map(fn, df_partitions))
+    df   = pd.concat(pool.map(fn, df))
     pool.close()
     pool.join()
     return df
 
+
 @timed_function('parallel_map_list')
-def parallel_map_list(fn, l):
+def parallel_map_list(fn, iterable):
     """Based on great explanation from 'Pandas in Parallel' (racketracer.com)."""
-    partitioned_list = np.array_split(l, NUM_PARTITIONS)
+    iterable = np.array_split(iterable, NUM_PARTITIONS)
     pool = Pool(NUM_CORES)
-    new_list = np.concatenate(pool.map(fn, partitioned_list))
+    iterable = np.concatenate(pool.map(fn, iterable))
     pool.close()
     pool.join()
-    return new_list
+    return iterable
 
 
 def basic_tokenizer(sentences):
     """Tokenizes sentence/list of sentences into word tokens."""
-
-    if isinstance(sentences, str):
-        sentences = [sentences]
-    sentences = list(sentences)
-
     tokenized = []
     for sentence in sentences:
-        words = [w for w in _WORD_SPLIT.split(sentence.strip()) if w]
-        tokenized.append(words)
-
-    if len(tokenized) == 1: tokenized = tokenized[0]
+        tokenized.append([w for w in _WORD_SPLIT.split(sentence.strip()) if w])
     return tokenized
 
 
@@ -91,7 +84,7 @@ def sentence_score(sentences):
 
     scores = []
     for sentence in sentences:
-        word_count = len(sentences) + 1e-20
+        word_count = len(sentence) + 1e-20
         sent_score = sum([1.0 / ((word_freq[w] + 1e-20) * word_count)
                       for w in sentence if not d.check(w)])
         scores.append(sent_score)
@@ -142,13 +135,16 @@ def regex_replacements(df):
     # Loop over regex replacements specified by modify_list.
     for old, new in data_helper.modify_list.items():
         df['body'].replace({old: new}, regex=True, inplace=True)
+    # Remove comments with this extremely common occurrence.
+    #df = df.loc[df.body != 'NUMBER'].reset_index(drop=True)
     return df
 
 
 @timed_function('remove_large_comments')
 def remove_large_comments(max_len, df):
     # Could probably do a regex find on spaces to make this faster.
-    df = df[df['body'].map(lambda s: len(s.split(' '))) < max_len].reset_index(drop=True)
+    df = df[df['body'].map(lambda s: len(s.split())) < max_len].reset_index(drop=True)
+    df = df[df['body'].map(lambda s: 'http' not in s)].reset_index(drop=True)
     return df
 
 
@@ -179,28 +175,25 @@ def children_dict(df):
 
 
 
-#def main():
-if __name__ == '__main__':
+def main():
 
     # Get up to max_mem GiB of data.
-    df = data_helper.safe_load(max_mem=0.6)
+    df = data_helper.safe_load(max_mem=1.1)
     df = initial_clean(df)
     df = regex_replacements(df)
     df = remove_large_comments(max_len=MAX_SEQ_LEN, df=df)
     df = expand_contractions(df)
 
-    sentences = parallel_map_list(fn=basic_tokenizer, l=df['body'])
-    print('Obtained list of %d sentences.' % len(sentences))
-    print(sentences[:5])
-    words = [word for sentence in sentences for word in sentence]
-    print('\n')
-    print(words[:5])
-    data_helper.set_word_freq(Counter(chain(words)))
-    print('\n')
+    sentences = parallel_map_list(fn=basic_tokenizer, iterable=df.body.values)
+    print('len sent = ', len(sentences))
+    data_helper.set_word_freq(Counter(chain.from_iterable(sentences)))
 
     print('Bout to score!')
-    df['score'] = parallel_map_list(fn=sentence_score, l=sentences)
-    df = df.loc[df.score < 0.008]
+    df['score'] = parallel_map_list(fn=sentence_score, iterable=sentences)
+    print('\n')
+    print(df['score'].describe())
+    sentences = None
+    df = df.loc[df.score < 0.1]
 
     print('Prepping for the grand finale.')
     comments_dict       = pd.Series(df.body.values, index=df.name).to_dict()
@@ -209,4 +202,5 @@ if __name__ == '__main__':
                                to_file_path="to_file.txt",
                                root_to_children=root_to_children,
                                comments_dict=comments_dict)
-    #main()
+if __name__ == '__main__':
+    main()
