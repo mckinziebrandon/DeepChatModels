@@ -2,7 +2,6 @@ import tensorflow as tf
 from tensorflow.contrib.rnn import GRUCell, MultiRNNCell
 from tensorflow.contrib.rnn import LSTMStateTuple, LSTMCell
 
-
 class Cell(tf.contrib.rnn.RNNCell):
     """Simple wrapper class for any extensions I want to make to the
     encoder/decoder rnn cells. For now, just Dropout+GRU."""
@@ -37,10 +36,10 @@ class Cell(tf.contrib.rnn.RNNCell):
         def cell_shape():
             if "LSTM" in self._base_cell:
                 return [tf.TensorShape([None, self._state_size])] * 2
-            return tf.TensorShape([None, self.state_size])
+            return tf.TensorShape([None, self._state_size]) # changed from self.state_size
 
         if self._num_layers == 1: return cell_shape()
-        else: return [cell_shape() for _ in range(self._num_layers)]
+        else: return tuple([cell_shape() for _ in range(self._num_layers)]) # tuple may not be necessary
 
     def __call__(self, inputs, state, scope=None):
         """TODO

@@ -92,6 +92,7 @@ class BidirectionalEncoder(RNN):
         outputs = tf.concat(outputs_tuple, 2)
         bridge = tf.get_variable("bridge", [2 * self.state_size, self.state_size],
                                  dtype=outputs.dtype)
+        #print('\nfst:\n',final_state_tuple)
         if self.num_layers == 1:
             final_state = tf.concat(final_state_tuple, 1)
             final_state = tf.matmul(final_state, bridge)

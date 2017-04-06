@@ -3,17 +3,17 @@ model: chatbot.DynamicBot
 dataset: data.Reddit
 model_params:
   base_cell: GRUCell
-  ckpt_dir: out
-  batch_size: 256
+  ckpt_dir: out/reddit/website_config
+  batch_size: 128
   dropout_prob: 0.2
   decoder.class: chatbot.components.decoders.BasicDecoder
-  encoder.class: chatbot.components.encoders.BasicEncoder
-  embed_size: 64
-  learning_rate: 0.002
+  encoder.class: chatbot.components.encoders.BidirectionalEncoder
+  embed_size: 128
+  learning_rate: 0.001
   num_layers: 2
   reset_model: True
   state_size: 512
-  steps_per_ckpt: 50
+  steps_per_ckpt: 500
   temperature: 0.0
 dataset_params:
   data_dir: /home/brandon/Datasets/reddit    # The only truly 'mandatory' parameter.
