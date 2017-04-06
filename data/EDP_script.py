@@ -1,26 +1,36 @@
-﻿import os
-import inspect
-import pandas as pd
-import numpy as np
-from functools import wraps
-from pprint import pprint
+﻿"""English Data Preprocessing script.
+(converted from Jupyter notebook of same name in notebooks)"""
+
+import os
+import re
 import time
-import enchant
 import json
+import enchant
+import multiprocessing
+
+import numpy as np
+import pandas as pd
+
+from data import DataHelper
+from functools import wraps
 from itertools import chain
 from collections import Counter
+from multiprocessing import Pool
 from progressbar import ProgressBar
-import multiprocessing
-from data import DataHelper
-import re
-_WORD_SPLIT = re.compile(r'([.,!?\"\':;)(])|\s')
+
 _DIGIT_RE   = re.compile(r"\d")
+_WORD_SPLIT = re.compile(r'([.,!?\"\':;)(])|\s')
 
 # Global helper object that helps abstract away locations of
 # files & directories, and keeps an eye on memory usage.
 data_helper = DataHelper()
 # Max number of words in any saved sentence.
 MAX_SEQ_LEN = 10
+# Number of CPU cores available.
+NUM_CORES = 4
+# How many chunks we should split dataframes into at any given time.
+NUM_PARTITIONS = 10
+
 
 def timed_function(*expected_args):
     """Simple decorator to show how long the functions take to run."""
@@ -37,6 +47,44 @@ def timed_function(*expected_args):
         return wrapper
     return decorator
 
+
+@timed_function('parallel_map_df')
+def parallel_map_df(fn, df):
+    """Based on great explanation from 'Pandas in Parallel' (racketracer.com)."""
+    df_partitions = np.array_split(df, NUM_PARTITIONS)
+    pool = Pool(NUM_CORES)
+    df   = pd.concat(pool.map(fn, df_partitions))
+    pool.close()
+    pool.join()
+    return df
+
+@timed_function('parallel_map_list')
+def parallel_map_list(fn, l):
+    """Based on great explanation from 'Pandas in Parallel' (racketracer.com)."""
+    partitioned_list = np.array_split(l, NUM_PARTITIONS)
+    pool = Pool(NUM_CORES)
+    new_list = np.array((pool.map(fn, partitioned_list))).flatten().tolist()
+    pool.close()
+    pool.join()
+    return new_list
+
+
+def basic_tokenizer(sentences):
+    """Tokenizes sentence/list of sentences into word tokens."""
+
+    if isinstance(sentences, str):
+        sentences = [sentences]
+    sentences = list(sentences)
+
+    tokenized = []
+    for sentence in sentences:
+        words = [w for w in _WORD_SPLIT.split(sentence.strip()) if w]
+        tokenized.append(words)
+
+    if len(tokenized) == 1: tokenized = tokenized[0]
+    return tokenized
+
+
 def root_comments(df):
     '''Build list determining which rows of df are root comments.
 
@@ -52,6 +100,7 @@ def root_comments(df):
 
 
 def random_rows_generator(num_rows_per_print, num_rows_total):
+    """Fun generator for viewing random comments (rows) in dataframes."""
     num_iterations = num_rows_total // num_rows_per_print
     shuffled_indices = np.arange(num_rows_per_print * num_iterations)
     np.random.shuffle(shuffled_indices)
@@ -90,12 +139,6 @@ def remove_large_comments(max_len, df):
     return df
 
 
-def basic_tokenizer(sentence):
-    """Very basic tokenizer: split the sentence into a list of tokens."""
-    words = _WORD_SPLIT.split(sentence.strip())
-    return [w for w in words if w]
-
-
 @timed_function('expand_contractions')
 def expand_contractions(df):
     """Replace all contractions with their expanded form."""
@@ -105,10 +148,11 @@ def expand_contractions(df):
 
 
 def children_dict(df):
-    """Returns a dictionary with keys being the root comments and values being their immediate root_to_children.
-        Assumes to have a 'root' column already.
-        Go through all comments, if it is a root skip it since they wont have a parent_id corresponding
-        to a comment.
+    """Returns a dictionary with keys being the root comments and
+    values being their immediate root_to_children. Assumes that df has 'root' column.
+
+    Go through all comments. If it is a root, skip it since they wont have a parent_id
+    that corresponds to a comment.
     """
     children = {}
     for row in df.itertuples():
@@ -119,19 +163,22 @@ def children_dict(df):
                 children[row.parent_id] = [row.name]
     return children
 
+
 def main():
 
     # Get up to max_mem GiB of data.
-    df = data_helper.safe_load(max_mem=1.0)
+    df = data_helper.safe_load(max_mem=0.7)
     df = initial_clean(df)
     df = regex_replacements(df)
     df = remove_large_comments(max_len=MAX_SEQ_LEN, df=df)
     df = expand_contractions(df)
 
-    print('bye')
+    sentences = parallel_map_list(fn=basic_tokenizer, l=df['body'])
+
+    print('Obtained list of %d sentences.' % len(sentences))
     exit()
-    pool = multiprocessing.Pool()
-    sentences = list(pool.map(basic_tokenizer, df['body']))
+
+    #sentences = list(pool.map(basic_tokenizer, df['body']))
     words = [word for sentence in sentences for word in sentence]
     word_freq = Counter(chain(words))
     words = None
@@ -139,7 +186,8 @@ def main():
     def sentence_score(sentence):
         d = enchant.Dict('en_US')
         word_count = len(sentence)+1e-20
-        sent_score = [1.0/((word_freq[w]+1e-20)*word_count) for w in sentence if not d.check(w)]
+        sent_score = [1.0/((word_freq[w]+1e-20)*word_count)
+                      for w in sentence if not d.check(w)]
         return sent_score
 
     def add_sentence_scores(sentences):
