@@ -1,9 +1,10 @@
 ﻿import os
+import inspect
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import nltk
+from functools import wraps
 from pprint import pprint
+import time
 import enchant
 import json
 from itertools import chain
@@ -18,7 +19,23 @@ _DIGIT_RE   = re.compile(r"\d")
 # Global helper object that helps abstract away locations of
 # files & directories, and keeps an eye on memory usage.
 data_helper = DataHelper()
+# Max number of words in any saved sentence.
+MAX_SEQ_LEN = 10
 
+def timed_function(*expected_args):
+    """Simple decorator to show how long the functions take to run."""
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            start_time  = time.time()
+            res         = fn(*args, **kwargs)
+            stop_time   = time.time()
+            fname = expected_args[0]
+            print("Time to run %s: %.3f seconds." %
+                  (fname, stop_time - start_time))
+            return res
+        return wrapper
+    return decorator
 
 def root_comments(df):
     '''Build list determining which rows of df are root comments.
@@ -42,7 +59,9 @@ def random_rows_generator(num_rows_per_print, num_rows_total):
         yield batch
 
 
+@timed_function('initial_clean')
 def initial_clean(df):
+    """Throw away columns we don't need and misc. style formatting."""
     df['root'] = root_comments(df)
     df = df[['author', 'body', 'link_id', 'parent_id', 'name', 'root', 'subreddit']]
     df.style.set_properties(subset=['body'], **{'width': '500px'})
@@ -51,26 +70,23 @@ def initial_clean(df):
     return df
 
 
-def clean_with_tracking(df):
+@timed_function('regex_replacements')
+def regex_replacements(df):
+    # Remove comments that are '[deleted]'.
     df = df.loc[df.body != '[deleted]'].reset_index(drop=True)
     df.style.set_properties(subset=['body'], **{'width': '800px'})
+    # Make all comments lowercase to help reduce vocab size.
     df['body'] = df['body'].map(lambda s: s.strip().lower())
-
-    total_mods = {}
-    if 'mods' not in df:
-        df['mods'] = np.zeros(len(df['body']), dtype=int)
-    for old, new in data_helper.modify_list:
-        new_df = df['body'].replace({old: new}, regex=True, inplace=False)
-        modifications = list((np.where(new_df.values != df['body'].values))[0])
-        df['body'] = new_df
-        df['mods'][modifications] += data_helper.modify_value[old]
-        total_mods[old] = len(modifications)
-    return df, total_mods
+    # Loop over regex replacements specified by modify_list.
+    for old, new in data_helper.modify_list.items():
+        df['body'].replace({old: new}, regex=True, inplace=True)
+    return df
 
 
-def remove_large_comments(n, df):
-    print("Length before:", df['body'].size)
-    df = df[df['body'].map(lambda s: len(s.split(' '))) < n].reset_index(drop=True)
+@timed_function('remove_large_comments')
+def remove_large_comments(max_len, df):
+    # Could probably do a regex find on spaces to make this faster.
+    df = df[df['body'].map(lambda s: len(s.split(' '))) < max_len].reset_index(drop=True)
     return df
 
 
@@ -80,8 +96,10 @@ def basic_tokenizer(sentence):
     return [w for w in words if w]
 
 
-def contraction_replacer(df):
-    for contraction, as_words in data_helper.contractions:
+@timed_function('expand_contractions')
+def expand_contractions(df):
+    """Replace all contractions with their expanded form."""
+    for contraction, as_words in data_helper.contractions.items():
         df['body'].replace({contraction: as_words}, regex=True, inplace=True)
     return df
 
@@ -101,22 +119,17 @@ def children_dict(df):
                 children[row.parent_id] = [row.name]
     return children
 
-
 def main():
 
-    max_seq_len = 10
-    print('startin')
+    # Get up to max_mem GiB of data.
+    df = data_helper.safe_load(max_mem=1.0)
+    df = initial_clean(df)
+    df = regex_replacements(df)
+    df = remove_large_comments(max_len=MAX_SEQ_LEN, df=df)
+    df = expand_contractions(df)
 
-    df_list = []
-    df_generator = data_helper.df_generator()
-    for df in df_generator:
-        clean_df = initial_clean(df)
-        clean_df, total_mods = clean_with_tracking(clean_df)
-        clean_df = remove_large_comments(max_seq_len, clean_df)
-        print('removed comments with more than', max_seq_len, 'words.')
-        clean_df = contraction_replacer(clean_df)
-    print('yayz')
-
+    print('bye')
+    exit()
     pool = multiprocessing.Pool()
     sentences = list(pool.map(basic_tokenizer, df['body']))
     words = [word for sentence in sentences for word in sentence]
