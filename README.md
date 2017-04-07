@@ -11,7 +11,7 @@ __Table of Contents__
 
 This project is still very much evolving each day, but the core goals are:
 * Create a cleaner user interface for tinkering with sequence-to-sequence models. This project will explore ways to make constructing such models feel more intuitive/customizable. The ideal result is a chatbot API with the readability of [Keras](https://keras.io/), but with a degree of flexibility closer to [TensorFlow](https://www.tensorflow.org/). 
-  + Initially, the general API was as shown below, with named parameters being the primary way of tweaking model values. 
+  + Initially, I designed the general API as shown below, with named parameters being the primary way of tweaking model values. 
   ```python
     # All datasets implement a Dataset interface, found in data/_dataset.py
     dataset = Cornell(vocab_size=FLAGS.vocab_size)
