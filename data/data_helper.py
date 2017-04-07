@@ -13,7 +13,8 @@ from progressbar import ProgressBar
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 DATA_ROOTS = {'brandon': '/home/brandon/Datasets/reddit',
-        'ivan': '/Users/ivan/Documents/sp_17/reddit_data'}
+        'ivan': '/Users/ivan/Documents/sp_17/reddit_data',
+        'mitch': '/Users/Mitchell/Documents/Chatbot/RedditData'}
 # Maximum memory usage allowed in GiB.
 MAX_MEM = 2.0
 
@@ -49,7 +50,7 @@ class DataHelper:
         self.file_paths = []
         print("Years to process (comma-separated):", end=" ")
         years = input()
-        if not years: years = '2007,2008'
+        if not years: years = '2007,2008' # default years
         years = years.split(',')
         for y in years:
             rel_paths = os.listdir(os.path.join(self.data_root, 'raw_data', y))
