@@ -18,8 +18,8 @@ from collections import Counter
 from multiprocessing import Pool
 from progressbar import ProgressBar
 
-_DIGIT_RE   = re.compile(r"\d")
-_WORD_SPLIT = re.compile(r'([.,!?\"\':;)(])|\s')
+__all__ = ['remove_extra_columns', 'timed_function']
+
 
 # Global helper object that helps abstract away locations of
 # files & directories, and keeps an eye on memory usage.
@@ -70,14 +70,6 @@ def parallel_map_list(fn, iterable):
     return iterable
 
 
-def basic_tokenizer(sentences):
-    """Tokenizes sentence/list of sentences into word tokens."""
-    tokenized = []
-    for sentence in sentences:
-        tokenized.append([w for w in _WORD_SPLIT.split(sentence.strip()) if w])
-    return tokenized
-
-
 def sentence_score(sentences):
     word_freq = data_helper.word_freq
     d = enchant.Dict('en_US')
@@ -98,24 +90,15 @@ def root_comments(df):
         list of length equal to the number of rows in our data frame.
     '''
     root_value = []
-    # Iterate over DataFrame rows as namedtuples, with index value as
-    # first element of the tuple.
+    # Iterate over DataFrame rows as namedtuples,
+    # with index value as first element of the tuple.
     for row in df.itertuples():
         root_value.append(row.parent_id == row.link_id)
     return root_value
 
 
-def random_rows_generator(num_rows_per_print, num_rows_total):
-    """Fun generator for viewing random comments (rows) in dataframes."""
-    num_iterations = num_rows_total // num_rows_per_print
-    shuffled_indices = np.arange(num_rows_per_print * num_iterations)
-    np.random.shuffle(shuffled_indices)
-    for batch in shuffled_indices.reshape(num_iterations, num_rows_per_print):
-        yield batch
-
-
-@timed_function('initial_clean')
-def initial_clean(df):
+@timed_function('remove_extra_columns')
+def remove_extra_columns(df):
     """Throw away columns we don't need and misc. style formatting."""
     df['root'] = root_comments(df)
     df = df[['author', 'body', 'link_id', 'parent_id', 'name', 'root', 'subreddit']]
@@ -174,17 +157,16 @@ def children_dict(df):
     return children
 
 
-
 def main():
 
     # Get up to max_mem GiB of data.
     df = data_helper.safe_load(max_mem=1.1)
-    df = initial_clean(df)
+    df = remove_extra_columns(df)
     df = regex_replacements(df)
     df = remove_large_comments(max_len=MAX_SEQ_LEN, df=df)
     df = expand_contractions(df)
 
-    sentences = parallel_map_list(fn=basic_tokenizer, iterable=df.body.values)
+    sentences = parallel_map_list(fn=DataHelper.word_tokenizer, iterable=df.body.values)
     print('len sent = ', len(sentences))
     data_helper.set_word_freq(Counter(chain.from_iterable(sentences)))
 

@@ -4,33 +4,40 @@ general users in the future.
 """
 import os
 import pdb
+import re
 import logging
 import pandas as pd
+import numpy as np
 from pprint import pprint
 from pympler.asizeof import asizeof # for profiling memory usage
 import json
 from progressbar import ProgressBar
 
-HERE = os.path.dirname(os.path.realpath(__file__))
-DATA_ROOTS = {'brandon': '/home/brandon/Datasets/reddit',
-        'ivan': '/Users/ivan/Documents/sp_17/reddit_data'}
+# Absolute path to this file.
+HERE        = os.path.dirname(os.path.realpath(__file__))
+# Dictionary of data directories for frequent users.
+DATA_ROOTS  = {'brandon': '/home/brandon/Datasets/reddit',
+               'ivan': '/Users/ivan/Documents/sp_17/reddit_data'}
+_WORD_SPLIT = re.compile(r'([.,!?\"\':;)(])|\s')
 # Maximum memory usage allowed in GiB.
 MAX_MEM = 2.0
+
 
 
 class DataHelper:
     """Hi, I'm the DataHelper class. I manage file locations and how much computing resources
     are being used in the preprocessing stages. I make it harder for you to screw up."""
 
-    def __init__(self):
+    def __init__(self, log_level=logging.WARNING):
         """Short convo with user that gives us what we need to help out."""
 
+        logging.basicConfig(filename='/tmp/data_helper.log', level=log_level)
         # Keeps track of current file we're processing.
         self.file_counter = 0
+        # Temporary work-around for parallel-processing with frequency dict.
+        self._word_freq = None
 
-        self.log = logging.getLogger('DataHelperLogger')
-        print("Hi. I currently only support helping with the reddit dataset. "
-                "If you're working with another dataset, I'm sorry.")
+        print("Hi, I'm a DataHelper. For now, I support helping with the reddit dataset.")
 
         # 1. Get user name. We can associate info with a given user as we go.
         print("User name:", end=" ")
@@ -49,13 +56,12 @@ class DataHelper:
         self.file_paths = []
         print("Years to process (comma-separated):", end=" ")
         years = input()
-        if not years: years = '2007,2008'
+        if not years: years = '2007,2008,2009'
         years = years.split(',')
         for y in years:
             rel_paths = os.listdir(os.path.join(self.data_root, 'raw_data', y))
             self.file_paths.extend(
-                    [os.path.join(self.data_root, 'raw_data', y, f) for f in rel_paths]
-                    )
+                    [os.path.join(self.data_root, 'raw_data', y, f) for f in rel_paths])
             print("These are the files I found:")
         pprint(self.file_paths)
         print()
@@ -64,19 +70,7 @@ class DataHelper:
         with open(os.path.join(HERE, 'dicts.json'), 'r') as f:
             json_data = [json.loads(l) for l in f]
             # TODO: more descriptive names for the 'modify_' objects here would be nice.
-            self.modify_list, self.contractions = json_data
-
-
-        self._word_freq = None
-
-    def df_generator(self):
-        """Generates df from single files at a time."""
-        for i in range(len(self.file_paths)):
-            df = pd.read_json(self.file_paths[i], lines=True)
-            init_num_rows = len(df.index)
-            self.log.info("Number of lines in raw data file", init_num_rows)
-            self.log.info("Column names from raw data file: %r" % df.columns)
-            yield df
+            self.modify_list, self.modify_value, self.contractions = json_data
 
     def safe_load(self, max_mem=MAX_MEM):
         """Load data while keeping an eye on memory usage."""
@@ -91,23 +85,22 @@ class DataHelper:
         pbar = ProgressBar()
         for i in pbar(range(self.file_counter, len(self.file_paths))):
 
-            self.log.info("Starting to load file %s . . ." % self.file_paths[i])
+            logging.info("Starting to load file %s . . ." % self.file_paths[i])
             # lines=True means "read as json-object-per-line."
-            df = pd.read_json(self.file_paths[0], lines=True)
-            list_.append(df)
+            list_.append(pd.read_json(self.file_paths[0], lines=True))
 
             mem_usage = float(asizeof(list_)) / 1e9
-            self.log.info("Data list has size %.3f GiB" % mem_usage)
+            logging.info("Data list has size %.3f GiB" % mem_usage)
             if mem_usage > max_mem:
-                self.log.warning("At max capacity. Leaving data collection early.")
+                print("At max capacity. Leaving data collection early.")
                 break
         self.file_counter = i + 1
 
-        df = pd.concat(list_)
-        df = df.reset_index()
+        df = pd.concat(list_).reset_index()
         init_num_rows = len(df.index)
-        self.log.info("Number of lines in raw data file", init_num_rows)
-        self.log.info("Column names from raw data file: %r" % df.columns)
+        logging.info("Number of lines in raw data file", init_num_rows)
+        logging.info("Column names from raw data file: %r" % df.columns)
+        logging.info("DataHelper.safe_load: df.head() = %r" % df.head())
         return df
 
     def set_word_freq(self, wf):
@@ -123,16 +116,39 @@ class DataHelper:
         from_file_path = os.path.join(self.data_root, from_file_path)
         to_file_path = os.path.join(self.data_root, to_file_path)
 
-
-        prev_id = -1
         with open(from_file_path, 'w') as from_file:
             with open(to_file_path, 'w') as to_file:
                 for root_ID, child_IDs in root_to_children.items():
                     for child_ID in child_IDs:
                         try:
-                            #from_file.write(comments_dict[root_ID].strip() + '\n')
-                            #to_file.write(comments_dict[child_ID].strip() + '\n')
-                            from_file.write(comments_dict[root_ID].replace('\n', '').replace('\r', '').replace('&gt', '') + "\n")
-                            to_file.write(comments_dict[child_ID].replace('\n', '').replace('\r', '').replace('&gt', '') + "\n")
+                            from_file.write(comments_dict[root_ID].strip() + '\n')
+                            to_file.write(comments_dict[child_ID].strip() + '\n')
                         except KeyError:
                             pass
+
+    def df_generator(self):
+        """Generates df from single files at a time."""
+        for i in range(len(self.file_paths)):
+            df = pd.read_json(self.file_paths[i], lines=True)
+            init_num_rows = len(df.index)
+            logging.info("Number of lines in raw data file", init_num_rows)
+            logging.info("Column names from raw data file: %r" % df.columns)
+            yield df
+
+    @staticmethod
+    def random_rows_generator(num_rows_per_print, num_rows_total):
+        """Fun generator for viewing random comments (rows) in dataframes."""
+        num_iterations = num_rows_total // num_rows_per_print
+        shuffled_indices = np.arange(num_rows_per_print * num_iterations)
+        np.random.shuffle(shuffled_indices)
+        for batch in shuffled_indices.reshape(num_iterations, num_rows_per_print):
+            yield batch
+
+    @staticmethod
+    def word_tokenizer(sentences):
+        """Tokenizes sentence/list of sentences into word tokens."""
+        tokenized = []
+        for sentence in sentences:
+            tokenized.append([w for w in _WORD_SPLIT.split(sentence.strip()) if w])
+        return tokenized
+

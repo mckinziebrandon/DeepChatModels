@@ -221,7 +221,7 @@ def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size, normalize
       data_path: data file that will be used to create vocabulary.
       max_vocabulary_size: limit on the size of the created vocabulary.
       tokenizer: a function to use to tokenize each data sentence;
-        if None, basic_tokenizer will be used.
+        if None, word_tokenizer will be used.
       normalize_digits: Boolean; if true, all digits are replaced by 0s.
     """
 
