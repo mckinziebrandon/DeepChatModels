@@ -44,6 +44,11 @@ header .intro-text .intro-heading {
   text-shadow: 1px 1px 3px black;
 }
 
+#chat-submit {
+  background-color: rgb(20, 150, 220);
+  border-color: rgb(20, 130, 200);
+}
+
 .btn-xl:hover,
 .btn-xl:focus,
 .btn-xl:active,
@@ -62,7 +67,7 @@ header .intro-text .intro-heading {
   margin-right: 25%;
   margin-bottom: 1em;
 
-  border: 2px solid rgb(20, 80, 160);
+  border: 2px solid lightgray;
   border-radius: 5px;
 
   color: black;
