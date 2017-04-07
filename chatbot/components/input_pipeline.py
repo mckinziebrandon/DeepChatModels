@@ -32,7 +32,6 @@ class InputPipeline:
                 print("Input capacity set to %d examples." % self.capacity)
             self.batch_size = batch_size
             self.paths = file_paths
-            self.num_threads = 4
             self.control = {'train': 0, 'valid': 1}
             self.active_data = tf.convert_to_tensor(self.control['train'])
             self.is_chatting = is_chatting
