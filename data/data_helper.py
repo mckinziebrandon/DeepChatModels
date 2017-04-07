@@ -92,7 +92,7 @@ class DataHelper:
         pbar = ProgressBar()
         for i in pbar(range(self.file_counter, len(self.file_paths))):
 
-            logging.info("Starting to load file %s . . ." % self.file_paths[i])
+            print("Starting to load file %s . . ." % self.file_paths[i])
             # lines=True means "read as json-object-per-line."
             list_.append(pd.read_json(self.file_paths[i], lines=True))
 

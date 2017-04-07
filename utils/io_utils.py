@@ -339,7 +339,8 @@ def data_to_token_ids(data_path, target_path, vocabulary_path, normalize_digits=
 
 
 def prepare_data(data_dir, from_train_path, to_train_path,
-                 from_dev_path, to_dev_path, from_vocabulary_size, to_vocabulary_size):
+                 from_dev_path, to_dev_path, from_vocabulary_size,
+                 to_vocabulary_size=None):
     """Prepare all necessary files that are required for the training.
 
       Args:
@@ -361,13 +362,25 @@ def prepare_data(data_dir, from_train_path, to_train_path,
           (6) path to the "to language" vocabulary file.
           (7) the true vocabulary size (less than or equal to max allowed)
       """
+
+    def update_vocab_path(vocab_size):
+        to_vocab_path   = os.path.join(data_dir, "vocab%d.to" % vocab_size)
+        from_vocab_path = os.path.join(data_dir, "vocab%d.from" % vocab_size)
+        return to_vocab_path, from_vocab_path
+
     # Create vocabularies of the appropriate sizes.
     vocab_sizes = dict()
-    to_vocab_path   = os.path.join(data_dir, "vocab%d.to" % to_vocabulary_size)
-    from_vocab_path = os.path.join(data_dir, "vocab%d.from" % from_vocabulary_size)
+    to_vocab_path, from_vocab_path = update_vocab_path(from_vocabulary_size)
     vocab_sizes['to'] = create_vocabulary(to_vocab_path, to_train_path , to_vocabulary_size)
     vocab_sizes['from'] = create_vocabulary(from_vocab_path, from_train_path , from_vocabulary_size)
     true_vocab_size = max(vocab_sizes['to'], vocab_sizes['from'])
+
+    from_vocabulary_size = to_vocabulary_size = true_vocab_size
+    old_to_vocab, old_from_vocab   = to_vocab_path, from_vocab_path
+    to_vocab_path, from_vocab_path = update_vocab_path(true_vocab_size)
+    # Rename vocab filenames to have the true vocab size.
+    Popen(['mv', old_to_vocab, to_vocab_path], stdout=PIPE).communicate()
+    Popen(['mv', old_from_vocab, from_vocab_path], stdout=PIPE).communicate()
 
     # Create token ids for the training data.
     to_train_ids_path   = to_train_path + (".ids%d" % to_vocabulary_size)
