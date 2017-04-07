@@ -326,5 +326,6 @@ class DynamicBot(Model):
         self.__dict__['__params']['model_params']['is_chatting'] = True
         self.__dict__['__params']['model_params']['batch_size'] = 1
         self.__dict__['__params']['model_params']['reset_model'] = False
+        self.__dict__['__params']['model_params']['dropout_prob'] = 0.0
         assert self.is_chatting and self.decode and not self.reset_model
 

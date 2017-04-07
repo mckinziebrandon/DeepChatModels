@@ -13,6 +13,7 @@ model_params:
   reset_model: True
   state_size: 512
   steps_per_ckpt: 500
+  reset_model: False
   temperature: 0.0
 dataset_params:
   data_dir: /home/brandon/Datasets/reddit    # The only truly 'mandatory' parameter.
