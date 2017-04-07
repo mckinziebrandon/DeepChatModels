@@ -10,5 +10,5 @@ model_params:
   steps_per_ckpt: 100
 dataset_params:
   data_dir: /home/brandon/Datasets/reddit
-  vocab_size: 23765
+  vocab_size: 40000 #23765
   max_seq_len: 10

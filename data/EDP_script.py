@@ -1,5 +1,9 @@
-﻿"""English Data Preprocessing script.
-(converted from Jupyter notebook of same name in notebooks)"""
+﻿#!/usr/bin/env python3
+
+"""
+English Data Preprocessing script.
+(converted from Jupyter notebook of same name in notebooks)
+"""
 
 import os
 import re
@@ -17,9 +21,6 @@ from itertools import chain
 from collections import Counter
 from multiprocessing import Pool
 from progressbar import ProgressBar
-
-__all__ = ['remove_extra_columns', 'timed_function']
-
 
 # Global helper object that helps abstract away locations of
 # files & directories, and keeps an eye on memory usage.
@@ -160,22 +161,22 @@ def children_dict(df):
 def main():
 
     # Get up to max_mem GiB of data.
-    df = data_helper.safe_load(max_mem=1.1)
+    df = data_helper.safe_load()
     df = remove_extra_columns(df)
     df = regex_replacements(df)
     df = remove_large_comments(max_len=MAX_SEQ_LEN, df=df)
     df = expand_contractions(df)
 
     sentences = parallel_map_list(fn=DataHelper.word_tokenizer, iterable=df.body.values)
-    print('len sent = ', len(sentences))
     data_helper.set_word_freq(Counter(chain.from_iterable(sentences)))
 
     print('Bout to score!')
     df['score'] = parallel_map_list(fn=sentence_score, iterable=sentences)
-    print('\n')
-    print(df['score'].describe())
     sentences = None
-    df = df.loc[df.score < 0.1]
+
+    # Keep the desired percentage of lowest-scored sentences. (low score == good)
+    keep_best_percent = 0.8
+    df = df.loc[df['score'] < df['score'].quantile(keep_best_percent)]
 
     print('Prepping for the grand finale.')
     comments_dict       = pd.Series(df.body.values, index=df.name).to_dict()

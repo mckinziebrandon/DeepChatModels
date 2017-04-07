@@ -56,6 +56,7 @@ class Dataset(DatasetABC):
         """
 
         self.__dict__['__params'] = Dataset.fill_params(dataset_params)
+        print("self.vocab_size is ", self.vocab_size)
         # We query io_utils to ensure all data files are organized properly,
         # and io_utils returns the paths to files of interest.
         paths_triplet = io_utils.prepare_data(self.data_dir,
@@ -64,8 +65,10 @@ class Dataset(DatasetABC):
                                               self.data_dir + "/valid_from.txt",
                                               self.data_dir + "/valid_to.txt",
                                               self.vocab_size, self.vocab_size)
+        train_path, valid_path, vocab_path, true_vocab_size = paths_triplet
+        self.vocab_size = min(self.vocab_size, true_vocab_size)
+        dataset_params['vocab_size'] = self.vocab_size
 
-        train_path, valid_path, vocab_path = paths_triplet
         self.paths = dict()
         self.paths['from_train']    = train_path[0]
         self.paths['to_train']      = train_path[1]
@@ -85,11 +88,7 @@ class Dataset(DatasetABC):
         self.convert_to_tf_records('train')
         self.convert_to_tf_records('valid')
 
-    def __getattr__(self, name):
-        if name not in self.__dict__['__params']:
-            raise AttributeError(name)
-        else:
-            return self.__dict__['__params'][name]
+
 
     def convert_to_tf_records(self, prefix='train'):
         """If can't find tfrecords 'prefix' files, creates them.
@@ -269,3 +268,10 @@ class Dataset(DatasetABC):
     def fill_params(dataset_params):
         """Assigns default values from DEFAULT_FULL_CONFIG for keys not in dataset_params."""
         return {**DEFAULT_PARAMS, **dataset_params}
+
+    def __getattr__(self, name):
+        if name not in self.__dict__['__params']:
+            raise AttributeError(name)
+        else:
+            return self.__dict__['__params'][name]
+

@@ -12,6 +12,7 @@ from pprint import pprint
 from pympler.asizeof import asizeof # for profiling memory usage
 import json
 from progressbar import ProgressBar
+from subprocess import Popen, PIPE
 
 # Absolute path to this file.
 _WORD_SPLIT = re.compile(r'([.,!?\"\':;)(])|\s')
@@ -38,9 +39,10 @@ class DataHelper:
         self._word_freq = None
 
         print("Hi, I'm a DataHelper. For now, I support helping with the reddit dataset.")
+        print("For all questions, simply press ENTER if you want the default value.")
 
         # 1. Get user name. We can associate info with a given user as we go.
-        print("User name:", end=" ")
+        print("User name: (default=brandon)", end=" ")
         user = input().lower()
         if not user:
             user = 'brandon'
@@ -54,7 +56,7 @@ class DataHelper:
 
         # 2. Get absolute paths to all data filenames in self.file_paths.
         self.file_paths = []
-        print("Years to process (comma-separated):", end=" ")
+        print("Years to process as comma-separated list: (default=2007,2008,2009)", end=" ")
         years = input()
         if not years: years = '2007,2008,2009'
         years = years.split(',')
@@ -66,13 +68,18 @@ class DataHelper:
         pprint(self.file_paths)
         print()
 
+        print("Max memory to use? (default=%.2f GiB)" % MAX_MEM)
+        _max_mem = input()
+        if not _max_mem: self.max_mem = MAX_MEM
+        else: self.max_mem = float(_max_mem)
+
         # Load the helper dictionaries from dicts.json.
         with open(os.path.join(HERE, 'dicts.json'), 'r') as f:
             json_data = [json.loads(l) for l in f]
             # TODO: more descriptive names for the 'modify_' objects here would be nice.
             self.modify_list, self.modify_value, self.contractions = json_data
 
-    def safe_load(self, max_mem=MAX_MEM):
+    def safe_load(self):
         """Load data while keeping an eye on memory usage."""
 
         if self.file_counter >= len(self.file_paths):
@@ -91,7 +98,7 @@ class DataHelper:
 
             mem_usage = float(asizeof(list_)) / 1e9
             logging.info("Data list has size %.3f GiB" % mem_usage)
-            if mem_usage > max_mem:
+            if mem_usage > self.max_mem:
                 print("At max capacity. Leaving data collection early.")
                 break
         self.file_counter = i + 1
@@ -126,6 +133,17 @@ class DataHelper:
                         except KeyError:
                             pass
 
+        (num_samples, stderr) = Popen(['wc', '-l', from_file_path], stdout=PIPE).communicate()
+        num_samples = int(num_samples.strip().split()[0])
+        print("Final processed file has %d samples total." % num_samples)
+        # First make sure user has copy of bash script we're about to use.
+        os.popen('cp %s %s' % (os.path.join(HERE, 'split_into_n.sh'), self.data_root))
+        # Split data into 90% training and 10% validation.
+        os.popen('bash %s %d' % (os.path.join(self.data_root, 'split_into_n.sh'),
+                            0.1 * num_samples))
+
+
+
     def df_generator(self):
         """Generates df from single files at a time."""
         for i in range(len(self.file_paths)):
@@ -147,8 +165,10 @@ class DataHelper:
     @staticmethod
     def word_tokenizer(sentences):
         """Tokenizes sentence/list of sentences into word tokens."""
-        tokenized = []
-        for sentence in sentences:
-            tokenized.append([w for w in _WORD_SPLIT.split(sentence.strip()) if w])
+
+        # Suggestion by user: Shaptic.
+        tokenized = [None for _ in range(len(sentences))]
+        for i in range(len(sentences)):
+            tokenized[i] = [w for w in _WORD_SPLIT.split(sentences[i].strip()) if w]
         return tokenized
 
