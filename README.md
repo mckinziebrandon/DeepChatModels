@@ -1,6 +1,6 @@
 # Conversation Models in Tensorflow
 
-Note to visitors: data preprocessing work is still in the active stages and we haven't (yet) provided scripts for downloading the datasets. Updates will be posted here when this is completed.
+> Note to visitors: we have a working website deployed wherein the user can talk with one of the chatbots, but we haven't quite optimized the site enough to handle more than a few visitors. Stay tuned! In addition, data preprocessing work is still in the active stages and we haven't (yet) provided scripts for downloading the datasets. Updates will be posted here when this is completed. See [the wiki](https://github.com/mckinziebrandon/DeepChatModels/wiki/Dynamic-Models) if you'd like a (very) rough idea of recent developments.
 
 __Table of Contents__
 * [Brief Overview of Completed Work](#brief-overview-of-completed-work)
@@ -11,7 +11,7 @@ __Table of Contents__
 
 This project is still very much evolving each day, but the core goals are:
 * Create a cleaner user interface for tinkering with sequence-to-sequence models. This project will explore ways to make constructing such models feel more intuitive/customizable. The ideal result is a chatbot API with the readability of [Keras](https://keras.io/), but with a degree of flexibility closer to [TensorFlow](https://www.tensorflow.org/). 
-  + Initially, the general API was as shown below, with named parameters being the primary way of tweaking model values. 
+  + Initially, I designed the general API as shown below, with named parameters being the primary way of tweaking model values. 
   ```python
     # All datasets implement a Dataset interface, found in data/_dataset.py
     dataset = Cornell(vocab_size=FLAGS.vocab_size)
