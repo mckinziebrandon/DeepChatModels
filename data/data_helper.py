@@ -13,7 +13,8 @@ from progressbar import ProgressBar
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 DATA_ROOTS = {'brandon': '/home/brandon/Datasets/reddit',
-        'ivan': '/Users/ivan/Documents/sp_17/reddit_data'}
+        'ivan': '/Users/ivan/Documents/sp_17/reddit_data',
+        'mitch': '/Users/Mitchell/Documents/Chatbot/RedditData'}
 # Maximum memory usage allowed in GiB.
 MAX_MEM = 2.0
 
