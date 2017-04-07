@@ -39,7 +39,7 @@ class Cell(tf.contrib.rnn.RNNCell):
             return tf.TensorShape([None, self._state_size]) # changed from self.state_size
 
         if self._num_layers == 1: return cell_shape()
-        else: return tuple([cell_shape() for _ in range(self._num_layers)]) # tuple may not be necessary
+        else: return [cell_shape() for _ in range(self._num_layers)] # tuple may not be necessary
 
     def __call__(self, inputs, state, scope=None):
         """TODO

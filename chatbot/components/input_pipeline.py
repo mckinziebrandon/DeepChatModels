@@ -28,7 +28,8 @@ class InputPipeline:
         """
         with tf.name_scope(scope, 'input_pipeline') as scope:
             if capacity is None:
-                self.capacity = 40 * batch_size
+                self.capacity = max(50 * batch_size, int(4e5))
+                print("Input capacity set to %d examples." % self.capacity)
             self.batch_size = batch_size
             self.paths = file_paths
             self.num_threads = 4
