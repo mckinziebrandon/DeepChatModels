@@ -31,7 +31,6 @@ import tensorflow as tf
 from pydoc import locate
 
 # Allow user to override config values with command-line args.
-# All test_flags with default as None are not accessed unless set.
 flags = tf.app.flags
 flags.DEFINE_string("pretrained_dir", None, "path to pretrained model dir.")
 flags.DEFINE_string("config", None, "path to config (.yml) file.")
