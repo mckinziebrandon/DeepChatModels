@@ -1,3 +1,7 @@
+section {
+  padding-top: 3em;
+}
+
 header {
   color: rgb(255, 255, 255);
 }
@@ -44,6 +48,11 @@ header .intro-text .intro-heading {
   text-shadow: 1px 1px 3px black;
 }
 
+#chat-submit {
+  background-color: rgb(20, 150, 220);
+  border-color: rgb(20, 130, 200);
+}
+
 .btn-xl:hover,
 .btn-xl:focus,
 .btn-xl:active,
@@ -54,47 +63,47 @@ header .intro-text .intro-heading {
   border-color: rgb(20, 80, 160);
 }
 
+#chat-box {
+  background-image: none;
+  background-color: rgb(134, 201, 254);
+}
+
 #chat-log {
-  width: 50%;
-  height: 250px;
+  position: relative;
+  height: 245px;
+  margin-bottom: 0.5em;
+  padding-top: 0.25em;
+  padding-bottom: 0.25em;
+  padding-left: 3em;
 
-  margin-left: 25%;
-  margin-right: 25%;
-  margin-bottom: 1em;
-
-  border: 2px solid rgb(20, 80, 160);
+  border: 2px solid none;
   border-radius: 5px;
 
   color: black;
-  background-color: white;
+  background-color: transparent;
 
   overflow-y: auto;
   word-wrap: break-word;
 }
 
 #chat-form {
-  margin: auto;
-  width: 50%;
+  padding-left: 3em;
+  padding-right: 3em;
 }
 
 .bot-name {
-  color: lightgreen;
+  color: green;
   font-weight: italic;
 }
 
 .user-name {
-  color: lightblue;
+  color: blue;
   font-weight: italic;
 }
 
-#chat-log {
-  padding-top: 0.25em;
-  padding-bottom: 0.25em;
-}
-
 .message {
-  margin-left: 1em;
-  margin-right: 1em;
+  margin-left: 0.1em;
+  margin-right: 0.1em;
 }
 
 #chat-log hr {
@@ -112,4 +121,20 @@ header .intro-text .intro-heading {
 }
 
 #chat-log .user-message {
+}
+
+::-webkit-scrollbar
+{
+  width: 12px;  /* for vertical scrollbars */
+  height: 12px; /* for horizontal scrollbars */
+}
+
+::-webkit-scrollbar-track
+{
+  background: rgba(0, 0, 0, 0.1);
+}
+
+::-webkit-scrollbar-thumb
+{
+  background: rgba(0, 0, 0, 0.5);
 }
