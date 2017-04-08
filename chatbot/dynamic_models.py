@@ -8,9 +8,9 @@ import time
 import logging
 import numpy as np
 import tensorflow as tf
+from chatbot import components
+from chatbot.components import bot_ops, Embedder, InputPipeline
 from chatbot._models import Model
-from chatbot.components import bot_ops
-from chatbot.components import InputPipeline, Embedder, BasicEncoder, BasicDecoder
 from utils import io_utils
 from pydoc import locate
 
@@ -41,8 +41,10 @@ class DynamicBot(Model):
     def build_computation_graph(self, dataset):
 
         # Grab the model classes (Constructors) specified by user in params.
-        encoder_class = locate(self.model_params['encoder.class'])
-        decoder_class = locate(self.model_params['decoder.class'])
+        encoder_class = locate(getattr(self, 'encoder.class')) \
+                        or getattr(components, getattr(self, 'encoder.class'))
+        decoder_class = locate(getattr(self, 'decoder.class')) \
+                        or getattr(components, getattr(self, 'decoder.class'))
         assert encoder_class is not None, "Couldn't find requested %s." % \
                                           self.model_params['encoder.class']
         assert decoder_class is not None, "Couldn't find requested %s." % \
