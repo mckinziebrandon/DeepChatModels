@@ -24,11 +24,11 @@ Typical use cases:
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL']='1'
 
-from chatbot import DynamicBot, ChatBot, SimpleBot
-from data import Cornell, Ubuntu, WMT, Reddit, TestData
-from utils import io_utils
+import data
+import chatbot
 import tensorflow as tf
 from pydoc import locate
+from utils import io_utils
 
 # Allow user to override config values with command-line args.
 flags = tf.app.flags
@@ -76,10 +76,13 @@ def main(argv):
     # them that everything is set up properly.
     io_utils.print_non_defaults(config)
 
+
     print("Setting up %s dataset." % config['dataset'])
-    dataset = locate(config['dataset'])(config['dataset_params'])
+    dataset_class   = locate(config['dataset']) or getattr(data, config['dataset'])
+    dataset         = dataset_class(config['dataset_params'])
     print("Creating", config['model'], ". . . ")
-    bot = locate(config['model'])(dataset, config)
+    bot_class   = locate(config['model']) or getattr(chatbot, config['model'])
+    bot         = bot_class(dataset, config)
 
     if not config['model_params']['decode']:
         start_training(dataset, bot)
