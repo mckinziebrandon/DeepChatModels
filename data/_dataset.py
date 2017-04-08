@@ -15,6 +15,11 @@ DEFAULT_PARAMS = DEFAULT_FULL_CONFIG['dataset_params']
 class DatasetABC(metaclass=ABCMeta):
 
     @abstractmethod
+    def convert_to_tf_records(self, *args):
+        """If not found in data dir, will create tfrecords data files from text files."""
+        pass
+
+    @abstractmethod
     def train_generator(self, batch_size):
         """Returns a generator function for batches of batch_size train data."""
         pass
@@ -41,7 +46,7 @@ class DatasetABC(metaclass=ABCMeta):
 
     @abstractproperty
     def max_seq_len(self):
-        """Return the number of tokens in the longest example"""
+        """Return the maximum allowed sentence length."""
         pass
 
 
@@ -87,8 +92,6 @@ class Dataset(DatasetABC):
         # Create tfrecords file if not located in data_dir.
         self.convert_to_tf_records('train')
         self.convert_to_tf_records('valid')
-
-
 
     def convert_to_tf_records(self, prefix='train'):
         """If can't find tfrecords 'prefix' files, creates them.
@@ -157,7 +160,7 @@ class Dataset(DatasetABC):
         return self._generator(self.paths['from_valid'], self.paths['to_valid'], batch_size)
 
     def _generator(self, from_path, to_path, batch_size):
-        """Returns a generator function that reads data from file, an d
+        """(Used by BucketModels only). Returns a generator function that reads data from file, an d
             yields shuffled batches.
 
         Args:
@@ -210,6 +213,7 @@ class Dataset(DatasetABC):
                 assert len(encoder_tokens) <= batch_size
                 if len(encoder_tokens) > 0:
                     yield padded_batch(encoder_tokens, decoder_tokens)
+
     @property
     def word_to_idx(self):
         """Return dictionary map from str -> int. """
@@ -221,31 +225,8 @@ class Dataset(DatasetABC):
         return self._idx_to_word
 
     def as_words(self, sentence):
-        """Initially, this function was just the one-liner below:
-
-            return " ".join([tf.compat.as_str(self._idx_to_word[i]) for i in sentence])
-
-            Since then, it has become apparent that some character aren't converted properly,
-            and tf has issues decoding. In (rare) cases that this occurs, I've setup the
-            try-catch block to help inspect the root causes. It will remain here until the
-            problem has been adequately diagnosed.
-        """
-        words = []
-        try:
-            for idx, i in enumerate(sentence):
-                w = self._idx_to_word[i]
-                w_str = tf.compat.as_str(w)
-                words.append(w_str)
-            return " ".join(words)
-            #return " ".join([tf.compat.as_str(self._idx_to_word[i]) for i in sentence])
-        except UnicodeDecodeError  as e:
-            print("Error: ", e)
-            print("Final index:", idx, "and token:", i)
-            print("Final word: ", self._idx_to_word[i])
-            print("Sentence length:", len(sentence))
-            print("\n\nIndexError encountered for following sentence:\n", sentence)
-            print("\nVocab size is :", self.vocab_size)
-            print("Words:", words)
+        """Convert list of integer tokens to a single sentence string."""
+        return " ".join([tf.compat.as_str(self._idx_to_word[i]) for i in sentence])
 
     @property
     def name(self):

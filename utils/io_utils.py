@@ -113,14 +113,19 @@ def flags_to_dict(flags):
     """
 
     if flags.pretrained_dir is not None:
-        return load_pretrained_config(flags.pretrained_dir)
+        config = load_pretrained_config(flags.pretrained_dir)
+        config['model_params'] = {**config['model_params'],
+                                  **yaml.load(getattr(flags, 'model_params'))}
+        return config
 
     flags_dict = {}
+    # Grab any values under supported keys defined in default config.
     for stream in DEFAULT_FULL_CONFIG:
         yaml_stream = yaml.load(getattr(flags, stream))
         if yaml_stream:
             flags_dict.update({stream: yaml_stream})
         elif stream in ['model_params', 'dataset_params']:
+            # Explicitly set it as empty for merging with default later.
             flags_dict[stream] = {}
     return flags_dict
 
