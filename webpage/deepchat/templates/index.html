@@ -31,6 +31,18 @@
   <!-- CSS Modifications -->
   <link rel="stylesheet" type="text/css"
         href="{{ url_for('static', filename='css/style_modifications.css') }}">
+
+  <style type="text/css">
+    @media (min-width: 768px) {
+      #chat-box {
+        height: 660px;
+        background: url(
+          {{ url_for('static', filename='img/chat-bg.png') }}
+        )
+        /*background-repeat: no-repeat;*/
+      }
+    }
+  </style>
 </head>
 
 <body id="page-top" class="index">
@@ -46,11 +58,12 @@
           <span class="sr-only">Toggle navigation</span> Menu
           <i class="fa fa-bars"></i>
         </button>
-        <a class="navbar-brand page-scroll" href="#page-top">Chatty McChatFace</a>
+        <a class="navbar-brand page-scroll" href="#page-top">Botboi</a>
       </div>
 
       <!-- Collect the nav links, forms, and other content for toggling -->
-      <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+      <!-- Keeping this, because we'll have more pages at some point. -->
+      <!-- <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
         <ul class="nav navbar-nav navbar-right">
           <li class="hidden">
             <a href="#page-top"></a>
@@ -59,14 +72,15 @@
             <a class="page-scroll" href="#chat">Chat</a>
           </li>
         </ul>
-      </div>
+      </div> -->
         <!-- /.navbar-collapse -->
     </div>
     <!-- /.container-fluid -->
   </nav>
 
   <!-- Header -->
-  <header>
+  <!-- Apparently, fuck this stuff? -->
+  <!-- <header>
     <div class="container">
       <div class="intro-text">
         <div class="intro-lead-in">Let us introduce you to Chatty McChatFace!</div>
@@ -74,32 +88,47 @@
         <a href="#about" class="page-scroll btn btn-xl">Tell Me More</a>
       </div>
     </div>
-  </header>
+  </header> -->
 
   <!-- Chat Section -->
   <section id="chat">
     <div class="container">
       <div class="row">
-        <div class="col-lg-12 text-center">
-          <h2 class="section-heading">Chat</h2>
-          <h3 class="section-subheading text-muted">Chat with Chatty McChatFace</h3>
+        <div class="col-md-12 text-center">
+          <h2 class="section-heading">Chat with our bot!</h2>
+          <!-- <h3 class="section-subheading text-muted">Chat with our bot!</h3> -->
         </div>
       </div>
-      <div class="row">
-        <div id="chat-log" class="col-lg-8 text-center">
-          <!-- This is where the chat log is injected. -->
-        </div>
-      </div>
-      <div id="chat-form" class="row text-center">
-        <div class="col-md-12 input-group">
-          <input type="text" class="form-control input-sm" aria-label="Chat Input"
-                 name="{{ form.message.name }}" placeholder="Hey bot...">
-          <div class="input-group-btn">
-            <button id="chat-submit" class="btn btn-primary btn-sm" type="submit">
-              Chat
-            </button>
+
+      <div id="chat-box" class="row">
+        <div class="col-md-12" style="margin-top: 2em">
+          <div class="row">
+            <div id="chat-log"
+                 class="col-xs-offset-0 col-xs-12
+                        col-sm-offset-4 col-sm-8
+                        col-md-offset-3 col-md-7
+                        col-lg-offset-3 col-lg-5
+                        text-center">
+              <!-- This is where the chat log is injected. -->
+            </div>
+          </div>
+
+          <div id="chat-form" class="row text-center">
+            <div class="col-sm-offset-5 col-sm-6
+                        col-md-offset-4 col-md-6
+                        col-lg-offset-3 col-lg-5
+                        input-group">
+              <input type="text" class="form-control input-sm" aria-label="Chat Input"
+                     name="{{ form.message.name }}" placeholder="Hey bot...">
+              <div class="input-group-btn">
+                <button id="chat-submit" class="btn btn-primary btn-sm" type="submit">
+                  Chat
+                </button>
+              </div>
+            </div>
           </div>
         </div>
+        <div class="col-xs-12" style="margin-top: 1em">
       </div>
     </div>
   </section>

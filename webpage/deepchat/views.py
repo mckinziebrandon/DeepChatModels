@@ -1,25 +1,18 @@
 from flask import render_template
 from flask import request
-from pydoc import locate
 
-import os
 from deepchat import app
-from deepchat import ignore_me_please
-#from utils import bot_freezer
+from deepchat import web_bot
 from .forms import ChatForm
 
 
 @app.before_first_request
 def load_gloabal_data():
-    # StackOverflow: "Flask: Creating objects that remain over multiple requests"
+    """Create the bot to be used for chat session."""
     global bot
-    data_name = 'reddit'
-    vocab_size = 23765
-    here = os.path.dirname(os.path.realpath(__file__))
-    frozen_dir = os.path.join(here, 'static', 'assets', 'frozen_models', data_name)
-    bot = ignore_me_please.FrozenBot(frozen_model_dir=frozen_dir, vocab_size=vocab_size)
-    #frozen_model_dir = os.path.join(here, 'static', 'assets', 'frozen_models', data_name)
-    #bot = bot_freezer.FrozenBot(frozen_model_dir=frozen_model_dir, vocab_size=vocab_size)
+    # TODO: add support for querying frozen model about it's vocabulary.
+    vocab_size = 40000
+    bot = web_bot.FrozenBot(frozen_model_dir='reddit', vocab_size=vocab_size)
 
 
 @app.route('/', methods=['GET'])
