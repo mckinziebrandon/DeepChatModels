@@ -297,7 +297,7 @@ class DynamicBot(Model):
         # Get output sentence from the chatbot.
         _, _, response = self.step(forward_only=True)
         # response has shape [1, response_length] and it's last elemeot is EOS_ID. :)
-        return self.dataset.as_words(response[0][:-1])
+        return self.dataset.as_words(np.squeeze(response)[:-1])
 
     def close(self, save_current=True, rebuild_for_chat=True):
         """Before closing, which will freeze our graph to a file,

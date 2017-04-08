@@ -113,7 +113,7 @@ class Decoder(RNN):
         def cond(response, s):
             """Input callable for tf.while_loop. See below."""
             return tf.logical_and(tf.not_equal(response[-1], io_utils.EOS_ID),
-                                  tf.less(tf.size(response), self.max_seq_len))
+                                  tf.less_equal(tf.size(response), self.max_seq_len))
 
         # Create integer (tensor) list of output ID responses.
         response = tf.stack([self.sample(outputs)])

@@ -8,23 +8,7 @@ from chatbot.components.base._rnn import RNN
 
 
 class BasicEncoder(RNN):
-    def __init__(self,
-                 base_cell="GRUCell",
-                 state_size=512,
-                 embed_size=256,
-                 dropout_prob=1.0,
-                 num_layers=2):
-        """
-        Args:
-            state_size: number of units in underlying rnn cell.
-            vocab_size: dimension of output space for projections.
-            embed_size: dimension size of word-embedding space.
-        """
-        super(BasicEncoder, self).__init__(base_cell=base_cell,
-                                           state_size=state_size,
-                                           embed_size=embed_size,
-                                           dropout_prob=dropout_prob,
-                                           num_layers=num_layers)
+    """Encoder architecture that is defined by its cell running inside dynamic_rnn."""
 
     def __call__(self, inputs, initial_state=None):
         """Run the inputs on the encoder and return the output(s).
@@ -50,24 +34,12 @@ class BasicEncoder(RNN):
 
 
 class BidirectionalEncoder(RNN):
+    """Encoder that concatenates two copies of its cell forward and backward and
+    feeds into a bidirectional_dynamic_rnn.
 
-    def __init__(self,
-             base_cell="GRUCell",
-             state_size=512,
-             embed_size=256,
-             dropout_prob=1.0,
-             num_layers=2):
-        """
-        Args:
-            state_size: number of units in underlying rnn cell.
-            vocab_size: dimension of output space for projections.
-            embed_size: dimension size of word-embedding space.
-        """
-        super(BidirectionalEncoder, self).__init__(base_cell=base_cell,
-                                                   state_size=state_size,
-                                                   embed_size=embed_size,
-                                                   dropout_prob=dropout_prob,
-                                                   num_layers=num_layers)
+    Outputs are concatenated before being returned. I may move this functionality to
+    an intermediate class layer that handles shape-matching between encoder/decoder.
+    """
 
     def __call__(self, inputs, initial_state=None):
         """Run the inputs on the encoder and return the output(s).
