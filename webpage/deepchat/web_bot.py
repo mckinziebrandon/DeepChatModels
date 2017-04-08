@@ -38,7 +38,7 @@ def get_vocab_dicts(vocabulary_path):
         vocab = dict([(x, y) for (y, x) in enumerate(rev_vocab)])
         return vocab, rev_vocab
     else:
-        raise ValueError("Vocabulary file %s not found.", vocabulary_path)
+        raise ValueError("Vocabulary file %s not found." % vocabulary_path)
 
 
 def load_graph(frozen_model_dir):
@@ -118,7 +118,9 @@ class FrozenBot:
     def as_words(self, sentence):
         words = " ".join([tf.compat.as_str(self.idx_to_word[i]) for i in sentence])
         words = words.replace(' , ', ', ').replace(' .', '.').replace(' !', '!')
-        words = words.replace(" ' ", "'", " ?", "?")
+        words = words.replace(" ' ", "'").replace(" ?", "?")
+        if len(words) < 2:
+            return words
         return words[0].upper() + words[1:]
 
     def __call__(self, sentence):

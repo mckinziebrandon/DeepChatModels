@@ -11,7 +11,7 @@ def load_gloabal_data():
     """Create the bot to be used for chat session."""
     global bot
     # TODO: add support for querying frozen model about it's vocabulary.
-    vocab_size = 40000 #23765
+    vocab_size = 23765
     bot = web_bot.FrozenBot(frozen_model_dir='reddit', vocab_size=vocab_size)
 
 
