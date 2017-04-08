@@ -39,6 +39,7 @@
         background: url(
           {{ url_for('static', filename='img/chat-bg.png') }}
         )
+        /*background-repeat: no-repeat;*/
       }
     }
   </style>
@@ -105,14 +106,18 @@
             <div id="chat-log"
                  class="col-xs-offset-0 col-xs-12
                         col-sm-offset-4 col-sm-8
-                        col-md-offset-3 col-md-7 text-center">
+                        col-md-offset-3 col-md-7
+                        col-lg-offset-3 col-lg-5
+                        text-center">
               <!-- This is where the chat log is injected. -->
             </div>
           </div>
 
           <div id="chat-form" class="row text-center">
             <div class="col-sm-offset-5 col-sm-6
-                        col-md-offset-4 col-md-6 input-group">
+                        col-md-offset-4 col-md-6
+                        col-lg-offset-3 col-lg-5
+                        input-group">
               <input type="text" class="form-control input-sm" aria-label="Chat Input"
                      name="{{ form.message.name }}" placeholder="Hey bot...">
               <div class="input-group-btn">

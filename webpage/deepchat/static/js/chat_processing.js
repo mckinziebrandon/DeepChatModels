@@ -12,9 +12,11 @@ $(document).ready(function() {
 
         var chatlog = $('#chat-log');
         chatlog.append("<div class='row message'>\
-            <div class='user-message text-left col-md-8 col-md-push-2'>" +
+            <div class='user-message text-left\
+                        col-md-8  col-md-push-2\
+                        col-sm-10 col-sm-push-2'>" +
             user_msg.val() + "</div>" +
-            "<div class='user-name text-left col-md-2 col-md-push-2'>\
+            "<div class='user-name text-left col-md-2 col-md-offset-2'>\
             User</div></div><hr />"
         );
 
@@ -23,8 +25,8 @@ $(document).ready(function() {
             "message": user_msg.val()
         }, function(data) {
             chatlog.append("<div class='row message'>\
-                <div class='bot-name text-left col-md-2'>Botty</div>\
-                <div class='bot-message text-left col-md-8'>" + data +
+                <div class='bot-name text-left col-md-2 col-sm-2'>Botty</div>\
+                <div class='bot-message text-left col-md-8 col-sm-9'>" + data +
                 "</div></div><hr />"
             );
             $('#chat-log').scrollTop($('#chat-log')[0].scrollHeight);
