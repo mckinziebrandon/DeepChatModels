@@ -125,6 +125,7 @@ class FrozenBot:
 
     def __call__(self, sentence):
         """Outputs response sentence (string) given input (string)."""
+        sentence = sentence.strip()
         # Convert input sentence to token-ids.
         sentence_tokens = sentence_to_token_ids(
             tf.compat.as_bytes(sentence), self.word_to_idx)
