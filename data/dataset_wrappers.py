@@ -29,7 +29,6 @@ class Cornell(Dataset):
 
     def __init__(self, dataset_params):
         self._name = "cornell"
-        #logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('CornellLogger')
         dataset_params['data_dir'] = check_data(dataset_params['data_dir'], self.name)
         super(Cornell, self).__init__(dataset_params)
@@ -40,7 +39,6 @@ class Ubuntu(Dataset):
 
     def __init__(self, dataset_params):
         self._name = "ubuntu"
-        #logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('UbuntuLogger')
         dataset_params['data_dir'] = check_data(dataset_params['data_dir'],
                                                 self.name)
@@ -52,7 +50,6 @@ class WMT(Dataset):
 
     def __init__(self, dataset_params):
         self._name = "wmt"
-        #logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('WMTLogger')
         dataset_params['data_dir'] = check_data(dataset_params['data_dir'],
                                                 self.name)
@@ -64,7 +61,6 @@ class Reddit(Dataset):
 
     def __init__(self, dataset_params):
         self._name = "reddit"
-        #logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('RedditLogger')
         dataset_params['data_dir'] = check_data(dataset_params['data_dir'],
                                                 self.name)
