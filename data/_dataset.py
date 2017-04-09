@@ -61,7 +61,6 @@ class Dataset(DatasetABC):
         """
 
         self.__dict__['__params'] = Dataset.fill_params(dataset_params)
-        print("self.vocab_size is ", self.vocab_size)
         # We query io_utils to ensure all data files are organized properly,
         # and io_utils returns the paths to files of interest.
         paths_triplet = io_utils.prepare_data(self.data_dir,

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-This shows how to run the new dynamic models (work in progress).
+"""main.py: Train and/or chat with a bot. (work in progress).
 
 Typical use cases:
     1.  Train a model specified by yaml config file, located at
@@ -75,7 +74,6 @@ def main(argv):
     # Print out any non-default parameters given by user, so as to reassure
     # them that everything is set up properly.
     io_utils.print_non_defaults(config)
-
 
     print("Setting up %s dataset." % config['dataset'])
     dataset_class   = locate(config['dataset']) or getattr(data, config['dataset'])
