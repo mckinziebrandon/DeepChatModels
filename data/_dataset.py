@@ -143,9 +143,9 @@ class Dataset(DatasetABC):
                       % (from_path, to_path, output_path))
         self.paths[prefix + '_tfrecords'] = output_path
 
-    def sentence_generator(self):
+    def sentence_generator(self, prefix='from'):
         """Yields (as words) single sentences from training data, for testing purposes."""
-        with tf.gfile.GFile(self.data_dir + '/train_from.txt', mode="r") as text_file:
+        with tf.gfile.GFile(self.paths['{}_train'.format(prefix)], mode="r") as text_file:
             sentence = text_file.readline().strip()
             while sentence:
                 yield sentence

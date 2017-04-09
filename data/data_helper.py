@@ -87,19 +87,17 @@ class DataHelper:
             return None
 
         # For in-place appending.
-        # stackoverflow: import-multiple-csv-files-into-pandas-and-concatenate-into-one-dataframe
+        # S.O.: import-multiple-csv-files-into-pandas-and-concatenate-into-one-dataframe
         list_ = []
         pbar = ProgressBar()
         for i in pbar(range(self.file_counter, len(self.file_paths))):
-
-            print("Starting to load file %s . . ." % self.file_paths[i])
             # lines=True means "read as json-object-per-line."
             list_.append(pd.read_json(self.file_paths[i], lines=True))
 
             mem_usage = float(asizeof(list_)) / 1e9
             logging.info("Data list has size %.3f GiB" % mem_usage)
             if mem_usage > self.max_mem:
-                print("At max capacity. Leaving data collection early.")
+                print("Past max capacity: %r. Leaving data collection early." % mem_usage)
                 break
         self.file_counter = i + 1
 
