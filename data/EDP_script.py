@@ -25,11 +25,11 @@ from progressbar import ProgressBar
 # Global helper object that helps abstract away locations of
 # files & directories, and keeps an eye on memory usage.
 data_helper = DataHelper()
-data_helper.file_counter = 3
+data_helper.file_counter = 1
 # Max number of words in any saved sentence.
-MAX_SEQ_LEN = 11
+MAX_SEQ_LEN = 20
 # Number of CPU cores available.
-NUM_CORES = 8
+NUM_CORES = 2
 # How many chunks we should split dataframes into at any given time.
 NUM_PARTITIONS = 64
 
