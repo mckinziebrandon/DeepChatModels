@@ -3,6 +3,7 @@ import tensorflow as tf
 from tensorflow.contrib.rnn import LSTMStateTuple, LSTMCell
 from chatbot.components.base._rnn import RNN
 from utils import io_utils
+from tensorflow.python.util import nest
 
 DYNAMIC_RNNS = {
     "dynamic_rnn": tf.nn.dynamic_rnn,
@@ -84,6 +85,9 @@ class Decoder(RNN):
         if loop_embedder is None:
             raise ValueError("Loop function required to feed outputs as inputs.")
 
+        def lstm_wrapper(state):
+            return LSTMStateTuple(c=state[0], h=state[1])
+
         def body(response, state):
             """Input callable for tf.while_loop. See below."""
             tf.get_variable_scope().reuse_variables()
@@ -91,13 +95,10 @@ class Decoder(RNN):
                                           reuse=True)
 
             # For handling tuple-state like LSTMCell.
-            if "LSTM" in self.base_cell:
-                if isinstance(state, list):
-                    if self.num_layers > 1:
-                        state = tuple([LSTMStateTuple(c=s[0], h=s[1]) for s in state])
-                    else:
-                        state = LSTMStateTuple(c=state[0], h=state[1])
-
+            #state = tuple(self._map_state_to(lstm_wrapper, state))
+            state = self._map_state_to(lstm_wrapper, state)
+            if "LSTM" in self.base_cell and isinstance(state, list):
+                state = tuple(state)
 
             outputs, state = DYNAMIC_RNNS[rnn_name](cell=cell,
                                                     inputs=decoder_input,
@@ -106,7 +107,7 @@ class Decoder(RNN):
                                                     dtype=tf.float32)
 
             next_id  = self.sample(self.apply_projection(outputs))
-            response =  tf.concat([response, tf.stack([next_id])], axis=0)
+            response = tf.concat([response, tf.stack([next_id])], axis=0)
             state    = self._map_state_to(list, state)
             return response, state
 
@@ -184,8 +185,9 @@ class Decoder(RNN):
     def _map_state_to(self, fn, state):
         """Because LSTMStateTuple is the bane of my existence."""
         if "LSTM" not in self.base_cell: return state
-        if self.num_layers > 1: return list(map(fn, state))
+        if self.num_layers > 1: return tuple(list(map(fn, state)))
         else: return fn(state)
+        #if self.num_layers > 1: return nest.map_structure(fn, state)
 
 
 class BasicDecoder(Decoder):

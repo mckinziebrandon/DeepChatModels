@@ -121,16 +121,15 @@ class InputPipeline:
             Tensor that will contain the lines at runtime.
         """
         with tf.variable_scope('reader'):
-            tfrecords_fname = file
-            filename_queue = tf.train.string_input_producer([tfrecords_fname])
+            filename_queue = tf.train.string_input_producer([file])
             reader = tf.TFRecordReader(name='tfrecord_reader')
             _, next_raw = reader.read(filename_queue, name='read_records')
         return next_raw
 
-    def _assign_queue(self, data):
+    def _assign_queue(self, proto_text):
         """
         Args:
-            data: object to be enqueued and managed by parallel threads.
+            proto_text: object to be enqueued and managed by parallel threads.
         """
 
         with tf.variable_scope('shuffle_queue'):
@@ -138,10 +137,13 @@ class InputPipeline:
                 capacity=self.capacity,
                 min_after_dequeue=3*self.batch_size,
                 dtypes=tf.string, shapes=[()])
-            enqueue_op = queue.enqueue(data)
+
+            enqueue_op = queue.enqueue(proto_text)
             example_dq = queue.dequeue()
+
             qr = tf.train.QueueRunner(queue, [enqueue_op] * 4)
             tf.train.add_queue_runner(qr)
+
             _sequence_lengths, _sequences = tf.parse_single_sequence_example(
                 serialized=example_dq,
                 context_features=LENGTHS,

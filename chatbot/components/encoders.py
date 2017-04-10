@@ -59,51 +59,32 @@ class BidirectionalEncoder(RNN):
             cell_bw=cell_bw,
             inputs=inputs,
             dtype=tf.float32)
-        outputs = tf.concat(outputs_tuple, 2)
 
-        # This is not the best way to convert shapes, but it works.
-        # TODO: improve this please.
-        if 'LSTM' not in self.base_cell:
-            bridge = tf.get_variable("bridge", [2 * self.state_size, self.state_size], dtype=outputs.dtype)
-            if self.num_layers == 1:
-                final_state = tf.concat(final_state_tuple, 1)
-                final_state = tf.matmul(final_state, bridge)
+        # Concatenate each of the tuples fw and bw dimensions.
+        outputs     = tf.concat(outputs_tuple, 2)
+        final_state = tf.concat(final_state_tuple, -1)
+
+        def single_state(state):
+            """Reshape bidirectional state (via fully connected layer) to state size."""
+            bridge = self.get_bridge("bridge", outputs.dtype)
+            if 'LSTM' in self.base_cell:
+                def bridge_mult(s): return tf.matmul(s, bridge)
+                bridged_state = LSTMStateTuple(*tf.unstack(tf.map_fn(bridge_mult, state)))
             else:
-                final_state = tf.concat(final_state_tuple, 2)
-                def fn(s): return tf.matmul(s, bridge)
-                final_state = tf.map_fn(fn, final_state)
-                final_state = tuple(tf.unstack(final_state))
+                bridged_state = tf.matmul(state, bridge)
+            return bridged_state
+
+        if self.num_layers == 1:
+            final_state = single_state(final_state)
         else:
-            if self.num_layers == 1:
-                bridge_c    = tf.get_variable("bridge_c", [2 * self.state_size, self.state_size], dtype=outputs.dtype)
-                bridge_h    = tf.get_variable("bridge_h", [2 * self.state_size, self.state_size], dtype=outputs.dtype)
-
-                final_c     = tf.concat((final_state_tuple[0].c, final_state_tuple[1].c), 1)
-                final_h     = tf.concat((final_state_tuple[0].h, final_state_tuple[1].h), 1)
-
-                final_c     = tf.matmul(final_c, bridge_c)
-                final_h     = tf.matmul(final_h, bridge_h)
-                final_state = LSTMStateTuple(c=final_c, h=final_h)
-
-            else:
-                fw = list(map(list, final_state_tuple[0]))
-                bw = list(map(list, final_state_tuple[1]))
-                layers = tf.stack((fw,bw), 1)
-                # This could obviously be done with 1 simple operation but i'm too tired to think.
-                def concat_fn(s): return tf.stack(
-                        [tf.concat((s[0][0], s[1][0]), 1),
-                        tf.concat((s[0][1], s[1][1]), 1)])
-                final_state = tf.map_fn(fn=concat_fn, elems=layers)
-
-                bridge = tf.get_variable("bridge", [2 * self.state_size, self.state_size], dtype=outputs.dtype)
-                def fn(s): return tf.tensordot(s, bridge, [[2], [0]])
-                final_state = tf.map_fn(fn, final_state)
-
-                def toLSTMTup(s): return LSTMStateTuple(c=s[0], h=s[1])
-                final_state = list(map(toLSTMTup, tf.unstack(final_state)))
-                final_state = tuple(final_state)
+            final_state = tuple([single_state(fs) for fs in tf.unstack(final_state)])
 
         return outputs, final_state
+
+    def get_bridge(self, name, dtype):
+        """Used for restructuring bidirectional outputs via intermediate F.C. layer."""
+        s = self.state_size
+        return tf.get_variable(name, [2 * s, s], dtype=dtype)
 
 
 class UniEncoder(Encoder):

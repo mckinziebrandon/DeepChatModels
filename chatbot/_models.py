@@ -139,18 +139,17 @@ class Model(object):
         Args: directory containing model ckpt files we'd like to freeze.
         """
 
-        # TODO: Need to ensure batch size set to 1 before freezing.
         checkpoint_state    = tf.train.get_checkpoint_state(self.ckpt_dir)
         output_fname        = os.path.join(self.ckpt_dir, "frozen_model.pb")
         # Note: output_node_names is only used to tell tensorflow what is can
         # throw away in the frozen graph (e.g. training ops).
-        output_node_names = ",".join([t.name.rstrip(':0') for t in tf.get_collection('freezer')])
-        print(output_node_names)
-        # Super-duper-ultra-compression-9000. Save a graph with only the
-        # bare necessities for chat sessions (forget about your worries/strife).
+        output_node_names = ",".join(
+            [t.name.rstrip(':0') for t in tf.get_collection('freezer')])
+
+        # Save a graph with only the bare necessities for chat sessions.
         output_graph_def = tf.graph_util.convert_variables_to_constants(
-            self.sess, self.graph.as_graph_def(), output_node_names.split(',')
-        )
+            self.sess, self.graph.as_graph_def(), output_node_names.split(','))
+
         with tf.gfile.GFile(output_fname, 'wb') as f:
             f.write(output_graph_def.SerializeToString())
         print("%d ops in the final graph." % len(output_graph_def.node))
@@ -172,9 +171,9 @@ class Model(object):
 
 class BucketModel(Model):
     """Abstract class. Any classes that extend BucketModel just need to customize their
-        graph structure in __init__ and implement the step(...) function. The real motivation for
-        making this was to be able to use the true Model abstract class for all classes in this
-        directory, bucketed or not, r1.0 or r0.12.
+        graph structure in __init__ and implement the step(...) function.
+        The real motivation for making this was to be able to use the true Model
+        abstract class for all classes in this directory, bucketed or not, r1.0 or r0.12.
     """
 
     def __init__(self, logger, buckets, dataset, params):

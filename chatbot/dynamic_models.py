@@ -144,10 +144,10 @@ class DynamicBot(Model):
                     summaries=['gradients'])
 
                 # Compute accuracy, ensuring we use fully projected outputs.
-                with self.graph.device('/cpu:0'):
-                    correct_pred = tf.equal(tf.argmax(preds[:, :-1, :], axis=2),
-                                            target_labels)
-                    accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+                #with self.graph.device('/cpu:0'):
+                correct_pred = tf.equal(tf.argmax(preds[:, :-1, :], axis=2),
+                                        target_labels)
+                accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
                 tf.summary.scalar('accuracy', accuracy)
                 tf.summary.scalar('loss_train', self.loss)
