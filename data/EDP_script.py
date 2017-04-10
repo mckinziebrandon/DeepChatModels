@@ -25,11 +25,11 @@ from progressbar import ProgressBar
 # Global helper object that helps abstract away locations of
 # files & directories, and keeps an eye on memory usage.
 data_helper = DataHelper()
-data_helper.file_counter = 1
+data_helper.file_counter = 6
 # Max number of words in any saved sentence.
 MAX_SEQ_LEN = 20
 # Number of CPU cores available.
-NUM_CORES = 2
+NUM_CORES = 1
 # How many chunks we should split dataframes into at any given time.
 NUM_PARTITIONS = 64
 
@@ -176,15 +176,17 @@ def main():
     sentences = None
 
     # Keep the desired percentage of lowest-scored sentences. (low score == good)
-    keep_best_percent = 0.8
+    keep_best_percent = 0.75
     df = df.loc[df['score'] < df['score'].quantile(keep_best_percent)]
 
     print('Prepping for the grand finale.')
     comments_dict       = pd.Series(df.body.values, index=df.name).to_dict()
     root_to_children    = children_dict(df)
-    data_helper.generate_files(from_file_path="from_file.txt",
-                               to_file_path="to_file.txt",
-                               root_to_children=root_to_children,
-                               comments_dict=comments_dict)
+    data_helper.generate_files(
+        from_file_path="from_{}.txt".format(data_helper.file_counter),
+        to_file_path="to_{}.txt".format(data_helper.file_counter),
+        root_to_children=root_to_children,
+        comments_dict=comments_dict)
+
 if __name__ == '__main__':
     main()

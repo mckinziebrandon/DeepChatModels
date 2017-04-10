@@ -118,8 +118,8 @@ class DataHelper:
     def generate_files(self, from_file_path, to_file_path, root_to_children, comments_dict):
         """Generates two files, [from_file_path] and [to_file_path] of one-to-one comments
         """
-        from_file_path = os.path.join(self.data_root, from_file_path)
-        to_file_path = os.path.join(self.data_root, to_file_path)
+        from_file_path = os.path.join(self.data_root, '2010',from_file_path)
+        to_file_path = os.path.join(self.data_root, '2010', to_file_path)
 
         with open(from_file_path, 'w') as from_file:
             with open(to_file_path, 'w') as to_file:
