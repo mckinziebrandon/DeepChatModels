@@ -1,5 +1,7 @@
 import tensorflow as tf
 
+from tensorflow.contrib.seq2seq import DynamicAttentionWrapper
+from tensorflow.contrib.seq2seq import BahdanauAttention, LuongAttention
 from tensorflow.contrib.rnn import LSTMStateTuple, LSTMCell
 from chatbot.components.base._rnn import RNN
 from utils import io_utils
@@ -51,12 +53,11 @@ class Decoder(RNN):
                                 initializer=tf.contrib.layers.xavier_initializer())
             self._projection = (w, b)
 
-    def __call__(self, rnn_name, inputs, initial_state, is_chatting, loop_embedder):
+    def __call__(self, inputs, initial_state, is_chatting, loop_embedder):
         """Run the inputs on the decoder. If we are chatting, then conduct dynamic sampling,
             which is the process of generating a response given inputs == GO_ID.
 
         Args:
-            rnn_name: one of the keys in DYNAMIC_RNNS (top of file).
             inputs: Tensor with shape [batch_size, max_time, embed_size].
             initial_state: Tensor with shape [batch_size, state_size].
             is_chatting: boolean. Determines how we retrieve the outputs and the
@@ -71,11 +72,16 @@ class Decoder(RNN):
         """
 
         cell = self.get_cell('decoder_cell')
-        outputs, state = DYNAMIC_RNNS[rnn_name](cell=cell,
-                                                inputs=inputs,
-                                                initial_state=initial_state,
-                                                dtype=tf.float32,
-                                                swap_memory=True)
+        self.rnn = tf.make_template(
+            'decoder_rnn',
+            tf.nn.dynamic_rnn,
+            cell=cell,
+            dtype=tf.float32
+        )
+
+        outputs, state = self.rnn(
+            inputs=inputs,
+            initial_state=initial_state)
 
         if not is_chatting:
             return outputs, state
@@ -94,17 +100,14 @@ class Decoder(RNN):
             decoder_input = loop_embedder(tf.reshape(response[-1], (1, 1)),
                                           reuse=True)
 
-            # For handling tuple-state like LSTMCell.
-            #state = tuple(self._map_state_to(lstm_wrapper, state))
             state = self._map_state_to(lstm_wrapper, state)
             if "LSTM" in self.base_cell and isinstance(state, list):
                 state = tuple(state)
 
-            outputs, state = DYNAMIC_RNNS[rnn_name](cell=cell,
-                                                    inputs=decoder_input,
-                                                    initial_state=state,
-                                                    sequence_length=[1],
-                                                    dtype=tf.float32)
+            outputs, state = self.rnn(
+                inputs=decoder_input,
+                initial_state=state,
+                sequence_length=[1])
 
             next_id  = self.sample(self.apply_projection(outputs))
             response = tf.concat([response, tf.stack([next_id])], axis=0)
@@ -187,38 +190,16 @@ class Decoder(RNN):
         if "LSTM" not in self.base_cell: return state
         if self.num_layers > 1: return tuple(list(map(fn, state)))
         else: return fn(state)
-        #if self.num_layers > 1: return nest.map_structure(fn, state)
 
 
 class BasicDecoder(Decoder):
 
-    def __init__(self,
-                 base_cell,
-                 state_size,
-                 vocab_size,
-                 embed_size,
-                 dropout_prob=1.0,
-                 num_layers=2,
-                 temperature=0.0,
-                 max_seq_len=50):
-        super(BasicDecoder, self).__init__(
-            base_cell=base_cell,
-            state_size=state_size,
-            vocab_size=vocab_size,
-            embed_size=embed_size,
-            dropout_prob=dropout_prob,
-            num_layers=num_layers,
-            temperature=temperature,
-            max_seq_len=max_seq_len)
-
-
-    def __call__(self, inputs, initial_state=None, is_chatting=False,
-                 loop_embedder=None):
-        return super(BasicDecoder, self).__call__("dynamic_rnn",
-                                                  inputs,
-                                                  initial_state=initial_state,
-                                                  is_chatting=is_chatting,
-                                                  loop_embedder=loop_embedder)
+    def __call__(self, inputs, initial_state=None, is_chatting=False, loop_embedder=None):
+        return super(BasicDecoder, self).__call__(
+            inputs=inputs,
+            initial_state=initial_state,
+            is_chatting=is_chatting,
+            loop_embedder=loop_embedder)
 
 
 class AttentionDecoder(Decoder):
@@ -234,10 +215,15 @@ class AttentionDecoder(Decoder):
                                                temperature=temperature,
                                                max_seq_len=max_seq_len)
 
+        self.attn = None
 
     def __call__(self, inputs, initial_state=None, is_chatting=False,
                  loop_embedder=None):
-        #from tensorflow.contrib.seq2seq import DynamicAttentionWrapper
+
+        self.attn = LuongAttention(
+            num_units=512,
+            memory=initial_state
+        )
         return super(AttentionDecoder, self).__call__("bidirectional_rnn", inputs,
                                             initial_state=initial_state,
                                             is_chatting=is_chatting,

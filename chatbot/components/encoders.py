@@ -63,10 +63,10 @@ class BidirectionalEncoder(RNN):
         # Concatenate each of the tuples fw and bw dimensions.
         outputs     = tf.concat(outputs_tuple, 2)
         final_state = tf.concat(final_state_tuple, -1)
+        bridge = self.get_bridge("bridge", outputs.dtype)
 
         def single_state(state):
             """Reshape bidirectional state (via fully connected layer) to state size."""
-            bridge = self.get_bridge("bridge", outputs.dtype)
             if 'LSTM' in self.base_cell:
                 def bridge_mult(s): return tf.matmul(s, bridge)
                 bridged_state = LSTMStateTuple(*tf.unstack(tf.map_fn(bridge_mult, state)))
