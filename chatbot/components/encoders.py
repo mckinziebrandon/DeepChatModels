@@ -30,7 +30,7 @@ class BasicEncoder(RNN):
                                      inputs,
                                      initial_state=initial_state,
                                      dtype=tf.float32)
-        return None, state
+        return _, state
 
 
 class BidirectionalEncoder(RNN):

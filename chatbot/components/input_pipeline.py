@@ -28,7 +28,7 @@ class InputPipeline:
         """
         with tf.name_scope(scope, 'input_pipeline') as scope:
             if capacity is None:
-                self.capacity = max(50 * batch_size, int(2e5))
+                self.capacity = max(50 * batch_size, int(5e5))
                 print("Input capacity set to %d examples." % self.capacity)
             self.batch_size = batch_size
             self.paths = file_paths
@@ -135,7 +135,7 @@ class InputPipeline:
         with tf.variable_scope('shuffle_queue'):
             queue = tf.RandomShuffleQueue(
                 capacity=self.capacity,
-                min_after_dequeue=3*self.batch_size,
+                min_after_dequeue=10*self.batch_size,
                 dtypes=tf.string, shapes=[()])
 
             enqueue_op = queue.enqueue(proto_text)

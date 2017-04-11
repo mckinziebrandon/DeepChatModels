@@ -11,9 +11,16 @@ import random
 import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.tensorboard.plugins import projector
+from tensorflow.python.client import device_lib
 from utils import io_utils
 from chatbot.components import *
 from chatbot.globals import DEFAULT_FULL_CONFIG, OPTIMIZERS
+
+
+def gpu_found():
+    """Returns True if tensorflow finds at least 1 GPU."""
+    devices = device_lib.list_local_devices()
+    return len([x.name for x in devices if x.device_type == 'GPU']) > 0
 
 
 class Model(object):
@@ -32,10 +39,21 @@ class Model(object):
 
         self.__dict__['__params'] = Model.fill_params(dataset, params)
         self.log    = logger
-        self.sess   = tf.Session()
+
+        # Configure gpu options if we are using one.
+        if gpu_found():
+            self.log.info("GPU Found. Setting allow_growth to True.")
+            gpu_config = tf.ConfigProto()
+            gpu_config.gpu_options.allow_growth = True
+            self.sess = tf.Session(config=gpu_config)
+        else:
+            self.log.warning("GPU not found. Not recommended for training.")
+            self.sess = tf.Session()
+
         with self.graph.name_scope(tf.GraphKeys.SUMMARIES):
             self.global_step    = tf.Variable(initial_value=0, trainable=False)
             self.learning_rate  = tf.constant(self.learning_rate)
+
         os.popen('mkdir -p %s' % self.ckpt_dir)  # Just in case :)
         self.projector_config = projector.ProjectorConfig()
         # Good practice to set as None in constructor.
@@ -53,11 +71,13 @@ class Model(object):
             valid V1/V2 checkpoint path.
             - If we can't, then just re-initialize model with fresh params.
         """
+
         self.log.info("Checking for checkpoints . . .")
         checkpoint_state  = tf.train.get_checkpoint_state(self.ckpt_dir)
         # Note: If you want to prevent from loading models trained on different dataset,
         # you should store them in their own out/dataname folder, and pass that as
         # the ckpt_dir to config.
+
         if not self.reset_model and checkpoint_state \
                 and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
             print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)

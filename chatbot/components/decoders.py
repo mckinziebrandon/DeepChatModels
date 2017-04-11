@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from tensorflow.contrib.seq2seq import DynamicAttentionWrapper
+from tensorflow.contrib.seq2seq import DynamicAttentionWrapper, DynamicAttentionWrapperState
 from tensorflow.contrib.seq2seq import BahdanauAttention, LuongAttention
 from tensorflow.contrib.rnn import LSTMStateTuple, LSTMCell
 from chatbot.components.base._rnn import RNN
@@ -22,6 +22,7 @@ class Decoder(RNN):
 
     def __init__(self,
                  base_cell,
+                 encoder_outputs,
                  state_size,
                  vocab_size,
                  embed_size,
@@ -53,7 +54,7 @@ class Decoder(RNN):
                                 initializer=tf.contrib.layers.xavier_initializer())
             self._projection = (w, b)
 
-    def __call__(self, inputs, initial_state, is_chatting, loop_embedder):
+    def __call__(self, inputs, initial_state, is_chatting, loop_embedder, **kwargs):
         """Run the inputs on the decoder. If we are chatting, then conduct dynamic sampling,
             which is the process of generating a response given inputs == GO_ID.
 
@@ -71,17 +72,25 @@ class Decoder(RNN):
                      else, None.
         """
 
-        cell = self.get_cell('decoder_cell')
-        self.rnn = tf.make_template(
-            'decoder_rnn',
-            tf.nn.dynamic_rnn,
+        cell = self.get_cell(kwargs['cell_name'], **kwargs)
+        #self.rnn = tf.make_template(
+        #    'decoder_rnn',
+        #    tf.nn.dynamic_rnn,
+        #    cell=cell,
+        #    dtype=tf.float32
+        #)
+
+        # TODO: plz put initial state back. #attn-screwup
+        #outputs, state = self.rnn(
+        #    inputs=inputs,
+        #    initial_state=initial_state)
+
+        outputs, state = tf.nn.dynamic_rnn(
             cell=cell,
+            inputs=inputs,
+            initial_state=initial_state,
             dtype=tf.float32
         )
-
-        outputs, state = self.rnn(
-            inputs=inputs,
-            initial_state=initial_state)
 
         if not is_chatting:
             return outputs, state
@@ -93,6 +102,9 @@ class Decoder(RNN):
 
         def lstm_wrapper(state):
             return LSTMStateTuple(c=state[0], h=state[1])
+        def attn_wrapper(state):
+            # TODO: idk honestly. #attn-screwup
+            return DynamicAttentionWrapperState(state[0], state[1])
 
         def body(response, state):
             """Input callable for tf.while_loop. See below."""
@@ -100,15 +112,24 @@ class Decoder(RNN):
             decoder_input = loop_embedder(tf.reshape(response[-1], (1, 1)),
                                           reuse=True)
 
+            # TODO: idk honestly. #attn-screwup
+            #state = self._map_state_to(attn_wrapper, state)
+            # TODO: idk honestly. #attn-screwup
             state = self._map_state_to(lstm_wrapper, state)
             if "LSTM" in self.base_cell and isinstance(state, list):
                 state = tuple(state)
-
-            outputs, state = self.rnn(
+            outputs, state = tf.nn.dynamic_rnn(
+                cell=cell,
                 inputs=decoder_input,
                 initial_state=state,
-                sequence_length=[1])
-
+                sequence_length=[1],
+                dtype=tf.float32
+            )
+            #outputs, state = self.rnn(
+            #    inputs=decoder_input,
+            #    initial_state=state,
+            #    sequence_length=[1])
+#
             next_id  = self.sample(self.apply_projection(outputs))
             response = tf.concat([response, tf.stack([next_id])], axis=0)
             state    = self._map_state_to(list, state)
@@ -131,12 +152,16 @@ class Decoder(RNN):
         # -- 'cond': callable returning a boolean scalar tensor.
         # -- 'body': callable returning a tuple of tensors of same arity as loop_vars.
         # -- 'loop_vars' is a tuple of tensors that is passed to 'cond' and 'body'.
+        # TODO: You are a disgrace. #attn-screwup
+        #self.base_cell = cell._cell._base_cell = 'LSTMCell'
         response, _ = tf.while_loop(
             cond, body, (response, self._map_state_to(list, state)),
-            shape_invariants=(tf.TensorShape([None]), cell.shape),
+            shape_invariants=(tf.TensorShape([None]), cell.shape), #cell._cell.shape),
             back_prop=False
         )
         # ================== FAREWELL: The tensorflow while loop. ====================
+        # TODO: Have you no shame?. #attn-screwup
+        #self.base_cell = cell._cell._base_cell = 'GRUCell'
 
         outputs = tf.expand_dims(response, 0)
         return outputs, None
@@ -194,39 +219,55 @@ class Decoder(RNN):
 
 class BasicDecoder(Decoder):
 
-    def __call__(self, inputs, initial_state=None, is_chatting=False, loop_embedder=None):
+    def __call__(self,
+                 inputs,
+                 initial_state=None,
+                 is_chatting=False,
+                 loop_embedder=None,
+                 **kwargs):
+
+        kwargs['cell_name'] = 'decoder_cell'
         return super(BasicDecoder, self).__call__(
             inputs=inputs,
             initial_state=initial_state,
             is_chatting=is_chatting,
-            loop_embedder=loop_embedder)
+            loop_embedder=loop_embedder,
+            **kwargs)
 
 
 class AttentionDecoder(Decoder):
     """TODO"""
 
-    def __init__(self, base_cell, state_size, vocab_size, embed_size,
+    def __init__(self, encoder_outputs, base_cell, state_size, vocab_size, embed_size,
                  dropout_prob=1.0, num_layers=2, temperature=0.0, max_seq_len=50):
-        super(AttentionDecoder, self).__init__(state_size=state_size,
-                                               vocab_size=vocab_size,
-                                               embed_size=embed_size,
-                                               dropout_prob=dropout_prob,
-                                               num_layers=num_layers,
-                                               temperature=temperature,
-                                               max_seq_len=max_seq_len)
+        super(AttentionDecoder, self).__init__(
+            encoder_outputs=encoder_outputs,
+            base_cell=base_cell,
+            state_size=state_size,
+            vocab_size=vocab_size,
+            embed_size=embed_size,
+            dropout_prob=dropout_prob,
+            num_layers=num_layers,
+            temperature=temperature,
+            max_seq_len=max_seq_len)
 
-        self.attn = None
+        self.attn = BahdanauAttention(
+            num_units=self.state_size,
+            memory=encoder_outputs)
+
 
     def __call__(self, inputs, initial_state=None, is_chatting=False,
-                 loop_embedder=None):
+                 loop_embedder=None, **kwargs):
 
-        self.attn = LuongAttention(
-            num_units=512,
-            memory=initial_state
-        )
-        return super(AttentionDecoder, self).__call__("bidirectional_rnn", inputs,
-                                            initial_state=initial_state,
-                                            is_chatting=is_chatting,
-                                            loop_embedder=loop_embedder)
+        kwargs['attn'] = self.attn
+        kwargs['attn_size'] = self.state_size
+        kwargs['cell_name'] = 'attn_cell'
+
+        return super(AttentionDecoder, self).__call__(
+            inputs=inputs,
+            initial_state=initial_state,
+            is_chatting=is_chatting,
+            loop_embedder=loop_embedder,
+            **kwargs)
 
 

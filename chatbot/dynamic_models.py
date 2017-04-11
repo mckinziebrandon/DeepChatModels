@@ -4,6 +4,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import sys
 import time
 import logging
 import numpy as np
@@ -76,6 +77,7 @@ class DynamicBot(Model):
         with tf.variable_scope("decoder"):
             embedded_dec_inputs = self.embedder(self.decoder_inputs)
             self.decoder  = decoder_class(
+                encoder_outputs=None,
                 base_cell=self.base_cell,
                 state_size=self.state_size,
                 vocab_size=self.vocab_size,
@@ -209,7 +211,7 @@ class DynamicBot(Model):
         # Note: Calling sleep() allows sustained GPU utilization across training.
         # Without it, looks like GPU has to wait for data to be enqueued more often.
         print('QUEUE RUNNERS RELEASED.', end=" ")
-        for _ in range(3): print('.', end=" "); time.sleep(1)
+        for _ in range(8): print('.', end=" "); time.sleep(1); sys.stdout.flush()
         print('GO!')
 
         try:
