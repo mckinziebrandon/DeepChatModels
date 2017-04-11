@@ -37,7 +37,7 @@ from data import DataHelper
 # Global helper object that helps abstract away locations of
 # files & directories, and keeps an eye on memory usage.
 data_helper = DataHelper()
-data_helper.file_counter = 6
+data_helper.file_counter = 0
 # Max number of words in any saved sentence.
 MAX_SEQ_LEN = 20
 # Number of CPU cores available.
@@ -86,7 +86,7 @@ def parallel_map_list(fn, iterable):
 
 def sentence_score(sentences):
     word_freq = data_helper.word_freq
-    d = enchant.Dict('en_US')
+    d = Dict('en_US')
 
     scores = []
     for sentence in sentences:
