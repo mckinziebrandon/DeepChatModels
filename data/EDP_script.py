@@ -9,18 +9,30 @@ import os
 import re
 import time
 import json
-import enchant
 import multiprocessing
+from   functools        import wraps
+from   itertools        import chain
+from   collections      import Counter
+from   multiprocessing  import Pool
 
-import numpy as np
+import numpy  as np
 import pandas as pd
+from   progressbar import ProgressBar
+
+# Some BS to emulate pyenchant's functionality (as far as we're concerned)
+# to work around 64-bit Python installations on Windows.
+try:
+    from enchant import Dict
+except ImportError:
+    from nltk.corpus import wordnet
+    def Dict(irrelevant_param):
+        class Wrapper(object):
+            @staticmethod
+            def check(s):
+                 return wordnet.synsets(word_to_test) == True
+        return Wrapper
 
 from data import DataHelper
-from functools import wraps
-from itertools import chain
-from collections import Counter
-from multiprocessing import Pool
-from progressbar import ProgressBar
 
 # Global helper object that helps abstract away locations of
 # files & directories, and keeps an eye on memory usage.

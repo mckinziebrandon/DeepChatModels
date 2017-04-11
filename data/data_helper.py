@@ -22,7 +22,7 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 DATA_ROOTS = {
     'brandon': '/home/brandon/Datasets/reddit',
     'ivan': '/Users/ivan/Documents/sp_17/reddit_data',
-    'mitch': '/Users/Mitchell/Documents/Chatbot/RedditData'
+    'mitch': '/Users/Mitchell/Documents/Chatbot/RedditData',
     'george': '/Users/George/Documents/ChatbotData/reddit'
 }
 
@@ -31,9 +31,12 @@ MAX_MEM = 2.0
 
 def prompt(text, default="", required=False):
     print("%s (default=%r): " % (text, default), end="")
+    errors = 0
     userinput = input()
     while not userinput and required:
-        userinput = input("C'mon dude, be serious: ")
+        errors += 1
+        userinput = input("C'mon dude, be serious%s " % (
+            ':' if errors <= 1 else ('!' * errors)))
 
     return userinput or default     # returns default if userinput is "truthy"!
 
@@ -76,9 +79,10 @@ class DataHelper:
         for y in years:
             # The path is: $ROOT/raw_data/$YEAR
             # Add the entirety of the directory to the file paths.
-            rel_paths = os.listdir(os.path.join(self.data_root, 'raw_data', y))
+            base_path = os.path.join(self.data_root, 'raw_data', y)
+            rel_paths = os.listdir(base_path)
             self.file_paths.extend([
-                os.path.join(self.data_root, 'raw_data', y, f) for f in rel_paths
+                os.path.join(base_path, f) for f in rel_paths
             ])
         print("These are the files I found:")
         pprint(self.file_paths)
@@ -88,7 +92,7 @@ class DataHelper:
         try:
             self.max_mem = float(_max_mem)
         except ValueError:
-            print("C'mon dude, don't be a dildo.")
+            print("C'mon dude, get it together!")
             print("I haven't written this code well, so you'll have to start over.")
 
         # Load the helper dictionaries from dicts.json, which contain the following:
@@ -99,7 +103,7 @@ class DataHelper:
         #   - Third line:   k -> v pairs of contractions.
         #
         with open(os.path.join(HERE, "dicts.json"), 'r') as file:
-            json_data = [ json.loads(line) for line in file ]
+            json_data = [json.loads(line) for line in file]
 
             # TODO: more descriptive names for the 'modify_' objects here would be nice.
             self.modify_list, self.modify_value, self.contractions = json_data
@@ -157,7 +161,7 @@ class DataHelper:
                         except KeyError:
                             pass
 
-        (num_samples, stderr) = Popen([ 'wc', '-l', from_file_path ], stdout=PIPE).communicate()
+        (num_samples, stderr) = Popen(['wc', '-l', from_file_path], stdout=PIPE).communicate()
         num_samples = int(num_samples.strip().split()[0])
 
         print("Final processed file has %d samples total." % num_samples)
@@ -193,9 +197,8 @@ class DataHelper:
     def word_tokenizer(sentences):
         """ Tokenizes sentence / list of sentences into word tokens.
         """
-
         # Minor optimization: pre-create the list and fill it.
-        tokenized = [ None for _ in range(len(sentences)) ]
+        tokenized = [None for _ in range(len(sentences))]
         for i in range(len(sentences)):
             tokenized[i] = [
                 w for w in _WORD_SPLIT.split(sentences[i].strip()) if w
