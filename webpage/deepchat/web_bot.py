@@ -6,6 +6,7 @@ import os
 import re
 import numpy as np
 import tensorflow as tf
+os.environ['TF_CPP_MIN_LOG_LEVEL']='1'
 
 UNK_ID  = 3
 # Regular expressions used to tokenize.
@@ -89,20 +90,27 @@ def unfreeze_bot(frozen_model_path):
 class FrozenBot:
     """The mouth and ears of a bot that's been serialized."""
 
-    def __init__(self, frozen_model_dir, vocab_size):
+    def __init__(self, frozen_model_dir, vocab_size, is_testing=False):
+        """
+        Args:
+            is_testing: (bool) set True for testing (while GPU is busy training). In that case,
+                  just use a 'bot' that returns the user's sentence backwards.
+        """
 
-        # Get absolute path to model directory.
-        here            = os.path.dirname(os.path.realpath(__file__))
-        assets_path     = os.path.join(here, 'static', 'assets')
-        abs_model_dir   = os.path.join(assets_path, 'frozen_models', frozen_model_dir)
-        # Get bot graph and input/output tensors.
-        self.tensor_dict, graph = unfreeze_bot(abs_model_dir)
-        self.sess = tf.Session(graph=graph)
-        # Make minimal config for retrieving vocab.
-        mock_config = {'dataset_params':
-                           {'data_dir': abs_model_dir,
-                            'vocab_size': vocab_size}}
-        self.word_to_idx, self.idx_to_word = self.get_frozen_vocab(mock_config)
+        self.is_testing = is_testing
+        if not is_testing:
+            # Get absolute path to model directory.
+            here            = os.path.dirname(os.path.realpath(__file__))
+            assets_path     = os.path.join(here, 'static', 'assets')
+            abs_model_dir   = os.path.join(assets_path, 'frozen_models', frozen_model_dir)
+            # Get bot graph and input/output tensors.
+            self.tensor_dict, graph = unfreeze_bot(abs_model_dir)
+            self.sess = tf.Session(graph=graph)
+            # Make minimal config for retrieving vocab.
+            mock_config = {'dataset_params':
+                               {'data_dir': abs_model_dir,
+                                'vocab_size': vocab_size}}
+            self.word_to_idx, self.idx_to_word = self.get_frozen_vocab(mock_config)
 
     def get_frozen_vocab(self, config):
         """Helper function to get dictionaries between tokens and words."""
@@ -125,7 +133,12 @@ class FrozenBot:
 
     def __call__(self, sentence):
         """Outputs response sentence (string) given input (string)."""
+
+        if self.is_testing:
+            return sentence[::-1]
+
         sentence = sentence.strip()
+        print('User:', sentence)
         # Convert input sentence to token-ids.
         sentence_tokens = sentence_to_token_ids(
             tf.compat.as_bytes(sentence), self.word_to_idx)
@@ -134,5 +147,7 @@ class FrozenBot:
         fetches = self.tensor_dict['outputs']
         feed_dict={self.tensor_dict['inputs']: sentence_tokens}
         response = self.sess.run(fetches=fetches, feed_dict=feed_dict)
-        return self.as_words(response[0][:-1])
+        response = self.as_words(response[0][:-1])
+        print("Bot:", response)
+        return response
 

@@ -5,6 +5,7 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import copy
 import yaml
 import random
 
@@ -37,8 +38,21 @@ class Model(object):
                            DEFAULT_FULL_CONFIG above.
         """
 
-        self.__dict__['__params'] = Model.fill_params(dataset, params)
         self.log    = logger
+        self.__dict__['__params'] = Model.fill_params(dataset, params)
+
+        # Make particularly useful ckpt directories for website configurations.
+        if 'website_config' in self.ckpt_dir:
+            self.ckpt_dir = Model._build_hparam_path(
+                ckpt_dir=self.ckpt_dir,
+                base_cell=self.base_cell,
+                num_layers=self.num_layers,
+                max_seq_len=self.max_seq_len,
+                embed_size=self.embed_size,
+                encoder_class=getattr(self, 'encoder.class'),
+                decoder_class=getattr(self, 'decoder.class'),
+            )
+            self.log.info("New ckpt dir:", self.ckpt_dir)
 
         # Configure gpu options if we are using one.
         if gpu_found():
@@ -187,6 +201,30 @@ class Model(object):
                 if name in self.__dict__['__params'][k]:
                     return self.__dict__['__params'][k][name]
         raise AttributeError(name)
+
+    @staticmethod
+    def _build_hparam_path(ckpt_dir, **kwargs):
+        """Returns relative path build from args for descriptive checkpointing.
+
+        The new path becomes ckpt_dir appended with directories named by kwargs:
+            - If a given kwargs[key] is a string, that is set as the appended dir name.
+            - Otherwise, it gets formatted, e.g. for key='learning_rate' it may become
+                'learning_rate_0_001'
+
+        Returns:
+            ckpt_dir followed by sequentially appended directories, named by kwargs.
+        """
+        kwargs = copy.deepcopy(kwargs)
+        new_ckpt_dir = ckpt_dir
+        for key in kwargs:
+            if not isinstance(kwargs[key], str):
+                dir_name = key + "_" + str(kwargs[key]).replace('.', '_')
+            else:
+                dir_name = kwargs[key]
+            new_ckpt_dir = os.path.join(new_ckpt_dir, dir_name)
+        return new_ckpt_dir
+
+
 
 
 class BucketModel(Model):

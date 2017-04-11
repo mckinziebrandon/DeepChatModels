@@ -12,7 +12,10 @@ def load_gloabal_data():
     global bot
     # TODO: add support for querying frozen model about it's vocabulary.
     vocab_size = 40000
-    bot = web_bot.FrozenBot(frozen_model_dir='reddit', vocab_size=vocab_size)
+    bot = web_bot.FrozenBot(
+        frozen_model_dir='reddit',
+        vocab_size=vocab_size,
+        is_testing=app.testing)
 
 
 @app.route('/', methods=['GET'])
