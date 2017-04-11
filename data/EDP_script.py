@@ -12,7 +12,7 @@ import json
 import multiprocessing
 from   functools        import wraps
 from   itertools        import chain
-from   collections      import Counter
+from   collections      import Counter, defaultdict
 from   multiprocessing  import Pool
 
 import numpy  as np
@@ -29,7 +29,7 @@ except ImportError:
         class Wrapper(object):
             @staticmethod
             def check(s):
-                 return wordnet.synsets(word_to_test) == True
+                 return wordnet.synsets(s)
         return Wrapper
 
 from data import DataHelper
@@ -37,7 +37,7 @@ from data import DataHelper
 # Global helper object that helps abstract away locations of
 # files & directories, and keeps an eye on memory usage.
 data_helper = DataHelper()
-data_helper.file_counter = 6
+# data_helper.file_counter = 6
 # Max number of words in any saved sentence.
 MAX_SEQ_LEN = 20
 # Number of CPU cores available.
@@ -64,7 +64,8 @@ def timed_function(*expected_args):
 
 @timed_function('parallel_map_df')
 def parallel_map_df(fn, df):
-    """Based on great explanation from 'Pandas in Parallel' (racketracer.com)."""
+    """ Based on great explanation from 'Pandas in Parallel' (racketracer.com).
+    """
     df = np.array_split(df, NUM_PARTITIONS)
     pool = Pool(NUM_CORES)
     df   = pd.concat(pool.map(fn, df))
@@ -75,7 +76,8 @@ def parallel_map_df(fn, df):
 
 @timed_function('parallel_map_list')
 def parallel_map_list(fn, iterable):
-    """Based on great explanation from 'Pandas in Parallel' (racketracer.com)."""
+    """ Based on great explanation from 'Pandas in Parallel' (racketracer.com).
+    """
     iterable = np.array_split(iterable, NUM_PARTITIONS)
     pool = Pool(NUM_CORES)
     iterable = np.concatenate(pool.map(fn, iterable))
@@ -98,11 +100,11 @@ def sentence_score(sentences):
 
 
 def root_comments(df):
-    '''Build list determining which rows of df are root comments.
+    """ Builds a list determining which rows of df are root comments.
 
     Returns:
         list of length equal to the number of rows in our data frame.
-    '''
+    """
     root_value = []
     # Iterate over DataFrame rows as namedtuples,
     # with index value as first element of the tuple.
@@ -127,11 +129,14 @@ def regex_replacements(df):
     # Remove comments that are '[deleted]'.
     df = df.loc[df.body != '[deleted]'].reset_index(drop=True)
     df.style.set_properties(subset=['body'], **{'width': '800px'})
+
     # Make all comments lowercase to help reduce vocab size.
     df['body'] = df['body'].map(lambda s: s.strip().lower())
+
     # Loop over regex replacements specified by modify_list.
     for old, new in data_helper.modify_list.items():
         df['body'].replace({old: new}, regex=True, inplace=True)
+
     # Remove comments with this extremely common occurrence.
     #df = df.loc[df.body != 'NUMBER'].reset_index(drop=True)
     return df
@@ -147,7 +152,8 @@ def remove_large_comments(max_len, df):
 
 @timed_function('expand_contractions')
 def expand_contractions(df):
-    """Replace all contractions with their expanded form."""
+    """ Replace all contractions with their expanded form.
+    """
     for contraction, as_words in data_helper.contractions.items():
         df['body'].replace({contraction: as_words}, regex=True, inplace=True)
     return df
@@ -155,24 +161,20 @@ def expand_contractions(df):
 
 @timed_function('children_dict')
 def children_dict(df):
-    """Returns a dictionary with keys being the root comments and
+    """ Returns a dictionary with keys being the root comments and
     values being their immediate root_to_children. Assumes that df has 'root' column.
 
     Go through all comments. If it is a root, skip it since they wont have a parent_id
     that corresponds to a comment.
     """
-    children = {}
+    children = defaultdict(list)
     for row in df.itertuples():
         if row.root == False:
-            if row.parent_id in children.keys():
-                children[row.parent_id].append(row.name)
-            else:
-                children[row.parent_id] = [row.name]
+            children[row.parent_id].append(row.name)
     return children
 
 
 def main():
-
     # Get up to max_mem GiB of data.
     df = data_helper.safe_load()
     df = remove_extra_columns(df)

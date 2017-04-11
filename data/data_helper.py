@@ -3,11 +3,13 @@
 Abstracts paths and filenames so we don't have to think about them. Currently,
 in use by Brandon / Ivan, but will extend to general users in the future.
 """
+
 import os
 import re
 import pdb
 import json
 import logging
+import tempfile
 from   pprint       import pprint
 from   subprocess   import Popen, PIPE
 
@@ -51,7 +53,10 @@ class DataHelper:
     def __init__(self, log_level=logging.WARNING):
         """ Establish some baseline data with the user.
         """
-        logging.basicConfig(filename='/tmp/data_helper.log', level=log_level)
+        self.logfile = tempfile.NamedTemporaryFile(mode='w', delete=False)
+        self.logfile.close()
+        logging.basicConfig(filename=self.logfile.name, level=log_level)
+        print("Using logfile:", self.logfile.name)
 
         self.file_counter = 0   # current file we're processing
         self._word_freq = None  # temporary: for parallelizing frequency dict
@@ -82,7 +87,8 @@ class DataHelper:
             base_path = os.path.join(self.data_root, 'raw_data', y)
             rel_paths = os.listdir(base_path)
             self.file_paths.extend([
-                os.path.join(base_path, f) for f in rel_paths
+                os.path.join(base_path, f) for f in rel_paths \
+                if not f.endswith(".bz2")
             ])
         print("These are the files I found:")
         pprint(self.file_paths)
@@ -102,11 +108,14 @@ class DataHelper:
         #                   These should obviously have a 1-1 relationship.
         #   - Third line:   k -> v pairs of contractions.
         #
-        with open(os.path.join(HERE, "dicts.json"), 'r') as file:
+        json_filename = "dicts.json"
+        with open(os.path.join(HERE, json_filename), 'r') as file:
             json_data = [json.loads(line) for line in file]
 
             # TODO: more descriptive names for the 'modify_' objects here would be nice.
             self.modify_list, self.modify_value, self.contractions = json_data
+
+        print("Loaded parameters from %s." % json_filename)
 
     def safe_load(self):
         """ Load data while keeping an eye on memory usage.
@@ -205,4 +214,3 @@ class DataHelper:
             ]
 
         return tokenized
-
