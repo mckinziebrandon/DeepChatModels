@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from tensorflow.contrib.seq2seq import DynamicAttentionWrapper, DynamicAttentionWrapperState
+from tensorflow.contrib.seq2seq import DynamicAttentionWrapperState
 from tensorflow.contrib.seq2seq import BahdanauAttention, LuongAttention
 from tensorflow.contrib.rnn import LSTMStateTuple, LSTMCell
 from chatbot.components.base._rnn import RNN

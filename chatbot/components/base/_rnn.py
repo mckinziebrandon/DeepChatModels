@@ -2,7 +2,6 @@
 """
 
 import tensorflow as tf
-from tensorflow.contrib.seq2seq import DynamicAttentionWrapper
 from tensorflow.contrib.seq2seq import BahdanauAttention, LuongAttention
 from tensorflow.contrib.rnn import LSTMStateTuple, LSTMCell
 from tensorflow.contrib.rnn import RNNCell
@@ -102,12 +101,12 @@ class RNN(object):
                         base_cell=self.base_cell)
             if 'attn' not in name:
                 return cell
-            else:
-                return DynamicAttentionWrapper(
-                    cell=cell,
-                    attention_mechanism=kwargs['attn'],
-                    attention_size=kwargs['attn_size'],
-                    output_attention=False)
+            #else:
+            #    return DynamicAttentionWrapper(
+            #        cell=cell,
+            #        attention_mechanism=kwargs['attn'],
+            #        attention_size=kwargs['attn_size'],
+            #        output_attention=False)
 
     def __call__(self, *args):
         raise NotImplemented
