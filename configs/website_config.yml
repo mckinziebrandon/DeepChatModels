@@ -3,17 +3,19 @@ model: DynamicBot
 dataset: Reddit
 model_params:
   base_cell: LSTMCell
-  batch_size: 256
-  ckpt_dir: out/reddit/website_config/LSTM_1Lay_128Emb
-  dropout_prob: 0.2
+  batch_size: 128
+  ckpt_dir: out/reddit/website_config/LSTM_3Lay_128Emb_15maxseq_001lr
+  dropout_prob: 0.0
   decoder.class: BasicDecoder
   encoder.class: BasicEncoder
+  l1_reg: 0.0
+  learning_rate: 0.001
   embed_size: 128
-  num_layers: 1
-  reset_model: True
+  num_layers: 3
+  reset_model: False
   state_size: 512
   steps_per_ckpt: 500
 dataset_params:
   data_dir: /home/brandon/Datasets/reddit    # The only truly 'mandatory' parameter.
   vocab_size: 40000
-  max_seq_len: 10
+  max_seq_len: 15
