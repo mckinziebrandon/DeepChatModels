@@ -1,6 +1,5 @@
 import tensorflow as tf
 
-from tensorflow.contrib.seq2seq import DynamicAttentionWrapperState
 from tensorflow.contrib.seq2seq import BahdanauAttention, LuongAttention
 from tensorflow.contrib.rnn import LSTMStateTuple, LSTMCell
 from chatbot.components.base._rnn import RNN
@@ -104,7 +103,8 @@ class Decoder(RNN):
             return LSTMStateTuple(c=state[0], h=state[1])
         def attn_wrapper(state):
             # TODO: idk honestly. #attn-screwup
-            return DynamicAttentionWrapperState(state[0], state[1])
+            #return DynamicAttentionWrapperState(state[0], state[1])
+            return None
 
         def body(response, state):
             """Input callable for tf.while_loop. See below."""
