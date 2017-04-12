@@ -137,7 +137,7 @@ class FrozenBot:
         if self.is_testing:
             return sentence[::-1]
 
-        sentence = sentence.strip()
+        sentence = sentence.strip().lower()
         print('User:', sentence)
         # Convert input sentence to token-ids.
         sentence_tokens = sentence_to_token_ids(

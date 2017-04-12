@@ -25,6 +25,7 @@ def index():
     return render_template('index.html', form=chat_form)
 
 
+# TODO: why do we need the trailing slash here?
 @app.route('/chat/', methods=['POST'])
 def chat():
     chat_form = ChatForm()

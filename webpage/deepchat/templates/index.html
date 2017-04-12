@@ -1,8 +1,22 @@
-<!-- index.html: Just chat section for now.
-  When the site becomes more of...a site...will add more.
--->
+{%  extends  "base.html" %}
+{% block head %}
 
-{% extends "base.html" %}
+  <!-- Render the <head> element of base.html first. -->
+  {{  super() }}
+
+  <!-- Make some changes of our own. -->
+  <style type="text/css">
+    @media (min-width: 768px) {
+      #chat-box {
+        height: 660px;
+        background: url(
+          {{ url_for('static', filename='img/chat-bg.png') }}
+        )
+        /*background-repeat: no-repeat;*/
+      }
+    }
+    </style>
+{% endblock head %}
 
 <!-- Chat Section -->
 {% block chat %}
@@ -33,6 +47,7 @@
                       col-md-offset-4 col-md-6
                       col-lg-offset-3 col-lg-5
                       input-group">
+            <!-- Where user types their inputs to the bot. -->
             <input type="text" class="form-control input-sm" aria-label="Chat Input"
                    name="{{ form.message.name }}" placeholder="Hey bot...">
             <div class="input-group-btn">
@@ -46,5 +61,6 @@
       <div class="col-xs-12" style="margin-top: 1em">
     </div>
   </div>
+  </div>
 </section>
-{%  endblock %}
+{%  endblock chat %}
