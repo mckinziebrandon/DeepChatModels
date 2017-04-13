@@ -13,47 +13,13 @@
 
  */
 
-section {
-  padding-top: 3em;
-}
-
-/* --------------- HEADER (currently unused) --------------- */
-
-header {
-  color: rgb(255, 255, 255);
-}
-
-header .intro-text .intro-lead-in {
-  text-shadow: 1px 1px black;
-}
-
-header .intro-text .intro-heading {
-  text-shadow: 3px 3px black;
-}
-
-/* --------------- NAVBAR --------------- */
-
-/* The navbar brand - general. */
-.navbar-custom .navbar-brand {
-  color: white;
-}
-
-/* The navbar brand - user action pseudo-classes. */
-.navbar-custom .navbar-brand:hover,
-.navbar-custom .navbar-brand:focus,
-.navbar-custom .navbar-brand:active {
+.navbar-header > .navbar-brand {
   color: SteelBlue;
 }
 
-.navbar-custom .nav li a:hover,
-.navbar-custom .nav li a:focus {
-  color: rgb(20, 150, 220);
-  outline: none;
-}
-
-.navbar-custom .navbar-nav > .active > a {
-  color: white;
-  background-color: SteelBlue;
+section {
+  /* For some reason, this value's default is much larger. */
+  padding-top: 1em;
 }
 
 #chat-submit {
@@ -61,59 +27,37 @@ header .intro-text .intro-heading {
   border-color: rgb(20, 130, 200);
 }
 
-.btn-xl {
-  color: white;
-  background-color: SteelBlue;
-  border-color: rgb(20, 130, 200);
-  text-shadow: 1px 1px 3px black;
-}
-
-.btn-xl:hover,
-.btn-xl:focus,
-.btn-xl:active,
-.btn-xl.active,
-.open .dropdown-toggle.btn-xl {
-  color: white;
-  background-color: rgb(20, 100, 180);
-  border-color: rgb(20, 80, 160);
-}
-
 #chat-box {
-  background-image: none;
-  background-color: rgb(134, 201, 254);
+  /* color, image, repeat */
+  background: LightSteelBlue none no-repeat;
+  font-family: Lato;
 }
 
 #chat-log {
   position: relative;
   height: 245px;
   margin-bottom: 0.5em;
-  padding-top: 0.25em;
-  padding-bottom: 0.25em;
-  padding-left: 3em;
-
-  border: 2px solid none;
-  border-radius: 5px;
-
-  color: black;
+  /* top - (left&right) - bottom */
+  padding: 0.25em 3em 0.25em;
+  /* So we can actually see the words. */
   background-color: transparent;
-
+  font-weight: bolder;
   overflow-y: auto;
   word-wrap: break-word;
 }
 
 #chat-form {
-  padding-left: 3em;
-  padding-right: 3em;
+  padding: 0.25em 3em 0.3em;
 }
 
 .bot-name {
-  color: green;
-  font-weight: italic;
+  color: SteelBlue;
+  font-style: italic;
 }
 
 .user-name {
-  color: blue;
-  font-weight: italic;
+  color: SeaGreen;
+  font-style: italic;
 }
 
 .message {
@@ -124,10 +68,8 @@ header .intro-text .intro-heading {
 #chat-log hr {
   height: 1px;
   display: block;
-
   border: 0;
   border-top: 1px solid lightgray;
-
   margin-top: 0.5em;
   margin-bottom: 0.5em;
 }

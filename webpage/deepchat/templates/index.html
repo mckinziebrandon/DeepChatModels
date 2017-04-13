@@ -1,66 +1,53 @@
 {%  extends  "base.html" %}
 {% block head %}
-
-  <!-- Render the <head> element of base.html first. -->
-  {{  super() }}
-
-  <!-- Make some changes of our own. -->
-  <style type="text/css">
-    @media (min-width: 768px) {
-      #chat-box {
-        height: 660px;
-        background: url(
-          {{ url_for('static', filename='img/chat-bg.png') }}
-        )
-        /*background-repeat: no-repeat;*/
-      }
-    }
-    </style>
+    <!-- Render the <head> element of base.html first. -->
+    {{  super() }}
 {% endblock head %}
 
 <!-- Chat Section -->
-{% block chat %}
-<section id="chat">
-  <div class="container">
-    <div class="row">
-      <div class="col-md-12 text-center">
-        <h2 class="section-heading">Chat with our bot!</h2>
-        <!-- <h3 class="section-subheading text-muted">Chat with our bot!</h3> -->
-      </div>
-    </div>
-
-    <div id="chat-box" class="row">
-      <div class="col-md-12" style="margin-top: 2em">
+{% block content %}
+<div class="container">
+    <section id="chat">
         <div class="row">
-          <div id="chat-log"
-               class="col-xs-offset-0 col-xs-12
-                      col-sm-offset-4 col-sm-8
-                      col-md-offset-3 col-md-7
-                      col-lg-offset-3 col-lg-5
-                      text-center">
-            <!-- This is where the chat log is injected. -->
-          </div>
+            <div class="col-xs-12 text-center">
+                <h2 class="section-heading">
+                    Chat with our bot!
+                </h2>
+            </div>
         </div>
 
-        <div id="chat-form" class="row text-center">
-          <div class="col-sm-offset-5 col-sm-6
-                      col-md-offset-4 col-md-6
-                      col-lg-offset-3 col-lg-5
-                      input-group">
-            <!-- Where user types their inputs to the bot. -->
-            <input type="text" class="form-control input-sm" aria-label="Chat Input"
-                   name="{{ form.message.name }}" placeholder="Hey bot...">
-            <div class="input-group-btn">
-              <button id="chat-submit" class="btn btn-primary btn-sm" type="submit">
-                Chat
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-xs-12" style="margin-top: 1em">
-    </div>
-  </div>
-  </div>
+        <div id="chat-box" class="row">
+
+            <div class="col-xs-12" style="margin-top: 2em">
+
+                <div class="row">
+                    <div id="chat-log"
+                         class="col-xs-12 text-center">
+                        <!-- This is where the chat log is injected. -->
+                    </div>
+                </div>  <!-- end: row -->
+
+                <div id="chat-form" class="row text-center">
+                    <div class="input-group">
+                        <!-- Where user types their inputs to the bot. -->
+                        <input type="text"
+                               class="form-control input-sm"
+                               aria-label="Chat Input"
+                               name="{{ form.message.name }}"
+                               placeholder="Hey bot...">
+                        <!-- Note: input-group-btn is built-in bootstrap. -->
+                        <div class="input-group-btn">
+                            <!-- Submit button with 'Chat' as text. -->
+                            <button id="chat-submit"
+                                    class="btn btn-primary btn-sm"
+                                    type="submit">
+                                Chat
+                            </button>
+                        </div>
+                    </div>  <!-- end: input-group (cls) -->
+                </div>  <!-- end: chat-form (id) -->
+            </div> <!-- end: cols-xs-12 (cls) -->
+        </div>  <!-- end: chat-box (id) -->
 </section>
-{%  endblock chat %}
+</div>
+{%  endblock content %}

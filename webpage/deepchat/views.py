@@ -30,3 +30,8 @@ def index():
 def chat():
     chat_form = ChatForm()
     return bot(chat_form.message.data)
+
+
+@app.route('/about', methods=['GET'])
+def about():
+    return render_template('about.html')
