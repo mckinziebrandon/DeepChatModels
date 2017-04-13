@@ -1,6 +1,7 @@
 # Conversation Models in Tensorflow
 
-> Note to visitors: we have a working website deployed wherein the user can talk with one of the chatbots, but we haven't quite optimized the site enough to handle more than a few visitors. Stay tuned! In addition, data preprocessing work is still in the active stages and we haven't (yet) provided scripts for downloading the datasets. Updates will be posted here when this is completed. See [the wiki](https://github.com/mckinziebrandon/DeepChatModels/wiki/Dynamic-Models) if you'd like a (very) rough idea of recent developments.
+> Note to visitors: we have a working website deployed wherein the user can talk with one of the chatbots, but we haven't quite optimized the site enough to handle more than a few visitors. Stay tuned! In addition, data preprocessing work is still in the active stages and we haven't (yet) provided scripts for downloading the datasets. Updates will be posted here when this is completed. See [the wiki](https://github.com/mckinziebrandon/DeepChatModels/wiki/Dynamic-Models) if you'd like a (very) rough idea of recent developments. Until then, I've uploaded most of the data [here on my MEGA account](
+https://mega.nz/#F!xrRTwSzY!by9K42n_I_oi5T_DKP-xTA). It is also organized the same way I have it locally.
 
 __Table of Contents__
 * [Brief Overview of Completed Work](#brief-overview-of-completed-work)
