@@ -6,10 +6,11 @@ English Data Preprocessing script.
 """
 
 import os
-import re
+
+from fuckyou.data_helper import DataHelper
+
+print(os.getcwd())
 import time
-import json
-import multiprocessing
 from functools import wraps
 from itertools import chain
 from collections import Counter, defaultdict
@@ -31,7 +32,6 @@ except ImportError:
                  return wordnet.synsets(s)
         return Wrapper
 
-from data.data_helper import DataHelper
 
 # Global helper object that helps abstract away locations of
 # files & directories, and keeps an eye on memory usage.

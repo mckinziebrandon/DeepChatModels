@@ -13,6 +13,6 @@ setup(name='DeepChatModels',
             'pyyaml',
             'git-code-debt',
             ],
-        extras_require={'tensorflow': ['tensorflow'],
-            'tensorflow with gpu': ['tensorflow-gpu']},
+        #extras_require={'tensorflow': ['tensorflow'],
+        #    'tensorflow with gpu': ['tensorflow-gpu']},
         zip_safe=False)

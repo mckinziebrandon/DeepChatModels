@@ -2,12 +2,10 @@
 but preprocessing checks will be incorporated into each when it's time.
 """
 
-import os
 import logging
-import tensorflow as tf
-import pandas as pd
-from data._dataset import Dataset
-from utils import io_utils
+import os
+
+from fuckyou._dataset import Dataset
 
 
 def check_data(abs_path, name):
