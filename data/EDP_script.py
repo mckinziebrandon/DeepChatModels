@@ -10,14 +10,13 @@ import re
 import time
 import json
 import multiprocessing
-from   functools        import wraps
-from   itertools        import chain
-from   collections      import Counter, defaultdict
-from   multiprocessing  import Pool
+from functools import wraps
+from itertools import chain
+from collections import Counter, defaultdict
+from multiprocessing import Pool
 
 import numpy  as np
 import pandas as pd
-from   progressbar import ProgressBar
 
 # Some BS to emulate pyenchant's functionality (as far as we're concerned)
 # to work around 64-bit Python installations on Windows.
@@ -32,7 +31,7 @@ except ImportError:
                  return wordnet.synsets(s)
         return Wrapper
 
-from data import DataHelper
+from data.data_helper import DataHelper
 
 # Global helper object that helps abstract away locations of
 # files & directories, and keeps an eye on memory usage.
@@ -51,9 +50,9 @@ def timed_function(*expected_args):
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
-            start_time  = time.time()
-            res         = fn(*args, **kwargs)
-            stop_time   = time.time()
+            start_time = time.time()
+            res = fn(*args, **kwargs)
+            stop_time = time.time()
             fname = expected_args[0]
             print("Time to run %s: %.3f seconds." %
                   (fname, stop_time - start_time))
@@ -68,7 +67,7 @@ def parallel_map_df(fn, df):
     """
     df = np.array_split(df, NUM_PARTITIONS)
     pool = Pool(NUM_CORES)
-    df   = pd.concat(pool.map(fn, df))
+    df = pd.concat(pool.map(fn, df))
     pool.close()
     pool.join()
     return df
@@ -137,8 +136,6 @@ def regex_replacements(df):
     for old, new in data_helper.modify_list.items():
         df['body'].replace({old: new}, regex=True, inplace=True)
 
-    # Remove comments with this extremely common occurrence.
-    #df = df.loc[df.body != 'NUMBER'].reset_index(drop=True)
     return df
 
 
@@ -189,7 +186,7 @@ def main():
     df['score'] = parallel_map_list(fn=sentence_score, iterable=sentences)
     sentences = None
 
-    # Keep the desired percentage of lowest-scored sentences. (low score == good)
+    # Keep the desired percentage of lowest-scored sentences. (low == good)
     keep_best_percent = 0.75
     df = df.loc[df['score'] < df['score'].quantile(keep_best_percent)]
 
@@ -197,8 +194,8 @@ def main():
     comments_dict       = pd.Series(df.body.values, index=df.name).to_dict()
     root_to_children    = children_dict(df)
     data_helper.generate_files(
-        from_file_path="from_{}.txt".format(data_helper.file_counter),
-        to_file_path="to_{}.txt".format(data_helper.file_counter),
+        from_file_path="from_{}.txt".format("file"),
+        to_file_path="to_{}.txt".format("file"),
         root_to_children=root_to_children,
         comments_dict=comments_dict)
 

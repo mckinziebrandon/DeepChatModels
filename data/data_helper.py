@@ -1,7 +1,7 @@
 """ Provides pre-processing functionality.
 
 Abstracts paths and filenames so we don't have to think about them. Currently,
-in use by Brandon / Ivan, but will extend to general users in the future.
+in use by Brandon, but will extend to general users in the future.
 """
 
 import os
@@ -10,13 +10,12 @@ import pdb
 import json
 import logging
 import tempfile
-from   pprint       import pprint
-from   subprocess   import Popen, PIPE
+from pprint import pprint
+from subprocess import Popen, PIPE
 
 import pandas as pd
-import numpy  as np
-from   pympler.asizeof  import asizeof          # for profiling memory usage
-from   progressbar      import ProgressBar
+import numpy as np
+from pympler.asizeof import asizeof          # for profiling memory usage
 
 # Absolute path to this file.
 _WORD_SPLIT = re.compile(r'([.,!?\"\':;)(])|\s')
@@ -30,6 +29,7 @@ DATA_ROOTS = {
 
 # Maximum memory usage allowed (in GiB).
 MAX_MEM = 2.0
+
 
 def prompt(text, default="", required=False):
     print("%s (default=%r): " % (text, default), end="")
@@ -70,7 +70,8 @@ class DataHelper:
         user = prompt("Username", default="brandon").lower()
         if user not in DATA_ROOTS:
             print("I don't recognize you, %s." % user)
-            self.data_root = prompt("Please give me the path to your data:", required=True)
+            self.data_root = prompt("Please give me the path to your data:",
+                                    required=True)
         else:
             self.data_root = DATA_ROOTS[user]
 
@@ -127,8 +128,7 @@ class DataHelper:
         # For in-place appending.
         # S.O.: https://stackoverflow.com/questions/20906474/
         list_ = []  # real descriptive :)
-        pbar = ProgressBar()
-        for i in pbar(range(self.file_counter, len(self.file_paths))):
+        for i in range(self.file_counter, len(self.file_paths)):
             # lines=True means "read as json-object-per-line."
             list_.append(pd.read_json(self.file_paths[i], lines=True))
 
@@ -157,8 +157,8 @@ class DataHelper:
     def generate_files(self, from_file_path, to_file_path, root_to_children, comments_dict):
         """ Generates two files, [from_file_path] and [to_file_path] of 1-1 comments.
         """
-        from_file_path = os.path.join(self.data_root, '2010',from_file_path)
-        to_file_path = os.path.join(self.data_root, '2010', to_file_path)
+        from_file_path = os.path.join(self.data_root, from_file_path)
+        to_file_path = os.path.join(self.data_root, to_file_path)
 
         with open(from_file_path, 'w') as from_file:
             with open(to_file_path, 'w') as to_file:
@@ -170,17 +170,18 @@ class DataHelper:
                         except KeyError:
                             pass
 
-        (num_samples, stderr) = Popen(['wc', '-l', from_file_path], stdout=PIPE).communicate()
+        (num_samples, stderr) = Popen(
+            ['wc', '-l', from_file_path], stdout=PIPE).communicate()
         num_samples = int(num_samples.strip().split()[0])
 
         print("Final processed file has %d samples total." % num_samples)
 
         # First make sure user has copy of bash script we're about to use.
-        os.popen('cp %s %s' % (os.path.join(HERE, 'split_into_n.sh'), self.data_root))
+        #os.popen('cp %s %s' % (os.path.join(HERE, 'split_into_n.sh'), self.data_root))
 
         # Split data into 90% training and 10% validation.
-        os.popen('bash %s %d' % (os.path.join(self.data_root, 'split_into_n.sh'),
-                                 0.1 * num_samples))
+        #os.popen('bash %s %d' % (os.path.join(self.data_root, 'split_into_n.sh'),
+        #                         0.1 * num_samples))
 
     def df_generator(self):
         """ Generates df from single files at a time.
