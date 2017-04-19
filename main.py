@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 """main.py: Train and/or chat with a bot. (work in progress).
 
 Typical use cases:
@@ -19,6 +20,10 @@ Typical use cases:
             ./main.py --pretrained_dir path_to/pretrained_dir
 
 """
+
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import division
 
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL']='1'
@@ -76,11 +81,11 @@ def main(argv):
     io_utils.print_non_defaults(config)
 
     print("Setting up %s dataset." % config['dataset'])
-    dataset_class   = locate(config['dataset']) or getattr(data, config['dataset'])
-    dataset         = dataset_class(config['dataset_params'])
+    dataset_class = locate(config['dataset']) or getattr(data, config['dataset'])
+    dataset = dataset_class(config['dataset_params'])
     print("Creating", config['model'], ". . . ")
-    bot_class   = locate(config['model']) or getattr(chatbot, config['model'])
-    bot         = bot_class(dataset, config)
+    bot_class = locate(config['model']) or getattr(chatbot, config['model'])
+    bot = bot_class(dataset, config)
 
     if not config['model_params']['decode']:
         start_training(dataset, bot)
