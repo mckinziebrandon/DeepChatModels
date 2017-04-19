@@ -1,36 +1,20 @@
-﻿#!/usr/bin/env python3
+﻿"""Reddit data preprocessing."""
 
-"""
-English Data Preprocessing script.
-(converted from Jupyter notebook of same name in notebooks)
-"""
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 
 import os
-
-from fuckyou.data_helper import DataHelper
-
-print(os.getcwd())
 import time
 from functools import wraps
 from itertools import chain
 from collections import Counter, defaultdict
 from multiprocessing import Pool
 
-import numpy  as np
+import numpy as np
 import pandas as pd
-
-# Some BS to emulate pyenchant's functionality (as far as we're concerned)
-# to work around 64-bit Python installations on Windows.
-try:
-    from enchant import Dict
-except ImportError:
-    from nltk.corpus import wordnet
-    def Dict(irrelevant_param):
-        class Wrapper(object):
-            @staticmethod
-            def check(s):
-                 return wordnet.synsets(s)
-        return Wrapper
+from data.data_helper import DataHelper
+from nltk.corpus import wordnet
 
 
 # Global helper object that helps abstract away locations of
@@ -87,13 +71,11 @@ def parallel_map_list(fn, iterable):
 
 def sentence_score(sentences):
     word_freq = data_helper.word_freq
-    d = Dict('en_US')
-
     scores = []
     for sentence in sentences:
         word_count = len(sentence) + 1e-20
         sent_score = sum([1.0 / ((word_freq[w] + 1e-20) * word_count)
-                      for w in sentence if not d.check(w)])
+                      for w in sentence if not wordnet.synsets(w)])
         scores.append(sent_score)
     return scores
 
@@ -191,8 +173,8 @@ def main():
     df = df.loc[df['score'] < df['score'].quantile(keep_best_percent)]
 
     print('Prepping for the grand finale.')
-    comments_dict       = pd.Series(df.body.values, index=df.name).to_dict()
-    root_to_children    = children_dict(df)
+    comments_dict = pd.Series(df.body.values, index=df.name).to_dict()
+    root_to_children = children_dict(df)
     data_helper.generate_files(
         from_file_path="from_{}.txt".format("file"),
         to_file_path="to_{}.txt".format("file"),

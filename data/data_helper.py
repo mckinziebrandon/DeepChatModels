@@ -1,8 +1,12 @@
-""" Provides pre-processing functionality.
+"""Provides pre-processing functionality.
 
 Abstracts paths and filenames so we don't have to think about them. Currently,
 in use by Brandon, but will extend to general users in the future.
 """
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 
 import os
 import re

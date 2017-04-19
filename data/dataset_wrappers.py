@@ -4,8 +4,7 @@ but preprocessing checks will be incorporated into each when it's time.
 
 import logging
 import os
-
-from fuckyou._dataset import Dataset
+from data._dataset import Dataset
 
 
 def check_data(abs_path, name):
