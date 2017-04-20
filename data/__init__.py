@@ -3,7 +3,6 @@ from __future__ import absolute_import
 from data import data_helper
 from data import _dataset
 from data import dataset_wrappers
-from data import EDP_script
 
 from data.data_helper import DataHelper
 from data._dataset import Dataset

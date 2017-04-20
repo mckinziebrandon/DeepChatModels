@@ -85,7 +85,7 @@ class DataHelper:
         # 2. Get absolute paths to all data filenames in self.file_paths.
         #
         self.file_paths = []
-        years = prompt("Years to process (as CSVs)", default="2007,2008,2009").split(',')
+        years = prompt("Years to process", default="2007,2008,2009").split(',')
         for y in years:
             # The path is: $ROOT/raw_data/$YEAR
             # Add the entirety of the directory to the file paths.
@@ -181,11 +181,11 @@ class DataHelper:
         print("Final processed file has %d samples total." % num_samples)
 
         # First make sure user has copy of bash script we're about to use.
-        #os.popen('cp %s %s' % (os.path.join(HERE, 'split_into_n.sh'), self.data_root))
+        os.popen('cp %s %s' % (os.path.join(HERE, 'split_into_n.sh'), self.data_root))
 
         # Split data into 90% training and 10% validation.
-        #os.popen('bash %s %d' % (os.path.join(self.data_root, 'split_into_n.sh'),
-        #                         0.1 * num_samples))
+        os.popen('bash %s %d' % (os.path.join(self.data_root, 'split_into_n.sh'),
+                                 0.1 * num_samples))
 
     def df_generator(self):
         """ Generates df from single files at a time.
