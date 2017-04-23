@@ -12,7 +12,7 @@ class Config:
     TESTING = True  # used internally by Flask instances.
     # Activates the cross-site request forgery prevention.
     WTF_CSRF_ENABLED = True
-    # Used to create cryptographic token used to valide a form.
+    # Used to create cryptographic token used to valide a chat_form.
     SECRET_KEY = 'you-might-guess-if-you-are-clever'
 
     # ---------- SQLAlchemy Configuration ----------

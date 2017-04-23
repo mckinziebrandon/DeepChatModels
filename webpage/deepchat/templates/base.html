@@ -95,15 +95,22 @@
       </div>
 
       <div id="navbar" class="navbar-collapse collapse">
+
         <ul class="nav navbar-nav">
           {%  for href, id, caption in navigation_bar %}
             <li {% if id == active_page %} class="active" {% endif %}>
               <a href="{{ href|e }}">{{ caption|e }}</a>
             </li>
           {% endfor %}
+        </ul>
 
-        </ul>  <!-- end: navbar-nav -->
+      {% if user %}
+      <ul class="nav navbar-nav navbar-right">
+       <span class="navbar-text">User: {{ user }}</span>
+      </ul>
+      {% endif %}
       </div>  <!-- end: navbar -->
+
     </div>  <!-- end: container -->
   </nav>
 {% endblock navbar %}

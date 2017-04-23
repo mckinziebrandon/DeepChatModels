@@ -22,7 +22,7 @@ always make sure the migration works correctly on a development database.
 
 from imp import new_module
 from migrate.versioning import api
-from app import db
+from deepchat import db
 from config import SQLALCHEMY_DATABASE_URI
 from config import SQLALCHEMY_MIGRATE_REPO
 

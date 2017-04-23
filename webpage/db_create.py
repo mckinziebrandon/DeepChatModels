@@ -9,7 +9,7 @@ To create the database, just execute via ./db_create.py, which will create
 from migrate.versioning import api
 from config import SQLALCHEMY_DATABASE_URI
 from config import SQLALCHEMY_MIGRATE_REPO
-from app import db
+from deepchat import db
 import os.path
 
 db.create_all()

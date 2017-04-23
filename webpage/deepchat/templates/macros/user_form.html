@@ -1,0 +1,18 @@
+{% from 'macros/with_errors.html' import with_errors as with_errors %}
+
+<!-- Render a UserForm (see deepchat/forms.py). -->
+<form id="user-form" action="" method="POST">
+  <!-- For CSRF reasons. -->
+  {{ user_form.hidden_tag() }}
+
+  <!-- User Name -->
+  <div class="formgroup">
+    <!-- Labeled input(s) -->
+    {{ user_form.name.label(style="text-transform: capitalize;") }}
+    {{ user_form.name(class="form-control") }}
+  </div>
+
+  <!-- Submit -->
+  <br>
+  {{ with_errors(user_form.submit, type="submit", class="btn btn-primary") }}
+</form>

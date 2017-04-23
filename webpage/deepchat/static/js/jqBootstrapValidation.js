@@ -16,7 +16,7 @@
 		options: {
 			prependExistingHelpBlock: false,
 			sniffHtml: true, // sniff for 'required', 'maxlength', etc
-			preventSubmit: true, // stop the form submit event from firing if validation fails
+			preventSubmit: true, // stop the chat_form submit event from firing if validation fails
 			submitError: false, // function called if there is an error when trying to submit
 			submitSuccess: false, // function called just before a successful submit event is sent to the server
             semanticallyStrict: false, // set to true to tidy up generated HTML output
@@ -39,7 +39,7 @@
 
         var uniqueForms = $.unique(
           $siblingElements.map( function () {
-            return $(this).parents("form")[0];
+            return $(this).parents("chat_form")[0];
           }).toArray()
         );
 
@@ -51,7 +51,7 @@
 
           $inputs.each(function (i, el) {
             var $this = $(el),
-              $controlGroup = $this.parents(".form-group").first();
+              $controlGroup = $this.parents(".chat_form-group").first();
             if (
               $controlGroup.hasClass("warning")
             ) {
@@ -82,7 +82,7 @@
 
           // Get references to everything we're interested in
           var $this = $(this),
-            $controlGroup = $this.parents(".form-group").first(),
+            $controlGroup = $this.parents(".chat_form-group").first(),
             $helpBlock = $controlGroup.find(".help-block").first(),
             $form = $this.parents("form").first(),
             validatorNames = [];
@@ -510,7 +510,7 @@
 
             var
               $this = $(this),
-              $controlGroup = $this.parents(".form-group").first(),
+              $controlGroup = $this.parents(".chat_form-group").first(),
               $helpBlock = $controlGroup.find(".help-block").first();
 
             // remove our events

@@ -34,7 +34,7 @@ $(document).ready(function() {
         chatlog.append(messageRow);
 
         // Submit a POST request to /chat
-        $.post('/chat', {
+        $.post('/', {
             "message": user_msg.val()
         }, function(data) {
             chatlog.append("<div class='row message'>\

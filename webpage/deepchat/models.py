@@ -9,6 +9,8 @@ objects created from these classes into rows in the proper database table.
 """
 
 from deepchat import db, app
+from flask import jsonify
+import json
 from flask_sqlalchemy import SQLAlchemy
 
 
@@ -43,12 +45,13 @@ class User(db.Model):
     conversations = db.relationship('Conversation', backref='user', lazy='dynamic')
 
     def __repr__(self):
-        return '<User: {0}>'.format(self.name)
+        return "<User {0}>".format(self.name)
 
 
-class ChatBot(db.Model):
+class Chatbot(db.Model):
     """Chatbot. Fields are the same as from yaml config files."""
     id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64), index=True, unique=True)
     dataset = db.Column(db.String(64))
     base_cell = db.Column(db.String(64))
     encoder = db.Column(db.String(64))
@@ -59,16 +62,15 @@ class ChatBot(db.Model):
     conversations = db.relationship('Conversation', backref='chatbot', lazy='dynamic')
 
     def __repr__(self):
-        return '<ChatBot: {0} dataset;  {1} layers>'.format(
-            self.dataset, self.num_layers)
+        return json.dumps("<Chatbot {0}>".format(self.name))
 
 
 class Conversation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    start_time = db.Column(db.DateTime, index=True, unique=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     chatbot_id = db.Column(db.Integer, db.ForeignKey('chatbot.id'))
     turns = db.relationship('Turn', backref='conversation', lazy='dynamic')
-    #start_time = db.Column(db.DateTime)
 
     def __repr__(self):
         return '<Conversation between {0} and {1}>'.format(
@@ -77,10 +79,9 @@ class Conversation(db.Model):
 
 class Turn(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    chatbot_id = db.Column(db.Integer, db.ForeignKey('chatbot.id'))
     user_message = db.Column(db.Text)
     chatbot_message = db.Column(db.Text)
+    conversation_id = db.Column(db.Integer, db.ForeignKey('conversation.id'))
 
     def __repr__(self):
         return 'User: {0}\nChatBot: {1}'.format(

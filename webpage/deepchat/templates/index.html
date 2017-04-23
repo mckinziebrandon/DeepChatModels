@@ -27,7 +27,7 @@
             <input type="text"
                    class="form-control input-sm"
                    aria-label="Chat Input"
-                   name="{{ form.message.name }}"
+                   name="{{ chat_form.message.name }}"
                    placeholder="Hey bot...">
             <!-- Note: input-group-btn is built-in bootstrap. -->
             <div class="input-group-btn">
@@ -39,10 +39,18 @@
               </button>
             </div>
           </div>  <!-- end: input-group (cls) -->
-        </div>  <!-- end: chat-form (id) -->
+        </div>  <!-- end: cchat_formform (id) -->
       </div>
-
     </div>
+  </div>
+
+  <br>
+  <div class="row">
+  <h3>Who Are You?</h3>
+  <div class="col-xs-12 col-sm-8">
+    <p>The bot would like to know who it is talking to. Feel free to tell it your name!</p>
+    {% include 'macros/user_form.html' %}
+  </div>
   </div>
 
 {%  endblock page_content %}
