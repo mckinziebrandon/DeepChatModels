@@ -32,7 +32,6 @@ class DynamicBot(Model):
                     See DEFAULT_FULL_CONFIG in chatbot._models.py for supported keys.
         """
 
-        logging.basicConfig(level=logging.WARN)
         self.log = logging.getLogger('DynamicBotLogger')
         # Let superclass handle the boring stuff (dirs/more instance variables).
         super(DynamicBot, self).__init__(self.log, dataset, params)
@@ -211,7 +210,10 @@ class DynamicBot(Model):
         # Note: Calling sleep() allows sustained GPU utilization across training.
         # Without it, looks like GPU has to wait for data to be enqueued more often.
         print('QUEUE RUNNERS RELEASED.', end=" ")
-        for _ in range(8): print('.', end=" "); time.sleep(1); sys.stdout.flush()
+        for _ in range(4):
+            print('.', end=" ");
+            time.sleep(1);
+            sys.stdout.flush()
         print('GO!')
 
         try:

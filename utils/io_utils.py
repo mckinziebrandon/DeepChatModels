@@ -208,7 +208,7 @@ def parse_config(flags):
 def basic_tokenizer(sentence):
     """Very basic tokenizer: split the sentence into a list of tokens."""
     words = []
-    for space_separated_fragment in sentence.strip().split():
+    for space_separated_fragment in sentence.strip().lower().split():
         words.extend(_WORD_SPLIT.split(space_separated_fragment))
     return [w for w in words if w]
 
@@ -248,7 +248,7 @@ def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size, normalize
             if counter % 100000 == 0:
                 print("  processing line %d" % counter)
 
-            line   = tf.compat.as_bytes(line)
+            line = tf.compat.as_bytes(line)
             tokens = basic_tokenizer(line)
             # Update word frequency counts in vocab counter dict.
             for w in tokens:
@@ -356,6 +356,7 @@ def prepare_data(data_dir, from_train_path, to_train_path,
         to_dev_path: path to the file that includes "to" dev samples.
         from_vocabulary_size: size of the "from language" vocabulary to create and use.
         to_vocabulary_size: size of the "to language" vocabulary to create and use.
+            If this is None, assume that both languages are the same (usually the case).
 
       Returns:
         A tuple of 7 elements:
@@ -388,14 +389,14 @@ def prepare_data(data_dir, from_train_path, to_train_path,
     Popen(['mv', old_from_vocab, from_vocab_path], stdout=PIPE).communicate()
 
     # Create token ids for the training data.
-    to_train_ids_path   = to_train_path + (".ids%d" % to_vocabulary_size)
+    to_train_ids_path = to_train_path + (".ids%d" % to_vocabulary_size)
     from_train_ids_path = from_train_path + (".ids%d" % from_vocabulary_size)
     data_to_token_ids(to_train_path, to_train_ids_path, to_vocab_path)
     data_to_token_ids(from_train_path, from_train_ids_path, from_vocab_path)
 
     # Create token ids for the development data.
-    to_dev_ids_path     = to_dev_path + (".ids%d" % to_vocabulary_size)
-    from_dev_ids_path   = from_dev_path + (".ids%d" % from_vocabulary_size)
+    to_dev_ids_path = to_dev_path + (".ids%d" % to_vocabulary_size)
+    from_dev_ids_path = from_dev_path + (".ids%d" % from_vocabulary_size)
     data_to_token_ids(to_dev_path, to_dev_ids_path, to_vocab_path)
     data_to_token_ids(from_dev_path, from_dev_ids_path, from_vocab_path)
 

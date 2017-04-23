@@ -142,7 +142,9 @@ class DataHelper:
                 print("Past max capacity: %r! Leaving data collection early." % mem_usage)
                 break
 
-        self.file_counter = i + 1   # excuse me what
+        # If the user decides they want to continue loading later (when memory frees up),
+        # we want the file_counter set so that it starts on the next file.
+        self.file_counter = i + 1
 
         df = pd.concat(list_).reset_index()
         init_num_rows = len(df.index)

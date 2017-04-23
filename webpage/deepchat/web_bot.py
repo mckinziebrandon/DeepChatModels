@@ -11,7 +11,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL']='1'
 UNK_ID  = 3
 # Regular expressions used to tokenize.
 _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
-_DIGIT_RE   = re.compile(br"\d")
+_DIGIT_RE = re.compile(br"\d")
 
 
 def basic_tokenizer(sentence):

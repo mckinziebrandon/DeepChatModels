@@ -26,10 +26,12 @@ from __future__ import absolute_import
 from __future__ import division
 
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL']='1'
+# Default behavior (1): INFO messages are not printed.
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
 import data
 import chatbot
+import logging
 import tensorflow as tf
 from pydoc import locate
 from utils import io_utils
@@ -38,6 +40,7 @@ from utils import io_utils
 flags = tf.app.flags
 flags.DEFINE_string("pretrained_dir", None, "path to pretrained model dir.")
 flags.DEFINE_string("config", None, "path to config (.yml) file.")
+flags.DEFINE_string("debug", False, "If true, increases output verbosity (log levels).")
 flags.DEFINE_string("model", "{}", "Options: chatbot.{DynamicBot,Simplebot,ChatBot}.")
 flags.DEFINE_string("model_params", "{}", "")
 flags.DEFINE_string("dataset", "{}", "Options: data.{Cornell,Ubuntu,WMT}.")
@@ -65,6 +68,11 @@ def start_chatting(bot):
 
 
 def main(argv):
+
+    if FLAGS.debug:
+        # Setting to '0': all tensorflow messages are logged.
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
+        logging.basicConfig(level=logging.INFO)
 
     # Extract the merged configs/dictionaries.
     config = io_utils.parse_config(FLAGS)

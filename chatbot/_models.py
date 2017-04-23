@@ -38,7 +38,7 @@ class Model(object):
                            DEFAULT_FULL_CONFIG above.
         """
 
-        self.log    = logger
+        self.log = logger
         self.__dict__['__params'] = Model.fill_params(dataset, params)
 
         # Make particularly useful ckpt directories for website configurations.
@@ -58,7 +58,7 @@ class Model(object):
         if gpu_found():
             self.log.info("GPU Found. Setting allow_growth to True.")
             gpu_config = tf.ConfigProto()
-            gpu_config.gpu_options.allow_growth = True
+            #gpu_config.gpu_options.allow_growth = True
             self.sess = tf.Session(config=gpu_config)
         else:
             self.log.warning("GPU not found. Not recommended for training.")
@@ -71,11 +71,11 @@ class Model(object):
         os.popen('mkdir -p %s' % self.ckpt_dir)  # Just in case :)
         self.projector_config = projector.ProjectorConfig()
         # Good practice to set as None in constructor.
-        self.loss               = None
-        self.file_writer        = None
-        self.merged             = None
-        self.train_op           = None
-        self.saver              = None
+        self.loss = None
+        self.file_writer = None
+        self.merged = None
+        self.train_op = None
+        self.saver = None
 
     def compile(self):
         """ Configure training process and initialize model. Inspired by Keras.
@@ -95,14 +95,14 @@ class Model(object):
         if not self.reset_model and checkpoint_state \
                 and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
             print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
-            self.file_writer    = tf.summary.FileWriter(self.ckpt_dir)
+            self.file_writer = tf.summary.FileWriter(self.ckpt_dir)
             self.saver = tf.train.Saver(tf.global_variables())
             self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
         else:
             print("Created model with fresh parameters:\n\t", self.ckpt_dir)
             # Recursively delete all files in output but keep directories.
             os.popen("find {0}".format(self.ckpt_dir) + " -type f -exec rm {} \;")
-            self.file_writer    = tf.summary.FileWriter(self.ckpt_dir)
+            self.file_writer = tf.summary.FileWriter(self.ckpt_dir)
             # Add operation for calling all variable initializers.
             init_op = tf.global_variables_initializer()
             # Construct saver (adds save/restore ops to all).
