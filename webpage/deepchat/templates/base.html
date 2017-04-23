@@ -1,25 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- block head:
-  - defines the head element for this html file and can be used by all children.
-  - Children can either override or add to it.
-  - See index.html for a simple example.
--->
-{% block head %}
+  <!-- block head:
+    - defines the head element for this html file and can be used by all children.
+    - Children can either override or add to it.
+    - See index.html for a simple example. -->
+  {% block head %}
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="">
     <meta name="author" content="sentient-machine">
 
-    <title>Chatty McChatFace</title>
+    <title>Deep Chat Models</title>
 
     <!-- Lil yellow bot favicon -->
     <link href="/static/img/favicon.ico" rel="icon" type="image/x-icon">
 
-    <!-- Bootstrap Core CSS -->
-    <link href="/static/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Latest Bootstrap Core CSS (CDN to reduce memory on heroku) -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
 
     <!-- Custom Fonts -->
     <link href="/static/vendor/font-awesome/css/font-awesome.min.css"
@@ -35,69 +34,61 @@
     <link href="http://fonts.googleapis.com/css?family=Lato"
           rel="stylesheet" type="text/css" >
 
-    <!-- Theme CSS -->
-    <link rel="stylesheet" type="text/css"
-          href="{{ url_for('static', filename='css/agency.min.css') }}">
-
     <!-- CSS Modifications -->
     <link rel="stylesheet" type="text/css"
           href="{{ url_for('static', filename='css/style_modifications.css') }}">
 
-{% endblock head %}
+  {% endblock head %}
 </head>
 
 <body id="page-top" class="index">
 
 <!-- Navigation -->
 {% block navbar %}
-<nav id="mainNav" class="navbar navbar-default" style="font-family: Lato">
+  <nav id="mainNav" class="navbar navbar-default" style="font-family: Lato">
     <!-- Fluid makes nav stretch along entire screen width.
          - In practice, this appears to mean brand is actually leftmost. -->
     <div class="container-fluid">
 
-        <!-- Brand and toggle get grouped for better mobile display -->
-        <div class="navbar-header page-scroll">
-            <!-- Toggle button ("Menu") -->
-            <button type="button" class="navbar-toggle collapsed"
-                    data-toggle="collapse"
-                    data-target="#dropdown"
-                    aria-expanded="false"
-                    aria-controls="navbar">
-                <!-- span: generic inline container for phrasing content, which
-                does not inherently represent anything -->
-                <span class="sr-only">Toggle navigation</span>
-                <span class="icon-bar"></span>
-                <span class="icon-bar"></span>
-                <span class="icon-bar"></span>
-            </button>  <!-- /.navbar-toggle -->
-            <!-- Brand -->
-            <a class="navbar-brand page-scroll" href="{{ url_for('.index') }}">
-                DeepChatModels
-            </a>
-        </div>
+      <!-- Brand and toggle get grouped for better mobile display -->
+      <div class="navbar-header page-scroll">
+        <!-- Toggle button ("Menu") -->
+        <button type="button" class="navbar-toggle collapsed"
+                data-toggle="collapse"
+                data-target="#dropdown"
+                aria-expanded="false"
+                aria-controls="navbar">
+          <!-- span: generic inline container for phrasing content, which
+          does not inherently represent anything -->
+          <span class="sr-only">Toggle navigation</span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>  <!-- /.navbar-toggle -->
+        <!-- Brand -->
+        <a class="navbar-brand page-scroll" href="{{ url_for('.index') }}">
+          DeepChatModels
+        </a>
+      </div>
 
-        <!-- Navbar dropdown and links to pages. -->
-        <div id="dropdown" class="navbar-collapse collapse">
-            <ul class="nav navbar-nav">
-                <li><a href="{{ url_for('.index') }}">Home</a></li>
-                <li><a href="{{ url_for('.about') }}">About</a></li>
-            </ul>
-        </div>  <!-- end: dropdown -->
+      <!-- Navbar dropdown and links to pages. -->
+      <div id="dropdown" class="navbar-collapse collapse">
+        <ul class="nav navbar-nav">
+          <li><a href="{{ url_for('.index') }}">Home</a></li>
+          <li><a href="{{ url_for('.about') }}">About</a></li>
+        </ul>
+      </div>  <!-- end: dropdown -->
     </div>  <!-- end: container-fluid -->
-</nav>
+  </nav>
 {% endblock navbar %}
 
 <!-- Chat section. See index.html for template. -->
 {% block content %}{% endblock content %}
 
 <!-- jQuery -->
-<script src="{{ url_for('static', filename='vendor/jquery/jquery.min.js') }}">
-</script>
-
-<!-- Bootstrap Core JavaScript -->
-<script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.min.js') }}">
-</script>
-
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+<!-- Latest Bootstrap JavaScript -->
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
 <!-- Plugin JavaScript -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-easing/1.3/jquery.easing.min.js"
         integrity="sha384-mE6eXfrb8jxl0rzJDBRanYqgBxtJ6Unn4/1F7q4xRRyIw7Vdg9jP4ycT7x1iVsgb"
@@ -107,25 +98,21 @@
 <!-- Contact Form JavaScript -->
 <script src="{{ url_for('static', filename='js/jqBootstrapValidation.js') }}">
 </script>
-<script src="{{ url_for('static', filename='js/contact_me.js') }}"></script>
-
-<!-- Theme JavaScript -->
-<script src="{{ url_for('static', filename='js/agency.min.js') }}"></script>
 
 <!-- Chat Processing JavaScript -->
 <script src="{{ url_for('static', filename='js/chat_processing.js') }}">
 </script>
 
 <script type="text/javascript">
-  var csrf_token = "{{ csrf_token() }}";
+    var csrf_token = "{{ csrf_token() }}";
 
-  $.ajaxSetup({
-    beforeSend: function(xhr, settings) {
-      if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain) {
-        xhr.setRequestHeader("X-CSRFToken", csrf_token);
-      }
-    }
-  });
+    $.ajaxSetup({
+        beforeSend: function(xhr, settings) {
+            if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain) {
+                xhr.setRequestHeader("X-CSRFToken", csrf_token);
+            }
+        }
+    });
 </script>
 
 </body>
