@@ -225,8 +225,6 @@ class Model(object):
         return new_ckpt_dir
 
 
-
-
 class BucketModel(Model):
     """Abstract class. Any classes that extend BucketModel just need to customize their
         graph structure in __init__ and implement the step(...) function.

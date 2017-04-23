@@ -19,7 +19,7 @@ test_flags = tf.app.flags
 test_flags.DEFINE_string("config", "macros/test_config.yml", "path to config (.yml) file.")
 test_flags.DEFINE_string("model", "{}", "Options: chatbot.{DynamicBot,Simplebot,ChatBot}.")
 test_flags.DEFINE_string("model_params", "{}", "")
-test_flags.DEFINE_string("dataset", "{}", "Options: data.{Cornell,Ubuntu,WMT}.")
+test_flags.DEFINE_string("dataset", "{}", "Options: data.{Cornell,Ubuntu,Reddit}.")
 test_flags.DEFINE_string("dataset_params", "{}", "")
 TEST_FLAGS = test_flags.FLAGS
 KEYS = ['model', 'model_params', 'dataset', 'dataset_params']
@@ -35,7 +35,7 @@ class TestData(unittest.TestCase):
     """Tests for the datsets."""
 
     def setUp(self):
-        self.supported_datasets = ['Reddit', 'WMT', 'Ubuntu', 'Cornell']
+        self.supported_datasets = ['Reddit', 'Ubuntu', 'Cornell']
 
     def test_basic(self):
         """Instantiate all supported datasets and check they satisfy basic conditions."""

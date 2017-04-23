@@ -10,7 +10,6 @@ import yaml
 import copy
 import pandas as pd
 
-import numpy as np
 import tensorflow as tf
 from collections import Counter
 from tensorflow.python.platform import gfile
@@ -20,20 +19,20 @@ from chatbot.globals import DEFAULT_FULL_CONFIG
 
 # Special vocabulary symbols.
 _PAD = b"_PAD"      # Append to unused space for both encoder/decoder.
-_GO  = b"_GO"       # Prepend to each decoder input.
+_GO = b"_GO"       # Prepend to each decoder input.
 _EOS = b"_EOS"      # Append to outputs only. Stopping signal when decoding.
 _UNK = b"_UNK"      # For any symbols not in our vocabulary.
 _START_VOCAB = [_PAD, _GO, _EOS, _UNK]
 
 # Enumerations for ease of use by this and other files.
-PAD_ID  = 0
-GO_ID   = 1
-EOS_ID  = 2
-UNK_ID  = 3
+PAD_ID = 0
+GO_ID = 1
+EOS_ID = 2
+UNK_ID = 3
 
 # Regular expressions used to tokenize.
 _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
-_DIGIT_RE   = re.compile(br"\d")
+_DIGIT_RE = re.compile(br"\d")
 
 
 def save_hyper_params(hyper_params, fname):
@@ -49,9 +48,11 @@ def get_sentence(lower=True):
     """
     sys.stdout.write("Human: ")
     sys.stdout.flush()
-    sentence = sys.stdin.readline().strip() # Could just use input() ...
-    if not lower: return sentence
-    else: return sentence.lower()
+    sentence = input()
+    if not lower:
+        return sentence
+    else:
+        return sentence.lower()
 
 
 def get_yaml_config(path):
@@ -77,9 +78,9 @@ def load_pretrained_config(pretrained_dir):
     # The loaded config will have "training" values, so we need
     # to set some of them to "chatting" values, instead of requiring
     # user to specify them (since they are mandatory for any chat sesion).
-    config['model_params']['decode']        = True
-    config['model_params']['is_chatting']   = True  # alias
-    config['model_params']['reset_model']   = False
+    config['model_params']['decode'] = True
+    config['model_params']['is_chatting'] = True  # alias
+    config['model_params']['reset_model'] = False
     config['model_params']['ckpt_dir'] = pretrained_dir
     return config
 
@@ -145,8 +146,8 @@ def merge_dicts(default_dict, preference_dict):
             # So if any preference_dict[key] is a dict, then require default_dict[key]
             # must also be a dict (if it exists, that is).
             assert isinstance(merged_dict[pref_key], dict), \
-            "Expected default_dict[%r]=%r to have type dict." % \
-            (pref_key, merged_dict[pref_key])
+                "Expected default_dict[%r]=%r to have type dict." % \
+                (pref_key, merged_dict[pref_key])
             # Since these are both dictionaries, can just recurse.
             merged_dict[pref_key] = merge_dicts(merged_dict[pref_key],
                                                 preference_dict[pref_key])
@@ -219,50 +220,65 @@ def num_lines(file_path):
     return int(num_samples.strip().split()[0])
 
 
-def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size, normalize_digits=True):
-    """Create vocabulary file (if it does not exist yet) from data file.
-
-    Data file is assumed to contain one sentence per line. Each sentence is
-    tokenized and digits are normalized (if normalize_digits is set).
-    Vocabulary contains the most-frequent tokens up to max_vocabulary_size.
-    We write it to vocabulary_path in a one-token-per-line format, so that later
-    token in the first line gets id=0, second line gets id=1, and so on.
-
+def get_word_freq(path, counter, norm_digits=True):
+    """Extract word-frequency mapping from file given by path.
+    
     Args:
-      vocabulary_path: path where the vocabulary will be created.
-      data_path: data file that will be used to create vocabulary.
-      max_vocabulary_size: limit on the size of the created vocabulary.
-      tokenizer: a function to use to tokenize each data sentence;
-        if None, word_tokenizer will be used.
-      normalize_digits: Boolean; if true, all digits are replaced by 0s.
+        path: data file of words we wish to extract vocab counts from.
+        counter: collections.Counter object for mapping word -> frequency.
+        norm_digits: Boolean; if true, all digits are replaced by 0s.
+    
+    Returns:
+        The counter (dict), updated with mappings from word -> frequency. 
     """
 
-    if gfile.Exists(vocabulary_path): return num_lines(vocabulary_path)
-
-    print("Creating vocabulary %s from data %s" % (vocabulary_path, data_path))
-    vocab = Counter()
-    with gfile.GFile(data_path, mode="rb") as f:
-        counter = 0
-        for line in f:
-            counter += 1
-            if counter % 100000 == 0:
-                print("  processing line %d" % counter)
-
+    print("Creating vocabulary for data", path)
+    with gfile.GFile(path, mode="rb") as f:
+        for i, line in enumerate(f):
+            if (i + 1) % 100000 == 0:
+                print("\tProcessing line", (i + 1))
             line = tf.compat.as_bytes(line)
             tokens = basic_tokenizer(line)
             # Update word frequency counts in vocab counter dict.
             for w in tokens:
-                word = _DIGIT_RE.sub(b"0", w) if normalize_digits else w
-                vocab[word] += 1
+                word = _DIGIT_RE.sub(b"0", w) if norm_digits else w
+                counter[word] += 1
+        return counter
 
-        # Get sorted vocabulary, from most frequent to least frequent.
-        vocab_list = _START_VOCAB + sorted(vocab, key=vocab.get, reverse=True)
-        vocab_list = vocab_list[:max_vocabulary_size]
 
-        # Write the list to a file.
-        with gfile.GFile(vocabulary_path, mode="wb") as vocab_file:
-            for w in vocab_list:
-                vocab_file.write(w + b"\n")
+def create_vocabulary(vocab_path, from_path, to_path, max_vocab_size, norm_digits=True):
+    """Create vocabulary file (if it does not exist yet) from data file.
+
+    Data file is assumed to contain one sentence per line. Each sentence is
+    tokenized and digits are normalized (if norm_digits is set).
+    Vocabulary contains the most-frequent tokens up to max_vocab_size.
+    We write it to vocabulary_path in a one-token-per-line format, so that later
+    token in the first line gets id=0, second line gets id=1, and so on.
+
+    Args:
+      vocab_path: path where the vocabulary will be created.
+      from_path: data file for encoder inputs.
+      to_path: data file for decoder inputs.
+      max_vocab_size: limit on the size of the created vocabulary.
+        norm_digits: Boolean; if true, all digits are replaced by 0s.
+    """
+
+    if gfile.Exists(vocab_path):
+        return num_lines(vocab_path)
+
+    vocab = Counter()
+    # Pool all data words together to reflect the data distribution well.
+    vocab = get_word_freq(from_path, vocab, norm_digits)
+    vocab = get_word_freq(to_path, vocab, norm_digits)
+
+    # Get sorted vocabulary, from most frequent to least frequent.
+    vocab_list = _START_VOCAB + sorted(vocab, key=vocab.get, reverse=True)
+    vocab_list = vocab_list[:max_vocab_size]
+
+    # Write the list to a file.
+    with gfile.GFile(vocab_path, mode="wb") as vocab_file:
+        for w in vocab_list:
+            vocab_file.write(w + b"\n")
 
     return len(vocab_list)
 
@@ -337,70 +353,67 @@ def data_to_token_ids(data_path, target_path, vocabulary_path, normalize_digits=
                     counter += 1
                     if counter % 100000 == 0:
                         print("  tokenizing line %d" % counter)
-                    token_ids = sentence_to_token_ids(tf.compat.as_bytes(line),
-                                                      vocab,
-                                                      normalize_digits)
+                    token_ids = sentence_to_token_ids(
+                        tf.compat.as_bytes(line), vocab, normalize_digits)
                     tokens_file.write(" ".join([str(tok) for tok in token_ids]) + "\n")
 
 
 def prepare_data(data_dir, from_train_path, to_train_path,
-                 from_dev_path, to_dev_path, from_vocabulary_size,
-                 to_vocabulary_size=None):
+                 from_valid_path, to_valid_path, vocab_size):
+
     """Prepare all necessary files that are required for the training.
 
-      Args:
+    Args:
         data_dir: directory in which the data sets will be stored.
         from_train_path: path to the file that includes "from" training samples.
         to_train_path: path to the file that includes "to" training samples.
-        from_dev_path: path to the file that includes "from" dev samples.
-        to_dev_path: path to the file that includes "to" dev samples.
-        from_vocabulary_size: size of the "from language" vocabulary to create and use.
-        to_vocabulary_size: size of the "to language" vocabulary to create and use.
-            If this is None, assume that both languages are the same (usually the case).
+        from_valid_path: path to the file that includes "valid_from" samples.
+        to_valid_path: path to the file that includes "valid_to" samples.
+        vocab_size: size of the "from language" vocabulary to create and use.
 
-      Returns:
-        A tuple of 7 elements:
-          (1) path to the token-ids for "from language" training data-set,
-          (2) path to the token-ids for "to language" training data-set,
-          (3) path to the token-ids for "from language" development data-set,
-          (4) path to the token-ids for "to language" development data-set,
-          (5) path to the "from language" vocabulary file,
-          (6) path to the "to language" vocabulary file.
-          (7) the true vocabulary size (less than or equal to max allowed)
-      """
+    Returns:
+        Tuple of:
+        (1) path to the token-ids for "from language" training data-set,
+        (2) path to the token-ids for "to language" training data-set,
+        (3) path to the token-ids for "from language" development data-set,
+        (4) path to the token-ids for "to language" development data-set,
+        (5) path to the vocabulary file,
+        (6) the true vocabulary size (less than or equal to max allowed)
+    """
 
     def update_vocab_path(vocab_size):
-        to_vocab_path   = os.path.join(data_dir, "vocab%d.to" % vocab_size)
-        from_vocab_path = os.path.join(data_dir, "vocab%d.from" % vocab_size)
-        return to_vocab_path, from_vocab_path
+        return os.path.join(data_dir, "vocab%d.txt" % vocab_size)
 
     # Create vocabularies of the appropriate sizes.
     vocab_sizes = dict()
-    to_vocab_path, from_vocab_path = update_vocab_path(from_vocabulary_size)
-    vocab_sizes['to'] = create_vocabulary(to_vocab_path, to_train_path , to_vocabulary_size)
-    vocab_sizes['from'] = create_vocabulary(from_vocab_path, from_train_path , from_vocabulary_size)
-    true_vocab_size = max(vocab_sizes['to'], vocab_sizes['from'])
+    vocab_path = update_vocab_path(vocab_size)
+    vocab_size = create_vocabulary(
+        vocab_path,
+        from_train_path,
+        to_train_path,
+        vocab_size)
 
-    from_vocabulary_size = to_vocabulary_size = true_vocab_size
-    old_to_vocab, old_from_vocab   = to_vocab_path, from_vocab_path
-    to_vocab_path, from_vocab_path = update_vocab_path(true_vocab_size)
-    # Rename vocab filenames to have the true vocab size.
-    Popen(['mv', old_to_vocab, to_vocab_path], stdout=PIPE).communicate()
-    Popen(['mv', old_from_vocab, from_vocab_path], stdout=PIPE).communicate()
+    # Necessary when we overestimate the number of unique tokens in the data.
+    # e.g. we set vocab_size = 40k but our data only has 5 unique words,
+    # it would be wasteful to train a model on 40k.
+    # Thus, we rename vocab filenames to have the true vocab size.
+    old_vocab_path = vocab_path
+    vocab_path = update_vocab_path(vocab_size)
+    if old_vocab_path != vocab_path:
+        Popen(['mv', old_vocab_path, vocab_path], stdout=PIPE).communicate()
 
     # Create token ids for the training data.
-    to_train_ids_path = to_train_path + (".ids%d" % to_vocabulary_size)
-    from_train_ids_path = from_train_path + (".ids%d" % from_vocabulary_size)
-    data_to_token_ids(to_train_path, to_train_ids_path, to_vocab_path)
-    data_to_token_ids(from_train_path, from_train_ids_path, from_vocab_path)
+    to_train_ids_path = to_train_path + (".ids%d" % vocab_size)
+    from_train_ids_path = from_train_path + (".ids%d" % vocab_size)
+    data_to_token_ids(to_train_path, to_train_ids_path, vocab_path)
+    data_to_token_ids(from_train_path, from_train_ids_path, vocab_path)
 
     # Create token ids for the development data.
-    to_dev_ids_path = to_dev_path + (".ids%d" % to_vocabulary_size)
-    from_dev_ids_path = from_dev_path + (".ids%d" % from_vocabulary_size)
-    data_to_token_ids(to_dev_path, to_dev_ids_path, to_vocab_path)
-    data_to_token_ids(from_dev_path, from_dev_ids_path, from_vocab_path)
+    to_valid_ids_path = to_valid_path + (".ids%d" % vocab_size)
+    from_valid_ids_path = from_valid_path + (".ids%d" % vocab_size)
+    data_to_token_ids(to_valid_path, to_valid_ids_path, vocab_path)
+    data_to_token_ids(from_valid_path, from_valid_ids_path, vocab_path)
 
-    train_ids_path  = [from_train_ids_path, to_train_ids_path]
-    dev_ids_path    = [from_dev_ids_path, to_dev_ids_path]
-    vocab_path      = [from_vocab_path, to_vocab_path]
-    return (train_ids_path, dev_ids_path, vocab_path, true_vocab_size)
+    train_ids_path = [from_train_ids_path, to_train_ids_path]
+    dev_ids_path = [from_valid_ids_path, to_valid_ids_path]
+    return train_ids_path, dev_ids_path, vocab_path, vocab_size

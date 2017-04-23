@@ -4,14 +4,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
+import logging
 import numpy as np
 import tensorflow as tf
-from abc import ABCMeta, abstractmethod, abstractproperty
 from utils import io_utils
-import os
-import random
-from utils.io_utils import EOS_ID, PAD_ID, GO_ID, UNK_ID
-import logging
+from utils.io_utils import PAD_ID
+from abc import ABCMeta, abstractmethod, abstractproperty
 
 from chatbot.globals import DEFAULT_FULL_CONFIG
 DEFAULT_PARAMS = DEFAULT_FULL_CONFIG['dataset_params']
@@ -21,17 +20,23 @@ class DatasetABC(metaclass=ABCMeta):
 
     @abstractmethod
     def convert_to_tf_records(self, *args):
-        """If not found in data dir, will create tfrecords data files from text files."""
+        """If not found in data dir, will create tfrecords data 
+        files from text files.
+        """
         pass
 
     @abstractmethod
     def train_generator(self, batch_size):
-        """Returns a generator function for batches of batch_size train data."""
+        """Returns a generator function for batches of batch_size 
+        train data.
+        """
         pass
 
     @abstractmethod
     def valid_generator(self, batch_size):
-        """Returns a generator function for batches of batch_size validation data."""
+        """Returns a generator function for batches of batch_size 
+        validation data.
+        """
         pass
 
     @abstractproperty
@@ -61,8 +66,8 @@ class Dataset(DatasetABC):
         """Implements the general of subset of operations that all classes can use.
 
         Args:
-            dataset_params: dictionary of configuration parameters. See DEFAULT_FULL_CONFIG
-                            at top of file for supported keys.
+            dataset_params: dictionary of configuration parameters. 
+                See DEFAULT_FULL_CONFIG at top of file for supported keys.
         """
 
         self.__dict__['__params'] = Dataset.fill_params(dataset_params)
@@ -73,25 +78,21 @@ class Dataset(DatasetABC):
                                               self.data_dir + "/train_to.txt",
                                               self.data_dir + "/valid_from.txt",
                                               self.data_dir + "/valid_to.txt",
-                                              self.vocab_size, self.vocab_size)
-        train_path, valid_path, vocab_path, true_vocab_size = paths_triplet
+                                              self.vocab_size)
+        train_paths, valid_paths, vocab_path, true_vocab_size = paths_triplet
         self.vocab_size = min(self.vocab_size, true_vocab_size)
         dataset_params['vocab_size'] = self.vocab_size
 
         self.paths = dict()
-        self.paths['from_train']    = train_path[0]
-        self.paths['to_train']      = train_path[1]
-        self.paths['from_valid']    = valid_path[0]
-        self.paths['to_valid']      = valid_path[1]
-        self.paths['from_vocab']    = vocab_path[0]
-        self.paths['to_vocab']      = vocab_path[1]
+        self.paths['from_train'] = train_paths[0]
+        self.paths['to_train'] = train_paths[1]
+        self.paths['from_valid'] = valid_paths[0]
+        self.paths['to_valid'] = valid_paths[1]
+        self.paths['vocab'] = vocab_path
         self.paths['train_tfrecords'] = None
         self.paths['valid_tfrecords'] = None
 
-        self._word_to_idx, _ = io_utils.get_vocab_dicts(
-            vocabulary_path=self.paths['from_vocab'])
-        _, self._idx_to_word = io_utils.get_vocab_dicts(
-            vocabulary_path=self.paths['to_vocab'])
+        self._word_to_idx, self._idx_to_word = io_utils.get_vocab_dicts(vocab_path)
 
         # Create tfrecords file if not located in data_dir.
         self.convert_to_tf_records('train')
@@ -106,8 +107,10 @@ class Dataset(DatasetABC):
 
         from_path = self.paths['from_'+prefix]
         to_path = self.paths['to_'+prefix]
-        output_path = os.path.join(
-            self.data_dir, prefix + 'voc%d_seq%d' % (self.vocab_size, self.max_seq_len) + '.tfrecords')
+        tfrecords_fname = (prefix
+                           + 'voc%d_seq%d' % (self.vocab_size, self.max_seq_len)
+                           + '.tfrecords')
+        output_path = os.path.join(self.data_dir, tfrecords_fname)
         if os.path.isfile(output_path):
             self.log.info('Using tfrecords file %s' % output_path)
             self.paths[prefix + '_tfrecords'] = output_path
@@ -120,9 +123,13 @@ class Dataset(DatasetABC):
 
             example  = tf.train.SequenceExample()
             encoder_list = [int(x) for x in encoder_line.split()]
-            decoder_list = [io_utils.GO_ID] + [int(x) for x in decoder_line.split()] + [EOS_ID]
-            example.context.feature['encoder_sequence_length'].int64_list.value.append(len(encoder_list))
-            example.context.feature['decoder_sequence_length'].int64_list.value.append(len(decoder_list))
+            decoder_list = [io_utils.GO_ID] \
+                           + [int(x) for x in decoder_line.split()] \
+                           + [io_utils.EOS_ID]
+            example.context.feature['encoder_sequence_length'].int64_list.value.append(
+                len(encoder_list))
+            example.context.feature['decoder_sequence_length'].int64_list.value.append(
+                len(decoder_list))
 
             encoder_sequence = example.feature_lists.feature_list['encoder_sequence']
             decoder_sequence = example.feature_lists.feature_list['decoder_sequence']
@@ -136,12 +143,16 @@ class Dataset(DatasetABC):
         with tf.gfile.GFile(from_path, mode="r") as encoder_file:
             with tf.gfile.GFile(to_path, mode="r") as decoder_file:
                 with tf.python_io.TFRecordWriter(output_path) as writer:
-                    encoder_line, decoder_line = encoder_file.readline(), decoder_file.readline()
+                    encoder_line = encoder_file.readline()
+                    decoder_line = decoder_file.readline()
                     while encoder_line and decoder_line:
-                        sequence_example = get_sequence_example(encoder_line, decoder_line)
+                        sequence_example = get_sequence_example(
+                            encoder_line,
+                            decoder_line)
                         if sequence_example is not None:
                             writer.write(sequence_example.SerializeToString())
-                        encoder_line, decoder_line = encoder_file.readline(), decoder_file.readline()
+                        encoder_line = encoder_file.readline()
+                        decoder_line = decoder_file.readline()
 
         self.log.info("Converted text files %s and %s into tfrecords file %s" \
                       % (from_path, to_path, output_path))
@@ -157,15 +168,21 @@ class Dataset(DatasetABC):
 
     def train_generator(self, batch_size):
         """[Note: not needed by DynamicBot since InputPipeline]"""
-        return self._generator(self.paths['from_train'], self.paths['to_train'], batch_size)
+        return self._generator(
+            self.paths['from_train'],
+            self.paths['to_train'],
+            batch_size)
 
     def valid_generator(self, batch_size):
         """[Note: not needed by DynamicBot since InputPipeline]"""
-        return self._generator(self.paths['from_valid'], self.paths['to_valid'], batch_size)
+        return self._generator(
+            self.paths['from_valid'],
+            self.paths['to_valid'],
+            batch_size)
 
     def _generator(self, from_path, to_path, batch_size):
-        """(Used by BucketModels only). Returns a generator function that reads data from file, an d
-            yields shuffled batches.
+        """(Used by BucketModels only). Returns a generator function that 
+        reads data from file, and yields shuffled batches.
 
         Args:
             from_path: full path to file for encoder inputs.
@@ -180,8 +197,10 @@ class Dataset(DatasetABC):
 
         def padded_batch(encoder_tokens, decoder_tokens):
             max_sent_len = longest_sentence(encoder_tokens, decoder_tokens)
-            encoder_batch = np.array([s + [PAD_ID] * (max_sent_len - len(s)) for s in encoder_tokens])[:, ::-1]
-            decoder_batch = np.array([s + [PAD_ID] * (max_sent_len - len(s)) for s in decoder_tokens])
+            encoder_batch = np.array(
+                [s + [PAD_ID] * (max_sent_len - len(s)) for s in encoder_tokens])[:, ::-1]
+            decoder_batch = np.array(
+                [s + [PAD_ID] * (max_sent_len - len(s)) for s in decoder_tokens])
             return encoder_batch, decoder_batch
 
         encoder_tokens = []
@@ -202,7 +221,8 @@ class Dataset(DatasetABC):
                     # Note: GO_ID is prepended by the chat bot, since it determines
                     # whether or not it's responsible for responding.
                     encoder_tokens.append([int(x) for x in source.split()])
-                    decoder_tokens.append([int(x) for x in target.split()] + [EOS_ID])
+                    decoder_tokens.append(
+                        [int(x) for x in target.split()] + [io_utils.EOS_ID])
 
                     # Have we collected batch_size number of sentences? If so, pad & yield.
                     assert len(encoder_tokens) == len(decoder_tokens)
@@ -251,7 +271,8 @@ class Dataset(DatasetABC):
 
     @staticmethod
     def fill_params(dataset_params):
-        """Assigns default values from DEFAULT_FULL_CONFIG for keys not in dataset_params."""
+        """Assigns default values from DEFAULT_FULL_CONFIG 
+        for keys not in dataset_params."""
         return {**DEFAULT_PARAMS, **dataset_params}
 
     def __getattr__(self, name):

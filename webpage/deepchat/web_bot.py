@@ -116,11 +116,8 @@ class FrozenBot:
         """Helper function to get dictionaries between tokens and words."""
         data_dir    = config['dataset_params']['data_dir']
         vocab_size  = config['dataset_params']['vocab_size']
-        vocab_paths = {
-            'from_vocab': os.path.join(data_dir, 'vocab{}.from'.format(vocab_size)),
-            'to_vocab': os.path.join(data_dir, 'vocab{}.to'.format(vocab_size))}
-        word_to_idx, _ = get_vocab_dicts(vocabulary_path=vocab_paths['from_vocab'])
-        _, idx_to_word = get_vocab_dicts(vocabulary_path=vocab_paths['to_vocab'])
+        vocab_path = os.path.join(data_dir, 'vocab{}.txt'.format(vocab_size))
+        word_to_idx, idx_to_word = get_vocab_dicts(vocab_path)
         return word_to_idx, idx_to_word
 
     def as_words(self, sentence):

@@ -196,16 +196,19 @@ class DynamicBot(Model):
         if dataset is None:
             dataset = self.dataset
 
-        def perplexity(loss): return np.exp(float(loss)) if loss < 300 else float("inf")
+        def perplexity(loss):
+            return np.exp(float(loss)) if loss < 300 else float("inf")
 
-        coord   = tf.train.Coordinator()
+        coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=self.sess, coord=coord)
 
         # Tell embedder to coordinate with TensorBoard's embedding visualization.
         # This allows us to view words in 3D-projected embedding space (with labels!).
-        label_paths = [dataset.paths['from_vocab'], dataset.paths['to_vocab']]
-        self.embedder.assign_visualizer(self.file_writer, 'encoder', label_paths[0])
-        self.embedder.assign_visualizer(self.file_writer, 'decoder', label_paths[1])
+        # TODO: this can be moved to a more sensible place now.
+        self.embedder.assign_visualizer(
+            self.file_writer,
+            'encoder',
+            dataset.paths['vocab'])
 
         # Note: Calling sleep() allows sustained GPU utilization across training.
         # Without it, looks like GPU has to wait for data to be enqueued more often.
@@ -225,8 +228,8 @@ class DynamicBot(Model):
                 start_time = time.time()
                 summaries, step_loss, _ = self.step()
                 # Calculate running averages.
-                avg_step_time  += (time.time() - start_time) / self.steps_per_ckpt
-                avg_loss       += step_loss / self.steps_per_ckpt
+                avg_step_time += (time.time() - start_time) / self.steps_per_ckpt
+                avg_loss += step_loss / self.steps_per_ckpt
 
                 # Print updates in desired intervals (steps_per_ckpt).
                 if i_step % self.steps_per_ckpt == 0:

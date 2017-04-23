@@ -43,7 +43,7 @@ flags.DEFINE_string("config", None, "path to config (.yml) file.")
 flags.DEFINE_string("debug", False, "If true, increases output verbosity (log levels).")
 flags.DEFINE_string("model", "{}", "Options: chatbot.{DynamicBot,Simplebot,ChatBot}.")
 flags.DEFINE_string("model_params", "{}", "")
-flags.DEFINE_string("dataset", "{}", "Options: data.{Cornell,Ubuntu,WMT}.")
+flags.DEFINE_string("dataset", "{}", "Options: data.{Cornell,Ubuntu,Reddit}.")
 flags.DEFINE_string("dataset_params", "{}", "")
 FLAGS = flags.FLAGS
 

@@ -6,6 +6,6 @@ from data import dataset_wrappers
 
 from data.data_helper import DataHelper
 from data._dataset import Dataset
-from data.dataset_wrappers import Cornell, Ubuntu, WMT, Reddit, TestData
+from data.dataset_wrappers import Cornell, Ubuntu, Reddit, TestData
 
-__all__ = ['Cornell', 'Reddit', 'WMT', 'Ubuntu']
+__all__ = ['Cornell', 'Reddit', 'Ubuntu']

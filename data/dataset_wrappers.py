@@ -43,17 +43,6 @@ class Ubuntu(Dataset):
         super(Ubuntu, self).__init__(dataset_params)
 
 
-class WMT(Dataset):
-    """English-to-French translation."""
-
-    def __init__(self, dataset_params):
-        self._name = "wmt"
-        self.log = logging.getLogger('WMTLogger')
-        dataset_params['data_dir'] = check_data(dataset_params['data_dir'],
-                                                self.name)
-        super(WMT, self).__init__(dataset_params)
-
-
 class Reddit(Dataset):
     """Reddit comments from 2007-2015."""
 

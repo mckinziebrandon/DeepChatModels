@@ -98,11 +98,8 @@ def get_frozen_vocab(config):
     """Helper function to get dictionaries for translating between tokens and words."""
     data_dir    = config['dataset_params']['data_dir']
     vocab_size  = config['dataset_params']['vocab_size']
-    vocab_paths = {
-        'from_vocab': os.path.join(data_dir, 'vocab{}.from'.format(vocab_size)),
-        'to_vocab': os.path.join(data_dir, 'vocab{}.to'.format(vocab_size))}
-    word_to_idx, _ = io_utils.get_vocab_dicts(vocabulary_path=vocab_paths['from_vocab'])
-    _, idx_to_word = io_utils.get_vocab_dicts(vocabulary_path=vocab_paths['to_vocab'])
+    vocab_path = os.path.join(data_dir, 'vocab{}.txt'.format(vocab_size))
+    word_to_idx, idx_to_word = io_utils.get_vocab_dicts(vocab_path)
     return word_to_idx, idx_to_word
 
 
@@ -117,17 +114,6 @@ class FrozenBot:
         self.config = {'dataset_params': {
             'data_dir': frozen_model_dir, 'vocab_size': vocab_size}}
         self.word_to_idx, self.idx_to_word = self.get_frozen_vocab()
-
-    def get_frozen_vocab(self):
-        """Helper function to get dictionaries for translating between tokens and words."""
-        data_dir    = self.config['dataset_params']['data_dir']
-        vocab_size  = self.config['dataset_params']['vocab_size']
-        vocab_paths = {
-            'from_vocab': os.path.join(data_dir, 'vocab{}.from'.format(vocab_size)),
-            'to_vocab': os.path.join(data_dir, 'vocab{}.to'.format(vocab_size))}
-        word_to_idx, _ = io_utils.get_vocab_dicts(vocabulary_path=vocab_paths['from_vocab'])
-        _, idx_to_word = io_utils.get_vocab_dicts(vocabulary_path=vocab_paths['to_vocab'])
-        return word_to_idx, idx_to_word
 
     def as_words(self, sentence):
         return " ".join([tf.compat.as_str(self.idx_to_word[i]) for i in sentence])
