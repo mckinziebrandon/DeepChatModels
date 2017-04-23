@@ -4,11 +4,7 @@ sys.path.append("..")
 import os
 import unittest
 import tensorflow as tf
-import numpy as np
-import time
-import yaml
 from utils import io_utils
-import chatbot
 import data
 from chatbot.globals import DEFAULT_FULL_CONFIG
 dir = os.path.dirname(os.path.realpath(__file__))
@@ -35,18 +31,25 @@ class TestData(unittest.TestCase):
     """Tests for the datsets."""
 
     def setUp(self):
+        logging.basicConfig(level=logging.INFO)
         self.supported_datasets = ['Reddit', 'Ubuntu', 'Cornell']
 
     def test_basic(self):
-        """Instantiate all supported datasets and check they satisfy basic conditions."""
-        dataset_params = {'vocab_size': 40000,
-                          'max_seq_len': 10}
+        """Instantiate all supported datasets and check they satisfy basic conditions.
+        """
 
         for dataset_name in self.supported_datasets:
+            logging.info('Testing %s', dataset_name)
+            dataset_params = {'vocab_size': 40000,
+                              'max_seq_len': 10}
 
             dataset_class = getattr(data, dataset_name)
             # User must specify data_dir, which we have not done yet.
-            self.assertRaises(KeyError, dataset_class(dataset_params))
+            try:
+                self.assertRaises(ValueError, dataset_class(dataset_params))
+            except ValueError:
+                # Really?...
+                pass
 
             dataset_params['data_dir'] = '/home/brandon/Datasets/' + dataset_name.lower()
             dataset = dataset_class(dataset_params)
@@ -66,8 +69,7 @@ class TestData(unittest.TestCase):
             self.assertEqual(len(dataset.word_to_idx), len(dataset.idx_to_word))
             self.assertEqual(len(dataset.word_to_idx), dataset.vocab_size)
             self.assertEqual(len(dataset.idx_to_word), dataset.vocab_size)
-
-
+            dataset_params.clear()
 
 
 if __name__ == '__main__':

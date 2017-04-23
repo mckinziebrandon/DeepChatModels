@@ -173,8 +173,8 @@ class Model(object):
         Args: directory containing model ckpt files we'd like to freeze.
         """
 
-        checkpoint_state    = tf.train.get_checkpoint_state(self.ckpt_dir)
-        output_fname        = os.path.join(self.ckpt_dir, "frozen_model.pb")
+        checkpoint_state = tf.train.get_checkpoint_state(self.ckpt_dir)
+        output_fname = os.path.join(self.ckpt_dir, "frozen_model.pb")
         # Note: output_node_names is only used to tell tensorflow what is can
         # throw away in the frozen graph (e.g. training ops).
         output_node_names = ",".join(

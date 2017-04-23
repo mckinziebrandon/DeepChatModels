@@ -49,18 +49,26 @@ class Embedder:
         tf.summary.histogram(scope.name, embed_tensor)
         return embedded_inputs
 
-    def assign_visualizer(self, writer, scope_name, metadata_path):
+    def assign_visualizers(self, writer, scope_names, metadata_path):
         """Setup the tensorboard embedding visualizer.
 
         Args:
             writer: instance of tf.summary.FileWriter
+            scope_names: list of 
         """
         assert writer is not None
-        config = tf.contrib.tensorboard.plugins.projector.ProjectorConfig()
-        emb = config.embeddings.add()
-        emb.tensor_name = scope_name.rstrip('/') + '/embed_tensor:0'
-        emb.metadata_path = metadata_path
-        tf.contrib.tensorboard.plugins.projector.visualize_embeddings(writer, config)
+
+        if not isinstance(scope_names, list):
+            scope_names = [scope_names]
+
+        for scope_name in scope_names:
+            assert scope_name in self._scopes, \
+                "I don't have any embedding tensors for %s" % scope_name
+            config = tf.contrib.tensorboard.plugins.projector.ProjectorConfig()
+            emb = config.embeddings.add()
+            emb.tensor_name = scope_name.rstrip('/') + '/embed_tensor:0'
+            emb.metadata_path = metadata_path
+            tf.contrib.tensorboard.plugins.projector.visualize_embeddings(writer, config)
 
     def get_scope_basename(self, scope):
         """

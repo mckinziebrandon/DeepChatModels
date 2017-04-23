@@ -17,15 +17,17 @@ from pydoc import locate
 
 
 class DynamicBot(Model):
+    """ General sequence-to-sequence model for conversations. Will eventually support
+        attention, beam search, and a wider variety of cell options. At present,
+        supports multi-layer encoder/decoders, GRU/LSTM cells, and fully dynamic
+        unrolling (online decoding included). Additionally, will soon support
+        biologically inspired mechanisms for learning, such as hebbian-based
+        update rules.
+    """
 
     def __init__(self, dataset, params):
-        """ General sequence-to-sequence model for conversations. Will eventually support
-            attention, beam search, and a wider variety of cell options. At present,
-            supports multi-layer encoder/decoders, GRU/LSTM cells, and fully dynamic
-            unrolling (online decoding included). Additionally, will soon support
-            biologically inspired mechanisms for learning, such as hebbian-based
-            update rules.
-
+        """Build the model computation graph.
+        
         Args:
             dataset: any instance inheriting from data.DataSet.
             params: dictionary of hyperparameters.
@@ -33,7 +35,7 @@ class DynamicBot(Model):
         """
 
         self.log = logging.getLogger('DynamicBotLogger')
-        # Let superclass handle the boring stuff (dirs/more instance variables).
+        # Let superclass handle the boring stuff (dirs/assigning instance variables).
         super(DynamicBot, self).__init__(self.log, dataset, params)
         self.build_computation_graph(dataset)
         self.compile()
@@ -59,7 +61,7 @@ class DynamicBot(Model):
         self.pipeline = InputPipeline(file_paths=dataset.paths,
                                       batch_size=self.batch_size,
                                       is_chatting=self.is_chatting)
-        encoder_inputs      = self.pipeline.encoder_inputs
+        encoder_inputs = self.pipeline.encoder_inputs
         self.decoder_inputs = self.pipeline.decoder_inputs
 
         with tf.variable_scope('encoder'):
@@ -193,21 +195,20 @@ class DynamicBot(Model):
             dataset: any instance of the Dataset class. Will be removed soon.
         """
 
-        if dataset is None:
-            dataset = self.dataset
-
         def perplexity(loss):
             return np.exp(float(loss)) if loss < 300 else float("inf")
+
+        if dataset is None:
+            dataset = self.dataset
 
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=self.sess, coord=coord)
 
         # Tell embedder to coordinate with TensorBoard's embedding visualization.
         # This allows us to view words in 3D-projected embedding space (with labels!).
-        # TODO: this can be moved to a more sensible place now.
-        self.embedder.assign_visualizer(
+        self.embedder.assign_visualizers(
             self.file_writer,
-            'encoder',
+            ['encoder', 'decoder'],
             dataset.paths['vocab'])
 
         # Note: Calling sleep() allows sustained GPU utilization across training.

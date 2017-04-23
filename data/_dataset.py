@@ -273,6 +273,8 @@ class Dataset(DatasetABC):
     def fill_params(dataset_params):
         """Assigns default values from DEFAULT_FULL_CONFIG 
         for keys not in dataset_params."""
+        if 'data_dir' not in dataset_params:
+            raise ValueError('data directory not found in dataset_params.')
         return {**DEFAULT_PARAMS, **dataset_params}
 
     def __getattr__(self, name):

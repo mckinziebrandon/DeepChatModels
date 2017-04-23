@@ -6,7 +6,7 @@ import logging
 import sys
 sys.path.append("..")
 from chatbot import ChatBot, SimpleBot
-from data import Cornell, Ubuntu, WMT, TestData
+from data import Cornell, Ubuntu, TestData
 
 TEMP="/home/brandon/terabyte/Datasets/ubuntu_dialogue_corpus"
 

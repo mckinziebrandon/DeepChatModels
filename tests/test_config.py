@@ -1,15 +1,11 @@
-import logging
-import sys
-sys.path.append("..")
+"""Tests for various operations done on config (yaml) dictionaries in project."""
+
 import os
+import yaml
+import logging
 import unittest
 import tensorflow as tf
-import numpy as np
-import time
-import yaml
 from utils import io_utils
-from chatbot import DynamicBot
-from data import Cornell, Ubuntu, TestData
 from chatbot.globals import DEFAULT_FULL_CONFIG
 dir = os.path.dirname(os.path.realpath(__file__))
 
@@ -104,7 +100,6 @@ class TestConfig(unittest.TestCase):
                 self.assertEqual(config['model_params'][p],
                                  DEFAULT_FULL_CONFIG['model_params'][p])
 
-
     def test_save_params(self):
 
         test_params = {'batch_size': 123, 'dropout_prob': 0.8}
@@ -113,8 +108,6 @@ class TestConfig(unittest.TestCase):
         with open('macros/test_save_false_flow.yml', 'w') as f:
             # Setting flow style False makes it human-friendly (pretty).
             yaml.dump(config, f, default_flow_style=False)
-
-
 
 
 if __name__ == '__main__':
