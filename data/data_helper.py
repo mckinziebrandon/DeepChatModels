@@ -210,3 +210,20 @@ class DataHelper:
             ]
 
         return tokenized
+
+    @staticmethod
+    def df_to_json(df, target_file=None):
+        """Converts dataframe to json object in the intuitive way, i.e.
+        each row is converted to a json object, where columns are properties. If
+        target_file is not None, then each such object is saved as a line in the
+        target_file. Helpful because pandas default args are NOT this behavior.
+        
+        Args:
+            df: Pandas DataFrame.
+            target_file: Where to save the json-converted df. 
+                If None, just return the json object.
+        """
+
+        if target_file is None:
+            return df.to_json(orient='records', lines=True)
+        df.to_json(path_or_buf=target_file, orient='records', lines=True)

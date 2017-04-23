@@ -19,7 +19,7 @@ from nltk.corpus import wordnet
 
 # Global helper object that helps abstract away locations of
 # files & directories, and keeps an eye on memory usage.
-data_helper = DataHelper()
+data_helper = None
 # Max number of words in any saved sentence.
 MAX_SEQ_LEN = 20
 # Number of CPU cores available.
@@ -181,4 +181,5 @@ def main():
         comments_dict=comments_dict)
 
 if __name__ == '__main__':
+    data_helper = DataHelper()
     main()
