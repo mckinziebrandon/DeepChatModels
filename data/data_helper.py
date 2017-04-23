@@ -30,7 +30,6 @@ DATA_ROOTS = {
     'mitch': '/Users/Mitchell/Documents/Chatbot/RedditData',
     'george': '/Users/George/Documents/ChatbotData/reddit'
 }
-
 # Maximum memory usage allowed (in GiB).
 MAX_MEM = 2.0
 
@@ -43,15 +42,14 @@ def prompt(text, default="", required=False):
         errors += 1
         userinput = input("C'mon dude, be serious%s " % (
             ':' if errors <= 1 else ('!' * errors)))
-
-    return userinput or default     # returns default if userinput is "truthy"!
+    return userinput or default
 
 
 class DataHelper:
-    """ Manages file locations and computing resource during preprocessing.
+    """Manages file locations and computing resource during preprocessing.
 
-    This interacts directly for the user and double-checks your work; I make it
-    harder for you to screw up. <-- Uh oh, I think it became self-aware.
+    This interacts directly with the user and double-checks their work; It makes it
+    harder for you to screw up.
     """
 
     def __init__(self, log_level=logging.WARNING):
@@ -65,12 +63,10 @@ class DataHelper:
         self.file_counter = 0   # current file we're processing
         self._word_freq = None  # temporary: for parallelizing frequency dict
 
-        print("Hi, I'm a DataHelper. For now, I support helping with the reddit dataset.")
+        print("Hi, I'm a DataHelper. For now, I help with the reddit dataset.")
         print("At any prompt, press ENTER if you want the default value.")
 
-        #
         # 1. Get user name. We can associate info with a given user as we go.
-        #
         user = prompt("Username", default="brandon").lower()
         if user not in DATA_ROOTS:
             print("I don't recognize you, %s." % user)
@@ -81,9 +77,7 @@ class DataHelper:
 
         print("Hello, %s, I've set your data root to %s" % (user, self.data_root))
 
-        #
         # 2. Get absolute paths to all data filenames in self.file_paths.
-        #
         self.file_paths = []
         years = prompt("Years to process", default="2007,2008,2009").split(',')
         for y in years:
@@ -104,27 +98,23 @@ class DataHelper:
             self.max_mem = float(_max_mem)
         except ValueError:
             print("C'mon dude, get it together!")
-            print("I haven't written this code well, so you'll have to start over.")
 
-        # Load the helper dictionaries from dicts.json, which contain the following:
-        #
+        # Load the helper dictionaries from preprocessing_dicts.json, which contain the following:
         #   - First line:   a list of regular expressions to match against the data.
         #   - Second line:  a list of _replacements_ for the mathces in line one.
         #                   These should obviously have a 1-1 relationship.
         #   - Third line:   k -> v pairs of contractions.
-        #
-        json_filename = "dicts.json"
+        json_filename = "preprocessing_dicts.json"
         with open(os.path.join(HERE, json_filename), 'r') as file:
             json_data = [json.loads(line) for line in file]
-
             # TODO: more descriptive names for the 'modify_' objects here would be nice.
             self.modify_list, self.modify_value, self.contractions = json_data
 
         print("Loaded parameters from %s." % json_filename)
 
     def safe_load(self):
-        """ Load data while keeping an eye on memory usage.
-        """
+        """ Load data while keeping an eye on memory usage."""
+
         if self.file_counter >= len(self.file_paths):
             print("No more files to load!")
             return None
@@ -154,6 +144,9 @@ class DataHelper:
         return df
 
     def set_word_freq(self, wf):
+        """Hacky (temporary) fix related to multiprocessing.Pool complaints
+        for the reddit preprocessing script.
+        """
         self._word_freq = wf
 
     @property
@@ -161,8 +154,7 @@ class DataHelper:
         return self._word_freq
 
     def generate_files(self, from_file_path, to_file_path, root_to_children, comments_dict):
-        """ Generates two files, [from_file_path] and [to_file_path] of 1-1 comments.
-        """
+        """ Generates two files, [from_file_path] and [to_file_path] of 1-1 comments."""
         from_file_path = os.path.join(self.data_root, from_file_path)
         to_file_path = os.path.join(self.data_root, to_file_path)
 
@@ -190,8 +182,7 @@ class DataHelper:
                                  0.1 * num_samples))
 
     def df_generator(self):
-        """ Generates df from single files at a time.
-        """
+        """ Generates df from single files at a time."""
         for i in range(len(self.file_paths)):
             df = pd.read_json(self.file_paths[i], lines=True)
             init_num_rows = len(df.index)
@@ -201,8 +192,7 @@ class DataHelper:
 
     @staticmethod
     def random_rows_generator(num_rows_per_print, num_rows_total):
-        """ Fun generator for viewing random comments (rows) in dataframes.
-        """
+        """ Fun generator for viewing random comments (rows) in dataframes."""
         num_iterations = num_rows_total // num_rows_per_print
         shuffled_indices = np.arange(num_rows_per_print * num_iterations)
         np.random.shuffle(shuffled_indices)
@@ -211,8 +201,7 @@ class DataHelper:
 
     @staticmethod
     def word_tokenizer(sentences):
-        """ Tokenizes sentence / list of sentences into word tokens.
-        """
+        """ Tokenizes sentence / list of sentences into word tokens."""
         # Minor optimization: pre-create the list and fill it.
         tokenized = [None for _ in range(len(sentences))]
         for i in range(len(sentences)):
