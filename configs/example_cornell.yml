@@ -1,6 +1,4 @@
-# Example of good parameters for the cornell dataset.
-# Note that most "good" parameters here are good for all the datasets,
-# and so most of these are actually the default values.
+# These are the main parameters and default values.
 # This file is just meant to illustrate what the user can change.
 model: chatbot.DynamicBot
 dataset: data.Cornell
@@ -27,6 +25,6 @@ model_params:
   steps_per_ckpt: 200
   temperature: 0.0
 dataset_params:
-  data_dir: None    # The only truly 'mandatory' parameter.
+  data_dir: None # The only truly 'mandatory' parameter.
   vocab_size: 40000
   max_seq_len: 10

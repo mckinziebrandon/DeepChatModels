@@ -1,7 +1,4 @@
-# Example of good parameters for the cornell dataset.
-# Note that most "good" parameters here are good for all the datasets,
-# and so most of these are actually the default values.
-# This file is just meant to illustrate what the user can change.
+# Simple, but (unusually) effective.
 model: chatbot.DynamicBot
 dataset: data.Cornell
 model_params:
