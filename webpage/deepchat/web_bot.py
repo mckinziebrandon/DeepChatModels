@@ -81,7 +81,7 @@ def unfreeze_bot(frozen_model_path):
         outputs: tensor that can be run in a session.
     """
 
-    bot_graph   = load_graph(frozen_model_path)
+    bot_graph = load_graph(frozen_model_path)
     tensors = {'inputs': bot_graph.get_tensor_by_name('import/input_pipeline/user_input:0'),
                'outputs': bot_graph.get_tensor_by_name('import/outputs:0')}
     return tensors, bot_graph

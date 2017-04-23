@@ -6,19 +6,34 @@
     - Children can either override or add to it.
     - See index.html for a simple example. -->
   {% block head %}
+
+    {% block metas %}
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="">
     <meta name="author" content="sentient-machine">
+    {% endblock metas %}
 
-    <title>Deep Chat Models</title>
+    <title>
+      {% block title %}
+        Deep Chat Models
+      {% endblock title %}
+    </title>
 
     <!-- Lil yellow bot favicon -->
     <link href="/static/img/favicon.ico" rel="icon" type="image/x-icon">
 
-    <!-- Latest Bootstrap Core CSS (CDN to reduce memory on heroku) -->
+    <!-- Bootstrap core CSS -->
+    <link rel="stylesheet" type="text/css" id="theme-link"
+          href="{{ url_for('static', filename='css/flatly-bootstrap.min.css') }}">
+
+    <!-- Custom styles for this template (I see ur overrule with an overrule. -->
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/theme.css') }}">
+
+    <!-- Latest Bootstrap Core CSS (CDN to reduce memory on heroku)
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    -->
 
     <!-- Custom Fonts -->
     <link href="/static/vendor/font-awesome/css/font-awesome.min.css"
@@ -34,9 +49,22 @@
     <link href="http://fonts.googleapis.com/css?family=Lato"
           rel="stylesheet" type="text/css" >
 
+    <!-- Bootstrap slider -->
+    <link rel="stylesheet" type="text/css"
+          href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/9.7.3/css/bootstrap-slider.min.css">
+
     <!-- CSS Modifications -->
     <link rel="stylesheet" type="text/css"
           href="{{ url_for('static', filename='css/style_modifications.css') }}">
+
+    <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+
+    <!-- Slider js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/9.7.3/bootstrap-slider.min.js"></script>
+
+    <!-- OVERRULED!! HAHA. But yeah, should probably move this (populates theme-options) -->
+    <script src="{{ url_for('static', filename='js/bootswatch.js') }}"></script>
 
   {% endblock head %}
 </head>
@@ -45,48 +73,64 @@
 
 <!-- Navigation -->
 {% block navbar %}
-  <nav id="mainNav" class="navbar navbar-default" style="font-family: Lato">
-    <!-- Fluid makes nav stretch along entire screen width.
-         - In practice, this appears to mean brand is actually leftmost. -->
-    <div class="container-fluid">
+    {%  set navigation_bar = [
+        ('/', 'index', 'Home'),
+        ('/about', 'about', 'About'),
+    ] -%}
+  {%  set active_page = active_page|default('index') -%}
 
-      <!-- Brand and toggle get grouped for better mobile display -->
-      <div class="navbar-header page-scroll">
-        <!-- Toggle button ("Menu") -->
+  <!-- Fixed navbar -->
+  <nav class="navbar navbar-default navbar-fixed-top">
+    <div class="container">
+      <div class="navbar-header">
         <button type="button" class="navbar-toggle collapsed"
-                data-toggle="collapse"
-                data-target="#dropdown"
-                aria-expanded="false"
-                aria-controls="navbar">
-          <!-- span: generic inline container for phrasing content, which
-          does not inherently represent anything -->
+                data-toggle="collapse" data-target="#navbar"
+                aria-expanded="false" aria-controls="navbar">
           <span class="sr-only">Toggle navigation</span>
-          <span class="icon-bar"></span>
-          <span class="icon-bar"></span>
-          <span class="icon-bar"></span>
-        </button>  <!-- /.navbar-toggle -->
-        <!-- Brand -->
-        <a class="navbar-brand page-scroll" href="{{ url_for('.index') }}">
-          DeepChatModels
-        </a>
+          {% for _ in range(3) %}
+            <span class="icon-bar"></span>
+          {% endfor %}
+        </button>
+        <a class="navbar-brand" href="/">DeepChatModels</a>
       </div>
 
-      <!-- Navbar dropdown and links to pages. -->
-      <div id="dropdown" class="navbar-collapse collapse">
+      <div id="navbar" class="navbar-collapse collapse">
         <ul class="nav navbar-nav">
-          <li><a href="{{ url_for('.index') }}">Home</a></li>
-          <li><a href="{{ url_for('.about') }}">About</a></li>
-        </ul>
-      </div>  <!-- end: dropdown -->
-    </div>  <!-- end: container-fluid -->
+          {%  for href, id, caption in navigation_bar %}
+            <li {% if id == active_page %} class="active" {% endif %}>
+              <a href="{{ href|e }}">{{ caption|e }}</a>
+            </li>
+          {% endfor %}
+
+        </ul>  <!-- end: navbar-nav -->
+      </div>  <!-- end: navbar -->
+    </div>  <!-- end: container -->
   </nav>
 {% endblock navbar %}
 
-<!-- Chat section. See index.html for template. -->
-{% block content %}{% endblock content %}
+<!-- Declare a block with name 'content' for derived templates. -->
+{% block content %}
+  <div class="container">
+    <!-- Display any flash() message calls from e.g. views.py -->
+    {%  with messages = get_flashed_messages() %}
+      {%  if messages %}
+        <div class="alert alert-info">
+          {% for message in messages %}
+            <p>{{ message }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+  </div>  <!-- end: container -->
 
-<!-- jQuery -->
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+  <!-- Inject derived pages' content inside the following container. -->
+  <div class="container">
+    {% block page_content %}
+    {% endblock page_content %}
+  </div>
+
+{%  endblock content %}
+
 <!-- Latest Bootstrap JavaScript -->
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
 <!-- Plugin JavaScript -->

@@ -18,20 +18,19 @@ def load_gloabal_data():
         is_testing=app.testing)
 
 
-@app.route('/', methods=['GET'])
-@app.route('/index', methods=['GET'])
+@app.route('/')
+@app.route('/index')
 def index():
     chat_form = ChatForm()
     return render_template('index.html', form=chat_form)
 
 
-# TODO: why do we need the trailing slash here?
-@app.route('/chat/', methods=['POST'])
+@app.route('/chat', methods=['POST'])
 def chat():
     chat_form = ChatForm()
     return bot(chat_form.message.data)
 
 
-@app.route('/about', methods=['GET'])
+@app.route('/about')
 def about():
     return render_template('about.html')

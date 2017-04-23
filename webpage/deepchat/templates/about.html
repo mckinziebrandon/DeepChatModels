@@ -1,18 +1,11 @@
 {%  extends  "base.html" %}
-{% block head %}
-    <!-- Render the <head> element of base.html first. -->
-    {{  super() }}
-{% endblock head %}
+{% set active_page = "about" %}
 
 <!-- Chat Section -->
-{% block content %}
-<div class="container">
-<section id="about">
+{% block page_content %}
     <div class="jumbotron">
         <h1>DeepChatModels</h1>
-        <p>
-            We are just some dudes.
-        </p>
+        <p>We are just some dudes. </p>
     </div>
 
     <h2>The Dudes Themselves</h2>
@@ -50,7 +43,4 @@
             </footer>
         </blockquote>
     </div>
-
-</section>
-</div>
-{% endblock content %}
+{% endblock page_content %}

@@ -1,53 +1,48 @@
 {%  extends  "base.html" %}
-{% block head %}
-    <!-- Render the <head> element of base.html first. -->
-    {{  super() }}
-{% endblock head %}
+{% set active_page = "index" %}
 
 <!-- Chat Section -->
-{% block content %}
-<div class="container">
-    <section id="chat">
-        <div class="row">
-            <div class="col-xs-12 text-center">
-                <h2 class="section-heading">
-                    Chat with our bot!
-                </h2>
-            </div>
+{% block page_content %}
+
+
+  <div class="jumbotron">
+    <h1>Conversation Models in TensorFlow</h1>
+    <p>Have a chat with a deep neural network.</p>
+  </div>
+
+  <div class="row">
+    <h2>Cornell - Simple</h2>
+    <p>This model, a simple encoder-decoder, was trained on the Cornell Movie Dialogs dataset.</p>
+    <div class="col-xs-12 col-sm-10">
+
+      <div id="chat-box" class="row">
+
+        <div id="chat-log" class="col-xs-12 col-sm-10 col-sm-offset-1">
+          <!-- chat box injected here -->
         </div>
 
-        <div id="chat-box" class="row">
+        <div id="chat-form" class="row text-center">
+          <div class="input-group">
+            <!-- Where user types their inputs to the bot. -->
+            <input type="text"
+                   class="form-control input-sm"
+                   aria-label="Chat Input"
+                   name="{{ form.message.name }}"
+                   placeholder="Hey bot...">
+            <!-- Note: input-group-btn is built-in bootstrap. -->
+            <div class="input-group-btn">
+              <!-- Submit button with 'Chat' as text. -->
+              <button id="chat-submit"
+                      class="btn btn-primary btn-sm"
+                      type="submit">
+                Chat
+              </button>
+            </div>
+          </div>  <!-- end: input-group (cls) -->
+        </div>  <!-- end: chat-form (id) -->
+      </div>
 
-            <div class="col-xs-12" style="margin-top: 2em">
+    </div>
+  </div>
 
-                <div class="row">
-                    <div id="chat-log"
-                         class="col-xs-12 text-center">
-                        <!-- This is where the chat log is injected. -->
-                    </div>
-                </div>  <!-- end: row -->
-
-                <div id="chat-form" class="row text-center">
-                    <div class="input-group">
-                        <!-- Where user types their inputs to the bot. -->
-                        <input type="text"
-                               class="form-control input-sm"
-                               aria-label="Chat Input"
-                               name="{{ form.message.name }}"
-                               placeholder="Hey bot...">
-                        <!-- Note: input-group-btn is built-in bootstrap. -->
-                        <div class="input-group-btn">
-                            <!-- Submit button with 'Chat' as text. -->
-                            <button id="chat-submit"
-                                    class="btn btn-primary btn-sm"
-                                    type="submit">
-                                Chat
-                            </button>
-                        </div>
-                    </div>  <!-- end: input-group (cls) -->
-                </div>  <!-- end: chat-form (id) -->
-            </div> <!-- end: cols-xs-12 (cls) -->
-        </div>  <!-- end: chat-box (id) -->
-</section>
-</div>
-{%  endblock content %}
+{%  endblock page_content %}

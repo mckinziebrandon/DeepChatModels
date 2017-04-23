@@ -1,0 +1,109 @@
+{% extends "abstract_base.html" %}
+{% block title %}
+  {% if active_page %}{{ active_page }}{% else %}FlaskPractice{% endif %}
+{% endblock title %}
+
+{% block head %}
+  {{ super() }}
+  <!-- My own styles. -->
+  <link rel="stylesheet" type="text/css"
+        href="{{ url_for('static', filename='css/style_additions.css') }}">
+
+  <!-- OVERRULED!! HAHA. But yeah, should probably move this (populates theme-options) -->
+  <script src="{{ url_for('static', filename='js/bootswatch.js') }}"></script>
+
+{% endblock head %}
+
+{% block navbar %}
+  {%  set navigation_bar = [
+        ('/', 'index', 'Index'),
+        ('/input_practice', 'input_practice', 'Input Practice'),
+        ('/databases', 'databases', 'Databases'),
+        ('/games', 'games', 'Games'),
+    ] -%}
+  {%  set active_page = active_page|default('index') -%}
+
+  <!-- Fixed navbar -->
+  <nav class="navbar navbar-default navbar-fixed-top">
+    <div class="container">
+      <div class="navbar-header">
+        <button type="button" class="navbar-toggle collapsed"
+                data-toggle="collapse" data-target="#navbar"
+                aria-expanded="false" aria-controls="navbar">
+          <span class="sr-only">Toggle navigation</span>
+          {% for _ in range(3) %}
+            <span class="icon-bar"></span>
+          {% endfor %}
+        </button>
+        <a class="navbar-brand" href="/">FlaskPractice</a>
+      </div>
+
+      <div id="navbar" class="navbar-collapse collapse">
+        <ul class="nav navbar-nav">
+          {%  for href, id, caption in navigation_bar %}
+            <li {% if id == active_page %} class="active" {% endif %}>
+              <a href="{{ href|e }}">{{ caption|e }}</a>
+            </li>
+          {% endfor %}
+
+          <li class="dropdown">
+            <a href="#" class="dropdown-toggle"
+               data-toggle="dropdown"
+               role="button"
+               aria-haspopup="true"
+               aria-expanded="false">
+              Reference
+              <span class="caret"></span></a>
+            <ul class="dropdown-menu">
+              <li><a href="{{ url_for('reference', prefix="bootstrap") }}">Bootstrap</a></li>
+              <li><a href="{{ url_for('reference', prefix="flask") }}">Flask</a></li>
+              <li><a href="{{ url_for('reference', prefix="javascript") }}">Javascript</a></li>
+              <li><a href="{{ url_for('reference', prefix="jquery") }}">JQuery</a></li>
+              <li><a href="{{ url_for('reference', prefix="canvas") }}">Canvas</a></li>
+            </ul>  <!-- end: dropdown-menu -->
+          </li>  <!-- end: dropdown -->
+
+        </ul>  <!-- end: navbar-nav -->
+        <ul class="nav navbar-nav navbar-right">
+          <span class="navbar-text">Theme:</span>
+          <style type="text/css">
+            .navbar-text {
+              margin-top: 1.4em;
+            }
+            .themes-btn {
+              font-size: 12px;
+              padding: 0.7em;
+              background-color: lightgray;
+              margin-top: 1.1em;
+            }
+          </style>
+          <li class="dropdown">
+            <select id='theme-options'
+                    role="button"
+                    type="button"
+                    data-toggle="dropdown"
+                    class="btn btn-small themes-btn dropdown-toggle">
+            </select>
+          </li>
+        </ul>
+
+      </div>  <!-- end: navbar -->
+    </div>  <!-- end: container -->
+  </nav>
+{% endblock navbar %}
+
+<!-- Declare a block with name 'content' for derived templates. -->
+{% block content %}
+
+  <!-- Allow for message handling/bookkeeping first. -->
+  {{ super() }}
+
+  <!-- Inject derived pages' content inside the following container. -->
+  <div class="container">
+    {% block page_content %}{% endblock page_content %}
+  </div>
+{%  endblock content %}
+
+
+
+
