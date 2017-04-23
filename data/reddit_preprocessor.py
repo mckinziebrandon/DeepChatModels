@@ -130,7 +130,7 @@ def remove_large_comments(max_len, df):
 
 @timed_function('expand_contractions')
 def expand_contractions(df):
-    """ Replace all contractions with their expanded form.
+    """ Replace all contractions with their expanded chat_form.
     """
     for contraction, as_words in data_helper.contractions.items():
         df['body'].replace({contraction: as_words}, regex=True, inplace=True)
