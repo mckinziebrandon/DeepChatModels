@@ -1,8 +1,5 @@
-Flask==0.12.1
-Flask_WTF==0.14.2
 Pympler==0.5
 setuptools==35.0.1
-WTForms==2.1
 PyYAML==3.12
 nltk>=3.2.2
 numpy>=1.11.0
