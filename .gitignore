@@ -31,3 +31,5 @@ compact.sh
 **/saved_train_data/**
 
 **/assets/frozen_models/cornell/**
+
+**/*.db
