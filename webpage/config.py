@@ -9,7 +9,7 @@ SQLALCHEMY_MIGRATE_REPO = os.path.join(basedir, 'db_repository')
 
 
 class Config:
-    TESTING = True  # used internally by Flask instances.
+    #TESTING = True  # used internally by Flask instances.
     # Activates the cross-site request forgery prevention.
     WTF_CSRF_ENABLED = True
     # Used to create cryptographic token used to valide a chat_form.
@@ -31,7 +31,6 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
-    TESTING = True  # used internally by Flask instances.
 
 
 class TestingConfig(Config):

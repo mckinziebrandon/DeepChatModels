@@ -22,7 +22,7 @@ def load_gloabal_data():
 
     # TODO: Just load the yaml config so we don't need to hardcode.
     chatbot_model = Chatbot(
-        name='ihateyou',
+        name='babycornell',
         dataset='cornell',
         base_cell='GRUCell',
         encoder='BasicEncoder',
