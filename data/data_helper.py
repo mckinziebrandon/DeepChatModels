@@ -11,6 +11,7 @@ from __future__ import print_function
 import os
 import re
 import pdb
+import sys
 import json
 import logging
 import tempfile
@@ -52,10 +53,11 @@ class DataHelper:
     harder for you to screw up.
     """
 
-    def __init__(self, log_level=logging.WARNING):
+    def __init__(self, log_level=logging.INFO):
         """ Establish some baseline data with the user.
         """
-        self.logfile = tempfile.NamedTemporaryFile(mode='w', delete=False)
+        self.logfile = tempfile.NamedTemporaryFile(
+            mode='w', prefix='data_helper', delete=False)
         self.logfile.close()
         logging.basicConfig(filename=self.logfile.name, level=log_level)
         print("Using logfile:", self.logfile.name)
@@ -99,19 +101,6 @@ class DataHelper:
         except ValueError:
             print("C'mon dude, get it together!")
 
-        # Load the helper dictionaries from preprocessing_dicts.json, which contain the following:
-        #   - First line:   a list of regular expressions to match against the data.
-        #   - Second line:  a list of _replacements_ for the mathces in line one.
-        #                   These should obviously have a 1-1 relationship.
-        #   - Third line:   k -> v pairs of contractions.
-        json_filename = "preprocessing_dicts.json"
-        with open(os.path.join(HERE, json_filename), 'r') as file:
-            json_data = [json.loads(line) for line in file]
-            # TODO: more descriptive names for the 'modify_' objects here would be nice.
-            self.modify_list, self.modify_value, self.contractions = json_data
-
-        print("Loaded parameters from %s." % json_filename)
-
     def safe_load(self):
         """ Load data while keeping an eye on memory usage."""
 
@@ -127,20 +116,25 @@ class DataHelper:
             list_.append(pd.read_json(self.file_paths[i], lines=True))
 
             mem_usage = float(asizeof(list_)) / 1e9
-            logging.info("Data list has size %.3f GiB" % mem_usage)
+            logging.info("Data list has size %.3f GiB", mem_usage)
+            logging.info("Most recent file loaded: %s", self.file_paths[i])
+            print("\rLoaded file", self.file_paths[i], end="")
+            sys.stdout.flush()
             if mem_usage > self.max_mem:
-                print("Past max capacity: %r! Leaving data collection early." % mem_usage)
+                print("\nPast max capacity: %r! Leaving data collection early.", mem_usage)
+                logging.warning('Terminated data loading after reading %d files.', i + 1)
+                logging.info('Files read into df: %r', self.file_paths[:i+1])
                 break
+        print()
 
         # If the user decides they want to continue loading later (when memory frees up),
         # we want the file_counter set so that it starts on the next file.
         self.file_counter = i + 1
 
         df = pd.concat(list_).reset_index()
-        init_num_rows = len(df.index)
-        logging.info("Number of lines in raw data file: %r" % init_num_rows)
-        logging.info("Column names from raw data file: %r"  % df.columns)
-        logging.info("DataHelper.safe_load: df.head() = %r" % df.head())
+        logging.info("Number of lines in raw data file: %r", len(df.index))
+        logging.info("Column names from raw data file: %r", df.columns)
+        logging.info("DataHelper.safe_load: df.head() = %r", df.head())
         return df
 
     def set_word_freq(self, wf):
@@ -157,6 +151,7 @@ class DataHelper:
         """ Generates two files, [from_file_path] and [to_file_path] of 1-1 comments."""
         from_file_path = os.path.join(self.data_root, from_file_path)
         to_file_path = os.path.join(self.data_root, to_file_path)
+        print("Writing data files:\n%s\n%s", from_file_path, to_file_path)
 
         with open(from_file_path, 'w') as from_file:
             with open(to_file_path, 'w') as to_file:
@@ -212,18 +207,27 @@ class DataHelper:
         return tokenized
 
     @staticmethod
-    def df_to_json(df, target_file=None):
+    def df_to_json(df, target_file=None, orient='records', lines=False, **kwargs):
         """Converts dataframe to json object in the intuitive way, i.e.
         each row is converted to a json object, where columns are properties. If
         target_file is not None, then each such object is saved as a line in the
         target_file. Helpful because pandas default args are NOT this behavior.
         
+        Note: Setting lines=True can result in some problems when trying to reload
+        the file. Setting lines=False, while makes an essentially unreadable (for humans)
+        output file, it at least reproduces the saved dataframe upon loading via
+            df_reloaded = pd.read_json(target_file)
+        
         Args:
             df: Pandas DataFrame.
+            orient: 
+            lines: whether or not to save rows on their own line or writing full file to
+                single line.
             target_file: Where to save the json-converted df. 
                 If None, just return the json object.
+            kwargs: any additional named params the user wishes to pass to df.to_json.
         """
 
         if target_file is None:
-            return df.to_json(orient='records', lines=True)
-        df.to_json(path_or_buf=target_file, orient='records', lines=True)
+            return df.to_json(orient=orient, lines=lines, **kwargs)
+        df.to_json(path_or_buf=target_file, orient=orient, lines=lines, **kwargs)

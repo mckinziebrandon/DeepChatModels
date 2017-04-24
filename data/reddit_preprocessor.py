@@ -14,16 +14,20 @@ from multiprocessing import Pool
 import numpy as np
 import pandas as pd
 from data.data_helper import DataHelper
+from data.regex import regex_replace, contractions
 from nltk.corpus import wordnet
 
 
 # Global helper object that helps abstract away locations of
 # files & directories, and keeps an eye on memory usage.
-data_helper = None
+if __name__ == '__main__':
+    data_helper = DataHelper()
+else:
+    data_helper = None
 # Max number of words in any saved sentence.
 MAX_SEQ_LEN = 20
 # Number of CPU cores available.
-NUM_CORES = 1
+NUM_CORES = 2
 # How many chunks we should split dataframes into at any given time.
 NUM_PARTITIONS = 64
 
@@ -114,8 +118,11 @@ def regex_replacements(df):
     df['body'] = df['body'].map(lambda s: s.strip().lower())
 
     # Loop over regex replacements specified by modify_list.
-    for old, new in data_helper.modify_list.items():
-        df['body'].replace({old: new}, regex=True, inplace=True)
+    for regex in regex_replace:
+        df['body'].replace(
+            {regex: regex_replace[regex]},
+            regex=True,
+            inplace=True)
 
     return df
 
@@ -124,16 +131,17 @@ def regex_replacements(df):
 def remove_large_comments(max_len, df):
     # Could probably do a regex find on spaces to make this faster.
     df = df[df['body'].map(lambda s: len(s.split())) < max_len].reset_index(drop=True)
-    df = df[df['body'].map(lambda s: 'http' not in s)].reset_index(drop=True)
     return df
 
 
 @timed_function('expand_contractions')
 def expand_contractions(df):
     """ Replace all contractions with their expanded chat_form.
+    
+    Note: contractions is dict(contraction -> expanded form)
     """
-    for contraction, as_words in data_helper.contractions.items():
-        df['body'].replace({contraction: as_words}, regex=True, inplace=True)
+    for c in contractions:
+        df['body'].replace({c: contractions[c]}, regex=True, inplace=True)
     return df
 
 
@@ -165,10 +173,10 @@ def main():
 
     print('Bout to score!')
     df['score'] = parallel_map_list(fn=sentence_score, iterable=sentences)
-    sentences = None
+    del sentences
 
     # Keep the desired percentage of lowest-scored sentences. (low == good)
-    keep_best_percent = 0.75
+    keep_best_percent = 0.8
     df = df.loc[df['score'] < df['score'].quantile(keep_best_percent)]
 
     print('Prepping for the grand finale.')
