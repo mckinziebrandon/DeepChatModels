@@ -1,0 +1,60 @@
+{% macro with_errors(field) %}
+  <!-- Wraps a form field with error handling. -->
+  <div class="form_field">
+    {% if field and field.errors %}
+      {% set css_class = 'has_error ' + kwargs.pop('class', '') %}
+      {{ field(class=css_class, **kwargs) }}
+      <ul class="errors">{% for error in field.errors %}<li>{{ error|e }}</li>{% endfor %}</ul>
+    {% else %}
+      {{ field(**kwargs) }}
+    {% endif %}
+  </div>
+{% endmacro %}
+
+<!-- Render a field label. -->
+{% macro render_label(label) %}
+  {{ label(style="text-transform: capitalize;", **kwargs) }}
+{% endmacro %}
+
+<!-- Render the user message input field. -->
+{% macro render_user_message(message) %}
+  {{ message(class="form-control input-sm", autocomplete="off", **kwargs) }}
+{% endmacro %}
+
+<!-- Render a submit button. -->
+{% macro render_submit(submit) %}
+  {{ with_errors(submit, **kwargs) }}
+{% endmacro %}
+
+<!-- Render an instance of app.forms.BasicForm. -->
+{% macro render_chat_form(form, id, bot_name) %}
+  <div id="{{ id }}" class="row text-center chat-form">
+    <div class="input-group">
+      <!-- For CSRF reasons. -->
+      {{ form.hidden_tag() }}
+      {{ render_user_message(form.message, id=bot_name) }}
+      <!-- Submit -->
+      <div class="input-group-btn">
+        {{ render_submit(form.submit, class="chat-form-submit btn btn-primary btn-sm") }}
+      </div>
+    </div>
+  </div>
+{% endmacro %}
+
+
+{% macro render_user_form(form, id) %}
+  <div id="{{ id }}" class="form-group">
+    <!-- For CSRF reasons. -->
+    {{ form.hidden_tag() }}
+    <div class="input-input-group">
+    <!-- User Name -->
+    {{ render_label(form.name.label) }}
+    {{ form.name(class="form-control", autocomplete="off") }}
+    <!-- Submit -->
+      <br>
+    {{ render_submit(form.submit, id=id + '-submit', class='user-form-submit btn btn-primary btn-sm') }}
+    </div>
+  </div>
+{% endmacro %}
+
+

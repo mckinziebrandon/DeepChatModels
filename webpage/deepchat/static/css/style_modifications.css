@@ -8,18 +8,17 @@
   font-size: 39px;
 }
 
-#chat-submit {
+.chat-form-submit {
   background-color: rgb(20, 150, 220);
   border-color: rgb(20, 130, 200);
 }
 
-#chat-box {
+.chat-box {
   /* color, image, repeat */
   background: rgba(176, 196, 222, 0.6) none no-repeat;
-  /* font-family: Lato;*/
 }
 
-#chat-log {
+.chat-log {
   position: relative;
   height: 245px;
   margin-bottom: 0.5em;
@@ -32,18 +31,16 @@
   word-wrap: break-word;
 }
 
-#chat-form {
+.chat-form {
   padding: 0.25em 3em 0.3em;
 }
 
 .bot-name {
   color: rgba(70, 130, 180, 0.6);
-  /*font-style: italic;*/
 }
 
 .user-name {
   color: SeaGreen;
-  /*font-style: italic;*/
 }
 
 .message {
@@ -51,7 +48,7 @@
   margin-right: 0.1em;
 }
 
-#chat-log hr {
+.chat-log hr {
   display: block;
   border: none;
   height: 1px;

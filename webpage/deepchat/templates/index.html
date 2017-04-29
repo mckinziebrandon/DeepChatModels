@@ -1,9 +1,9 @@
 {%  extends  "base.html" %}
 {% set active_page = "index" %}
+{% from "macros/forms.html" import render_chat_form, render_user_form %}
 
 <!-- Chat Section -->
 {% block page_content %}
-
 
   <div class="jumbotron">
     <h1>Conversation Models in TensorFlow</h1>
@@ -11,47 +11,46 @@
   </div>
 
   <div class="row">
-    <h2>Cornell - Simple</h2>
-    <p>This model, a simple encoder-decoder, was trained on the Cornell Movie Dialogs dataset.</p>
-    <div class="col-xs-12 col-sm-10">
-
-      <div id="chat-box" class="row">
-
-        <div id="chat-log" class="col-xs-12 col-sm-10 col-sm-offset-1">
-          <!-- chat box injected here -->
-        </div>
-
-        <div id="chat-form" class="row text-center">
-          <div class="input-group">
-            <!-- Where user types their inputs to the bot. -->
-            <input type="text"
-                   autocomplete="off"
-                   class="form-control input-sm"
-                   aria-label="Chat Input"
-                   name="{{ chat_form.message.name }}"
-                   placeholder="Hey bot...">
-            <!-- Note: input-group-btn is built-in bootstrap. -->
-            <div class="input-group-btn">
-              <!-- Submit button with 'Chat' as text. -->
-              <button id="chat-submit"
-                      class="btn btn-primary btn-sm"
-                      type="submit">
-                Chat
-              </button>
-            </div>
-          </div>  <!-- end: input-group (cls) -->
-        </div>  <!-- end: cchat_formform (id) -->
-      </div>
+    <h3>Who Are You?</h3>
+    <div class="col-xs-12 col-sm-8">
+      <p>The bot would like to know who it is talking to. Feel free to tell it your name!</p>
+      {{ render_user_form(user_form, "user-form") }}
     </div>
   </div>
 
-  <br>
+  <hr>
   <div class="row">
-  <h3>Who Are You?</h3>
-  <div class="col-xs-12 col-sm-8">
-    <p>The bot would like to know who it is talking to. Feel free to tell it your name!</p>
-    {% include 'macros/user_form.html' %}
+    <h2>Cornell - Simple</h2>
+    <p>This model, a simple encoder-decoder, was trained on the Cornell Movie Dialogs dataset.</p>
+    <div class="col-xs-12 col-sm-10">
+      <!-- The big ol' (blue background) chat box. -->
+      <div id="cornell-chat-box" class="chat-box row">
+        <!-- chat box injected here -->
+        <div id='cornell-chat-log' class="chat-log col-xs-12 col-sm-10 col-sm-offset-1">
+        </div>
+        <!-- User input injected here -->
+        {{ render_chat_form(chat_form, "cornell-chat-form", "cornell") }}
+      </div>  <!-- end: chat-box  -->
+    </div>  <!-- end: col -->
   </div>
+  <br>
+
+  <hr>
+  <div class="row">
+    <h2>Reddit - Simple</h2>
+    <p>This model, a simple encoder-decoder, was trained on a subset of the Reddit dataset.</p>
+    <div class="col-xs-12 col-sm-10">
+
+      <div id="reddit-chat-box" class="chat-box row">
+        <div id='reddit-chat-log' class="chat-log col-xs-12 col-sm-10 col-sm-offset-1"></div>
+        {{ render_chat_form(chat_form, "reddit-chat-form", "reddit") }}
+      </div>  <!-- end: chat-box  -->
+
+    </div>  <!-- end: col -->
   </div>
 
+
 {%  endblock page_content %}
+
+
+

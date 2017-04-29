@@ -21,7 +21,6 @@ manager = Manager(app)
 # Client-sdie Markdown-to-HTML converter implemented in JS.
 # pagedown = PageDown(app)
 
-
 def make_shell_context():
     """Automatic imports when we want to play in the shell."""
     return dict(app=app)

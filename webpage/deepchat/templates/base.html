@@ -8,11 +8,11 @@
   {% block head %}
 
     {% block metas %}
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="">
-    <meta name="author" content="sentient-machine">
+      <meta charset="utf-8">
+      <meta http-equiv="X-UA-Compatible" content="IE=edge">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="">
+      <meta name="author" content="sentient-machine">
     {% endblock metas %}
 
     <title>
@@ -21,7 +21,7 @@
       {% endblock title %}
     </title>
 
-    <!-- Lil yellow bot favicon -->
+    <!-- Lil yelcornell_bot bot favicon -->
     <link href="/static/img/favicon.ico" rel="icon" type="image/x-icon">
 
     <!-- Bootstrap core CSS -->
@@ -73,7 +73,7 @@
 
 <!-- Navigation -->
 {% block navbar %}
-    {%  set navigation_bar = [
+  {%  set navigation_bar = [
         ('/', 'index', 'Home'),
         ('/about', 'about', 'About'),
     ] -%}
@@ -104,11 +104,11 @@
           {% endfor %}
         </ul>
 
-      {% if user %}
-      <ul class="nav navbar-nav navbar-right">
-       <span class="navbar-text">User: {{ user }}</span>
-      </ul>
-      {% endif %}
+        {% if user %}
+          <ul class="nav navbar-nav navbar-right">
+            <span id='nav-session-user' class="navbar-text">User: {{ user }}</span>
+          </ul>
+        {% endif %}
       </div>  <!-- end: navbar -->
 
     </div>  <!-- end: container -->
@@ -135,8 +135,8 @@
     {% block page_content %}
     {% endblock page_content %}
   </div>
-
 {%  endblock content %}
+
 
 <!-- Latest Bootstrap JavaScript -->
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
@@ -145,18 +145,15 @@
         integrity="sha384-mE6eXfrb8jxl0rzJDBRanYqgBxtJ6Unn4/1F7q4xRRyIw7Vdg9jP4ycT7x1iVsgb"
         crossorigin="anonymous">
 </script>
-
 <!-- Contact Form JavaScript -->
 <script src="{{ url_for('static', filename='js/jqBootstrapValidation.js') }}">
 </script>
 
 <!-- Chat Processing JavaScript -->
-<script src="{{ url_for('static', filename='js/chat_processing.js') }}">
-</script>
-
+<script src="{{ url_for('static', filename='js/chat_processing.js') }}"></script>
+<script src="{{ url_for('static', filename='js/user_form.js') }}"></script>
 <script type="text/javascript">
     var csrf_token = "{{ csrf_token() }}";
-
     $.ajaxSetup({
         beforeSend: function(xhr, settings) {
             if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain) {

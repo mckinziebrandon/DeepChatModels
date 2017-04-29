@@ -1,7 +1,7 @@
 """apps/forms.py: """
 
 from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField, TextAreaField
+from wtforms import StringField, SubmitField, TextAreaField, HiddenField
 from wtforms.validators import DataRequired, InputRequired
 from wtforms.validators import ValidationError
 
@@ -15,11 +15,15 @@ def bad_chars(form, string_field):
 class ChatForm(FlaskForm):
     """Creates a chat_form for users to enter input."""
     message = StringField('message', validators=[DataRequired()])
+    submit = SubmitField('Submit')
 
 
 class UserForm(FlaskForm):
     """Form for creating/editing a user."""
-    name = StringField('name', validators=[DataRequired(), bad_chars])
-    submit = SubmitField('Submit')
+    name = StringField(
+        label='name',
+        id='user-name',
+        validators=[DataRequired(), bad_chars])
+    submit = SubmitField(label='Submit')
 
 

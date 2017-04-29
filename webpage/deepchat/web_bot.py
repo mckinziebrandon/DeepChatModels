@@ -72,7 +72,7 @@ def load_graph(frozen_model_dir):
 
 def unfreeze_bot(frozen_model_path):
     """Restores the frozen graph from file and grabs input/output tensors needed to
-    interface with a bot for conversation.
+    interface with a cornell_bot for conversation.
 
     Args:
         frozen_model_path: location of protobuf file containing frozen graph.
@@ -88,13 +88,13 @@ def unfreeze_bot(frozen_model_path):
 
 
 class FrozenBot:
-    """The mouth and ears of a bot that's been serialized."""
+    """The mouth and ears of a cornell_bot that's been serialized."""
 
     def __init__(self, frozen_model_dir, vocab_size, is_testing=False):
         """
         Args:
             is_testing: (bool) set True for testing (while GPU is busy training). In that case,
-                  just use a 'bot' that returns the user's sentence backwards.
+                  just use a 'cornell_bot' that returns the user's sentence backwards.
         """
 
         self.is_testing = is_testing
@@ -103,7 +103,7 @@ class FrozenBot:
             here            = os.path.dirname(os.path.realpath(__file__))
             assets_path     = os.path.join(here, 'static', 'assets')
             abs_model_dir   = os.path.join(assets_path, 'frozen_models', frozen_model_dir)
-            # Get bot graph and input/output tensors.
+            # Get cornell_bot graph and input/output tensors.
             self.tensor_dict, graph = unfreeze_bot(abs_model_dir)
             self.sess = tf.Session(graph=graph)
             # Make minimal config for retrieving vocab.

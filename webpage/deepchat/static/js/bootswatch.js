@@ -8,8 +8,9 @@ $.getJSON("https://bootswatch.com/api/3.json", function (data) {
     var themes = data.themes;
 
     // Grab select object(s).
-    var select = $("#theme-options");
+    var themeList = $("ul#theme-options");
     //select.hide();
+
     // .show(): simplest way to display an element.
     // Doesn't seem to do anything in this case?
 
@@ -25,22 +26,29 @@ $.getJSON("https://bootswatch.com/api/3.json", function (data) {
     // - arr.forEach(function callback(currentValue, index, array) {
     //      your iterator }[, thisArg]);
     themes.forEach(function(value, index){
-        select.append($("<option/>")
+        /*
+        themeList.append($("<option/>")
                 .attr('class', 'dropdown-item')
                 .val(index)          // value=index
                 .text(value.name)); // displayed text = theme name
+                */
+        themeList.append($('<li/>')
+                .attr('class', 'thing')
+                .val(index)
+                .html('<a href="#">'+value.name+'</a>'));
     });
 
-    // Make a link to the theme upon selction.
-    select.on('change', function(){
+    themeList.on('click', '.thing', function(e) {
         var theme = themes[$(this).val()];
         $("link#theme-link").attr("href", theme.css);
+        $('a#theme-header').text('Theme: ' + theme.name);
     });
 
     // Set default value.
     // TODO: make persist across pages.
-    select.val('4');
-
+    var theme = themes[4];
+    $("link#theme-link").attr("href", theme.css);
+    $('a#theme-header').text('Theme: ' + theme.name);
 
 }, "json").fail(function(){
     $(".alert").toggleClass("alert-info alert-danger");

@@ -73,8 +73,7 @@ class Conversation(db.Model):
     turns = db.relationship('Turn', backref='conversation', lazy='dynamic')
 
     def __repr__(self):
-        return '<Conversation between {0} and {1}>'.format(
-            (self.user_id, self.chatbot_id))
+        return '<Conversation between {0} and {1}>'.format(self.user_id, self.chatbot_id)
 
 
 class Turn(db.Model):
