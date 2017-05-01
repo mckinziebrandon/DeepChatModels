@@ -1,6 +1,7 @@
 import os
 basedir = os.path.abspath(os.path.dirname(__file__))
 
+PREFERRED_URL_SCHEME = 'https'
 SQLALCHEMY_TRACK_MODIFICATIONS = False  # Suppress error from package itself.
 # Path of our db file. Required by Flask-SQLAlchemy extension.
 SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(basedir, 'app.db')
@@ -10,7 +11,10 @@ SQLALCHEMY_MIGRATE_REPO = os.path.join(basedir, 'db_repository')
 
 
 class Config:
+
+
     # Activates the cross-site request forgery prevention.
+    PREFERRED_URL_SCHEME = 'https'
     WTF_CSRF_ENABLED = True
     # Used to create cryptographic token used to valide a chat_form.
     SECRET_KEY = 'you-might-guess-if-you-are-clever'

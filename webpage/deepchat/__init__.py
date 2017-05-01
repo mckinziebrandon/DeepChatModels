@@ -12,6 +12,7 @@ app = Flask(__name__)
 csrf = CSRFProtect(app)
 # Read and use info in config.py.
 app.config.from_object(config['default'])
+app.config.update({'PREFERRED_URL_SCHEME': 'https'});
 # Initialize our database.
 db = SQLAlchemy(app)
 # For better CLI.
@@ -21,9 +22,6 @@ manager = Manager(app)
 # Client-sdie Markdown-to-HTML converter implemented in JS.
 # pagedown = PageDown(app)
 
-app.config.update(dict(
-    PREFERRED_URL_SCHEME = 'https'
-))
 
 def make_shell_context():
     """Automatic imports when we want to play in the shell."""
