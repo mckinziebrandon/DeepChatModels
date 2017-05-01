@@ -3,5 +3,9 @@ env: flex
 threadsafe: false
 entrypoint: gunicorn -b :$PORT deepchat:app
 
+resources:
+  cpu: 2  # Number of cores. Default: 1
+  memory_gb: 1.0  # RAM in GB. Default: 0.6 GB
+
 runtime_config:
-    python_version: 3
+    python_version: 3.5
