@@ -1,0 +1,7 @@
+runtime: python
+env: flex
+threadsafe: false
+entrypoint: gunicorn -b :$PORT deepchat:app
+
+runtime_config:
+    python_version: 3

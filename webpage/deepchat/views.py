@@ -66,7 +66,7 @@ def chat():
     else:
         chatbot_message = reddit_bot(user_message)
 
-    user = get_or_create_user(session.get('user') or 'Anonymous')
+    user = get_or_create_user(session.get('user', 'Anonymous'))
     if session.get('start_time') is None:
         session['start_time'] = datetime.utcnow()
     conversation = get_or_create_conversation(session.get('start_time'), user)
@@ -89,8 +89,8 @@ def get_or_create_user(name):
 def get_or_create_conversation(time, user):
     conversation = Conversation.query.filter_by(start_time=time).first()
     if conversation is None:
-        chatbot = Chatbot(name='baby'+session.get('data-name'),
-                          dataset=session.get('data-name'),
+        chatbot = Chatbot(name='baby'+session.get('data_name'),
+                          dataset=session.get('data_name'),
                           base_cell='GRUCell',
                           encoder='BasicEncoder',
                           decoder='BasicDecoder',

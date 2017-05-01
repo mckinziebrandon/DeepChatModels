@@ -8,6 +8,7 @@ SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(basedir, 'app.db')
 SQLALCHEMY_MIGRATE_REPO = os.path.join(basedir, 'db_repository')
 
 
+
 class Config:
     # Activates the cross-site request forgery prevention.
     WTF_CSRF_ENABLED = True

@@ -33,3 +33,5 @@ compact.sh
 **/assets/frozen_models/cornell/**
 
 **/*.db
+
+**/*.pb
