@@ -4,14 +4,14 @@ dataset: Reddit
 model_params:
   base_cell: LSTMCell
   batch_size: 128
-  ckpt_dir: out/reddit/website_config/LSTM_3Lay_128Emb_15maxseq_001lr
+  ckpt_dir: out/reddit/website_config
   dropout_prob: 0.0
   decoder.class: BasicDecoder
   encoder.class: BasicEncoder
   l1_reg: 0.0
   learning_rate: 0.001
   embed_size: 128
-  num_layers: 3
+  num_layers: 2
   reset_model: False
   state_size: 512
   steps_per_ckpt: 500
