@@ -1,4 +1,6 @@
-"""Sequence-to-sequence models with dynamic unrolling and faster embedding techniques."""
+"""Sequence-to-sequence models with dynamic unrolling and faster embedding 
+techniques.
+"""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -17,12 +19,14 @@ from pydoc import locate
 
 
 class DynamicBot(Model):
-    """ General sequence-to-sequence model for conversations. Will eventually support
-        attention, beam search, and a wider variety of cell options. At present,
-        supports multi-layer encoder/decoders, GRU/LSTM cells, and fully dynamic
-        unrolling (online decoding included). Additionally, will soon support
-        biologically inspired mechanisms for learning, such as hebbian-based
-        update rules.
+    """ General sequence-to-sequence model for conversations. 
+    
+    Will eventually support attention, beam search, and a wider variety of 
+    cell options. At present, supports multi-layer encoder/decoders, 
+    GRU/LSTM cells, and fully dynamic unrolling (online decoding included). 
+    
+    Additionally, will eventually support biologically inspired mechanisms for 
+    learning, such as hebbian-based update rules.
     """
 
     def __init__(self, dataset, params):
@@ -31,16 +35,35 @@ class DynamicBot(Model):
         Args:
             dataset: any instance inheriting from data.DataSet.
             params: dictionary of hyperparameters.
-                    See DEFAULT_FULL_CONFIG in chatbot._models.py for supported keys.
+                    For supported keys, see DEFAULT_FULL_CONFIG.
+                    (chatbot.globals.py)
         """
 
         self.log = logging.getLogger('DynamicBotLogger')
-        # Let superclass handle the boring stuff (dirs/assigning instance variables).
+        # Let superclass handle common bookkeeping (saving/loading/dir paths).
         super(DynamicBot, self).__init__(self.log, dataset, params)
+        # Build the model's structural components.
         self.build_computation_graph(dataset)
+        # Configure training and evaluation.
+        # Note: this is distinct from build_computation_graph for historical
+        # reasons, and I plan on refactoring. Initially, I more or less followed
+        # the feel of Keras for setting up models, but after incorporating the
+        # YAML configuration files, this seems rather unnecessary.
         self.compile()
 
     def build_computation_graph(self, dataset):
+        """Create the TensorFlow model graph. Note that this only builds the 
+        structural components, i.e. nothing related to training parameters,
+        optimization, etc. 
+        
+        The main components to be built (in order): 
+            1. InputPipeline
+            2. Embedder
+               - single object shared between encoder/decoder.
+               - creates distict embeddings for distinct variable scopes.
+            2. Encoder
+            3. Decoder
+        """
 
         # Grab the model classes (Constructors) specified by user in params.
         encoder_class = locate(getattr(self, 'encoder.class')) \
@@ -52,46 +75,61 @@ class DynamicBot(Model):
         assert decoder_class is not None, "Couldn't find requested %s." % \
                                           self.model_params['decoder.class']
 
-        # Create embedder object -- handles all of your embedding needs!
-        # By passing scope to embedder calls, we can easily create distinct embeddings,
-        # while storing inside the same embedder object.
-        self.embedder = Embedder(self.vocab_size, self.embed_size, l1_reg=self.l1_reg)
+        # Organize input pipeline inside single node for clean visualization.
+        self.pipeline = InputPipeline(
+            file_paths=dataset.paths,
+            batch_size=self.batch_size,
+            is_chatting=self.is_chatting)
 
-        # Organize full input pipeline inside single graph node for clean visualization.
-        self.pipeline = InputPipeline(file_paths=dataset.paths,
-                                      batch_size=self.batch_size,
-                                      is_chatting=self.is_chatting)
+        # Grab the input feeds for encoder/decoder from the pipeline.
         encoder_inputs = self.pipeline.encoder_inputs
         self.decoder_inputs = self.pipeline.decoder_inputs
 
+        # Create embedder object -- handles all of your embedding needs!
+        # By passing scope to embedder calls, we can create distinct embeddings,
+        # while storing inside the same embedder object.
+        self.embedder = Embedder(
+            self.vocab_size,
+            self.embed_size,
+            l1_reg=self.l1_reg)
+
+        # Explicitly show required parameters for any subclass of
+        # chatbot.components.base.RNN (e.g. encoders/decoders).
+        # I do this for readability; you can easily tell below which additional
+        # params are needed, e.g. for a decoder.
+        rnn_params = {
+            'state_size': self.state_size,
+            'embed_size': self.embed_size,
+            'num_layers': self.num_layers,
+            'dropout_prob': self.dropout_prob,
+            'base_cell': self.base_cell}
+
         with tf.variable_scope('encoder'):
             embedded_enc_inputs = self.embedder(encoder_inputs)
-            encoder = encoder_class(
-                base_cell=self.base_cell,
-                state_size=self.state_size,
-                embed_size=self.embed_size,
-                dropout_prob=self.dropout_prob,
-                num_layers=self.num_layers)
-            # Applying embedded inputs to encoder yields the final (context) state.
+            # For now, encoders require just the RNN params when created.
+            encoder = encoder_class(**rnn_params)
+            # Apply embedded inputs to encoder for the final (context) state.
             _, encoder_state = encoder(embedded_enc_inputs)
 
         with tf.variable_scope("decoder"):
             embedded_dec_inputs = self.embedder(self.decoder_inputs)
-            self.decoder  = decoder_class(
+            # Note: encoder_outputs is passed as None for now until all the
+            # kinks are worked out for the attention decoders, which are the
+            # only decoders that require this parameter.
+            self.decoder = decoder_class(
                 encoder_outputs=None,
-                base_cell=self.base_cell,
-                state_size=self.state_size,
                 vocab_size=self.vocab_size,
-                embed_size=self.embed_size,
-                dropout_prob=self.dropout_prob,
-                num_layers=self.num_layers,
                 max_seq_len=dataset.max_seq_len,
-                temperature=self.temperature)
-            # For decoder, we want the full sequence of outputs, not simply the last.
-            decoder_outputs, decoder_state = self.decoder(embedded_dec_inputs,
-                                                          initial_state=encoder_state,
-                                                          is_chatting=self.is_chatting,
-                                                          loop_embedder=self.embedder)
+                temperature=self.temperature,
+                **rnn_params)
+
+            # For decoder outpus, we want the full sequence (output sentence),
+            # not simply the last.
+            decoder_outputs, decoder_state = self.decoder(
+                embedded_dec_inputs,
+                initial_state=encoder_state,
+                is_chatting=self.is_chatting,
+                loop_embedder=self.embedder)
 
         self.outputs = tf.identity(decoder_outputs, name='outputs')
         # Tag inputs and outputs by name should we want to freeze the model.
@@ -102,21 +140,23 @@ class DynamicBot(Model):
 
     def compile(self):
         """ TODO: perhaps merge this into __init__?
-        Originally, this function accepted training/evaluation specific parameters.
-        However, since moving the configuration parameters to .yaml files and interfacing
-        with the dictionary, no args are needed here, and thus would mainly be a hassle
-        to have to call before training. Will decide later.
+        Originally, this function accepted training/evaluation specific 
+        parameters. However, since moving the configuration parameters to .yaml 
+        files and interfacing with the dictionary, no args are needed here, 
+        and thus would mainly be a hassle to have to call before training. 
+        
+        Will decide how to refactor this later.
         """
 
         if not self.is_chatting:
             with tf.variable_scope("evaluation") as scope:
-                # Loss - target is to predict, as output, the next decoder input.
+                # Loss - target is to predict (as output) next decoder input.
                 # target_labels has shape [batch_size, dec_inp_seq_len - 1]
-                target_labels   = self.decoder_inputs[:, 1:]
-                target_weights  = tf.cast(target_labels > 0, target_labels.dtype)
-                preds       = self.decoder.apply_projection(self.outputs)
-                reg_losses   = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-                l1          = tf.reduce_sum(tf.abs(reg_losses))
+                target_labels = self.decoder_inputs[:, 1:]
+                target_weights = tf.cast(target_labels > 0, target_labels.dtype)
+                preds = self.decoder.apply_projection(self.outputs)
+                reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+                l1 = tf.reduce_sum(tf.abs(reg_losses))
 
                 if self.sampled_loss:
                     self.log.info("Training with dynamic sampled softmax loss.")
@@ -129,16 +169,14 @@ class DynamicBot(Model):
                         self.outputs[:, :-1, :],
                         self.decoder.get_projection_tensors(),
                         self.vocab_size,
-                        num_samples=self.num_samples
-                    ) + l1
+                        num_samples=self.num_samples) + l1
                 else:
                     self.loss = tf.losses.sparse_softmax_cross_entropy(
                         labels=target_labels,
                         logits=preds[:, :-1, :],
-                        weights=target_weights
-                    ) + l1
+                        weights=target_weights) + l1
 
-                self.log.info("Optimizing with %s." % self.optimizer)
+                self.log.info("Optimizing with %s.", self.optimizer)
                 self.train_op = tf.contrib.layers.optimize_loss(
                     loss=self.loss, global_step=self.global_step,
                     learning_rate=self.learning_rate,
@@ -147,33 +185,48 @@ class DynamicBot(Model):
                     summaries=['gradients'])
 
                 # Compute accuracy, ensuring we use fully projected outputs.
-                #with self.graph.device('/cpu:0'):
-                correct_pred = tf.equal(tf.argmax(preds[:, :-1, :], axis=2),
-                                        target_labels)
+                correct_pred = tf.equal(
+                    tf.argmax(preds[:, :-1, :], axis=2),
+                    target_labels)
                 accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
                 tf.summary.scalar('accuracy', accuracy)
                 tf.summary.scalar('loss_train', self.loss)
                 self.merged = tf.summary.merge_all()
-                # Note: Important not to merge in the validation loss, don't want to
-                # store the training loss on accident.
+                # Note: Important not to merge in the validation loss, since
+                # we don't want to couple it with the training loss summary.
                 self.valid_summ = tf.summary.scalar('loss_valid', self.loss)
 
         super(DynamicBot, self).compile()
 
     def step(self, forward_only=False):
         """Run one step of the model, which can mean 1 of the following:
-            1. forward_only == False. This means we are training, so we should do both a
-               forward and a backward pass.
-            2. self.is_chatting. When chatting, we just get the response (word ID sequence).
-            3. default to inference. Do a forward pass, but also compute loss(es) and summaries.
+            1. forward_only == False. 
+               - This means we are training.
+               - We do a forward and a backward pass.
+            2. self.is_chatting. 
+               - We are running a user's input sentence to generate a response.
+               - We only do a forward pass to get the response (word IDs).
+            3. Otherwise: inference (used for validation)
+               - Do a forward pass, but also compute loss(es) and summaries.
 
         Args:
-            forward_only: if True, don't perform backward pass (gradient updates).
+            forward_only: if True, don't perform backward pass 
+            (gradient updates).
 
         Returns:
-            summaries, step_loss, step_outputs.
-            If forward_only == False, then outputs is None
+            3-tuple: (summaries, step_loss, step_outputs).
+            
+            Qualifications/details for each of the 3 cases:
+            1. If forward_only == False: 
+               - This is a training step: 'summaries' are training summaries.
+               - step_outputs = None
+            2. else if self.is_chatting: 
+               - summaries = step_loss = None
+               - step_outputs == the bot response tokens
+            3. else (validation):
+               - This is validation: 'summaries' are validation summaries.
+               - step_outputs == None (to reduce computational cost).
         """
 
         if not forward_only:
@@ -181,10 +234,12 @@ class DynamicBot(Model):
             summaries, step_loss, _ = self.sess.run(fetches)
             return summaries, step_loss, None
         elif self.is_chatting:
-            response = self.sess.run(self.outputs, feed_dict=self.pipeline.feed_dict)
+            response = self.sess.run(
+                fetches=self.outputs,
+                feed_dict=self.pipeline.feed_dict)
             return None, None, response
         else:
-            fetches = [self.valid_summ, self.loss] # , self.outputs]
+            fetches = [self.valid_summ, self.loss]  # , self.outputs]
             summaries, step_loss = self.sess.run(fetches)
             return summaries, step_loss, None
 
@@ -192,7 +247,8 @@ class DynamicBot(Model):
         """Train bot on inputs until user types CTRL-C or queues run out of data.
 
         Args:
-            dataset: any instance of the Dataset class. Will be removed soon.
+            dataset: (DEPRECATED) any instance of the Dataset class. 
+            Will be removed soon.
         """
 
         def perplexity(loss):
@@ -204,15 +260,15 @@ class DynamicBot(Model):
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=self.sess, coord=coord)
 
-        # Tell embedder to coordinate with TensorBoard's embedding visualization.
-        # This allows us to view words in 3D-projected embedding space (with labels!).
+        # Tell embedder to coordinate with TensorBoard's "Embedddings" tab.
+        # This allows us to view words in 3D-projected embedding space.
         self.embedder.assign_visualizers(
             self.file_writer,
             ['encoder', 'decoder'],
             dataset.paths['vocab'])
 
-        # Note: Calling sleep() allows sustained GPU utilization across training.
-        # Without it, looks like GPU has to wait for data to be enqueued more often.
+        # Note: Calling sleep allows sustained GPU utilization across training.
+        # Without it, GPU has to wait for data to be enqueued more often.
         print('QUEUE RUNNERS RELEASED.', end=" ")
         for _ in range(4):
             print('.', end=" ");
@@ -253,22 +309,18 @@ class DynamicBot(Model):
                     avg_loss = avg_step_time = 0.0
 
                 if i_step >= self.max_steps:
-                    print("Maximum step", i_step, "reached. Terminating training.")
+                    print("Maximum step", i_step, "reached.")
                     raise SystemExit
 
         except (KeyboardInterrupt, SystemExit):
             print("Training halted. Cleaning up . . . ")
             coord.request_stop()
         except tf.errors.OutOfRangeError:
-            print("OutOfRangeError. You have run out of data. Get some more.")
+            print("OutOfRangeError. You have run out of data.")
             coord.request_stop()
         finally:
             coord.join(threads)
             self.close(save_current=False, rebuild_for_chat=True)
-
-    def chat(self):
-        """Alias to decode."""
-        self.decode()
 
     def decode(self):
         """Sets up and manages chat session between bot and user (stdin)."""
@@ -285,12 +337,16 @@ class DynamicBot(Model):
         print("Farewell, human.")
 
     def __call__(self, sentence):
-        """This is how we talk to the bot interactively. While
-        decode(self) above sets up/manages the chat session, users can also use this
-        directly to get responses from the bot, given an input sentence. For example,
+        """This is how we talk to the bot interactively.
+        
+        While decode(self) above sets up/manages the chat session, 
+        users can also use this directly to get responses from the bot, 
+        given an input sentence. 
+        
+        For example, one could do:
             sentence = 'Hi, bot!'
             response = bot(sentence)
-        is all that's required for back-and-forth with the bot.
+        for a single input-to-response with the bot.
 
         Args:
             sentence: (str) Input sentence from user.
@@ -306,8 +362,17 @@ class DynamicBot(Model):
         self.pipeline.feed_user_input(encoder_inputs)
         # Get output sentence from the chatbot.
         _, _, response = self.step(forward_only=True)
-        # response has shape [1, response_length] and it's last elemeot is EOS_ID. :)
+        # response has shape [1, response_length].
+        # Its last element is the EOS_ID, which we don't show user.
         return self.dataset.as_words(response[0][:-1])
+
+    def chat(self):
+        """Alias for decode."""
+        self.decode()
+
+    def respond(self, sentence):
+        """Alias for __call__. (Suggestion)"""
+        return self.__call__(sentence)
 
     def close(self, save_current=True, rebuild_for_chat=True):
         """Before closing, which will freeze our graph to a file,
@@ -330,7 +395,7 @@ class DynamicBot(Model):
         super(DynamicBot, self).close(save_current=save_current)
 
     def _set_chat_params(self):
-        """Set all training-specific param values to chatting-specific values."""
+        """Set training-specific param values to chatting-specific values."""
         # TODO: use __setattr__ instead of this.
         self.__dict__['__params']['model_params']['decode'] = True
         self.__dict__['__params']['model_params']['is_chatting'] = True
