@@ -1,5 +1,7 @@
 # Conversation Models in Tensorflow
 
+Update (04/30/17): The website is being moved to Google AppEngine so I can have more than 1 tiny model up (Heroku is quite resource-constrained). The experimental version of the site can be found [here](http://deepchatmodels.appspot.com/), but is not guaranteed bug-free!
+
 > Note to visitors: Data preprocessing work is still in the active stages and we haven't (yet) provided scripts for downloading the datasets. Updates will be posted here when this is completed. See [the wiki](https://github.com/mckinziebrandon/DeepChatModels/wiki/Dynamic-Models) if you'd like a (very) rough idea of recent developments. Until then, I've uploaded most of the data [here on my MEGA account](
 https://mega.nz/#F!xrRTwSzY!by9K42n_I_oi5T_DKP-xTA). It is also organized the same way I have it locally.
 
