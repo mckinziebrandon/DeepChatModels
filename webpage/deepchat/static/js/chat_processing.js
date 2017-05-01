@@ -27,10 +27,12 @@ $(document).ready(function() {
         chatLog.append(messageRow);
 
         // Submit a POST request to collect user input.
-        $.post('/', {
+        $.post($INDEX_URL, {
             "message": user_msg.val(),
             "dataName": dataName
         }, function(data) {
+            console.log($SCRIPT_ROOT);
+            console.log(data);
             $('#'+dataName+'-chat-log').append($('<div/>').addClass('row message')
                     .append($('<div/>')
                             .addClass('bot-name text-left col-md-2 col-sm-2')
