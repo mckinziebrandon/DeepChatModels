@@ -140,7 +140,7 @@
 <!-- Recommended by flask docs. -->
 <script>
     var $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
-    var $INDEX_URL = {{ url_for('.index', _scheme='https', _external=True ) }};
+    var $INDEX_URL = "{{ url_for('.index', _scheme='https', _external=True ) }}";
 </script>
 
 

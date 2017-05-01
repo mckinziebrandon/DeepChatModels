@@ -27,7 +27,7 @@ $(document).ready(function() {
         chatLog.append(messageRow);
 
         // Submit a POST request to collect user input.
-        $.post($INDEX_URL, {
+        $.post('/', {
             "message": user_msg.val(),
             "dataName": dataName
         }, function(data) {

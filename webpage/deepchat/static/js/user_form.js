@@ -6,7 +6,7 @@ $(document).ready(function() {
             return;
         }
         // Submit a POST request to collect user input.
-        $.post($INDEX_URL, {"name": userName.val()}, function(data) {
+        $.post('/', {"name": userName.val()}, function(data) {
             $('#nav-session-user').text('User: ' + userName.val());
             userName.val("");
         });
