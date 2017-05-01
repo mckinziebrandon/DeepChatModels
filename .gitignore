@@ -29,9 +29,3 @@ compact.sh
 # They will be missed. 
 **/reference/*
 **/saved_train_data/**
-
-**/assets/frozen_models/cornell/**
-
-**/*.db
-
-**/*.pb

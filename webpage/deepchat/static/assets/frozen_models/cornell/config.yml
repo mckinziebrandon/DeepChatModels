@@ -1,0 +1,30 @@
+dataset: data.Cornell
+dataset_params:
+  data_dir: /home/brandon/Datasets/cornell
+  data_name: cornell
+  max_seq_len: 10
+  vocab_size: 40000
+model: chatbot.DynamicBot
+model_params:
+  base_cell: GRUCell
+  batch_size: 256
+  ckpt_dir: out/cornell/basic
+  decode: false
+  decoder.class: BasicDecoder
+  dropout_prob: 0.2
+  embed_size: 128
+  encoder.class: BasicEncoder
+  is_chatting: false
+  l1_reg: 1.0e-06
+  learning_rate: 0.002
+  lr_decay: 0.98
+  max_gradient: 5.0
+  max_steps: 1000000
+  num_layers: 1
+  num_samples: 512
+  optimizer: Adam
+  reset_model: true
+  sampled_loss: false
+  state_size: 512
+  steps_per_ckpt: 250
+  temperature: 0.0
