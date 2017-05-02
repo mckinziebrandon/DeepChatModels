@@ -67,7 +67,6 @@ class TestData(Dataset):
     """Mock dataset with a handful of sentences."""
 
     def __init__(self, dataset_params):
-        #logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger('TestDataLogger')
         self._name = "test_data"
         dataset_params['data_dir'] = check_data(

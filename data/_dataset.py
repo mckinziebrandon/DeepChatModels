@@ -169,6 +169,14 @@ class Dataset(DatasetABC):
                 yield sentence
                 sentence = self.as_words(map(int, f.readline().strip().lower().split()))
 
+    def pairs_generator(self):
+        input_sentences = self.sentence_generator('from')
+        input_sentences = [s for s in input_sentences]
+        response_sentences = self.sentence_generator('to')
+        response_sentences = [s for s in response_sentences]
+        for input_sent, response_sent in zip(input_sentences, response_sentences):
+            yield input_sent, response_sent
+
     def train_generator(self, batch_size):
         """[Note: not needed by DynamicBot since InputPipeline]"""
         return self._generator(
