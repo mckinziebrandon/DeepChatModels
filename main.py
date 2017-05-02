@@ -39,6 +39,7 @@ from utils import io_utils
 # =============================================================================
 # FLAGS: Command line argument parser from TensorFlow.
 # =============================================================================
+
 flags = tf.app.flags
 flags.DEFINE_string(
     flag_name="pretrained_dir",
