@@ -9,9 +9,7 @@ SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(basedir, 'app.db')
 SQLALCHEMY_MIGRATE_REPO = os.path.join(basedir, 'db_repository')
 
 
-
 class Config:
-
 
     # Activates the cross-site request forgery prevention.
     PREFERRED_URL_SCHEME = 'https'
@@ -35,7 +33,6 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
-
 
 class TestingConfig(Config):
     TESTING = True

@@ -11,3 +11,4 @@ sqlalchemy_migrate==0.11.0
 psycopg2==2.6.1
 whitenoise==2.0.6
 requests==2.9.1
+Flask-Cors==3.0.2

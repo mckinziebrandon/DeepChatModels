@@ -2,14 +2,15 @@
 from flask import Flask
 from flask_wtf import CSRFProtect
 from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS, cross_origin
 from flask_script import Manager, Shell
-# from flask_moment import Moment
-# from flask_pagedown import PageDown
 from config import config
 
 # Create flask application object.
 app = Flask(__name__)
 csrf = CSRFProtect(app)
+# Allow for CORS (so we can use https).
+CORS(app, supports_credentials=True)
 # Read and use info in config.py.
 app.config.from_object(config['default'])
 app.config.update({'PREFERRED_URL_SCHEME': 'https'});
@@ -18,9 +19,6 @@ db = SQLAlchemy(app)
 # For better CLI.
 manager = Manager(app)
 # Nice thingy for displaying dates/times.
-# moment = Moment(app)
-# Client-sdie Markdown-to-HTML converter implemented in JS.
-# pagedown = PageDown(app)
 
 
 def make_shell_context():

@@ -4,6 +4,7 @@ from flask import render_template
 from flask import request
 from flask import session, url_for, request, g
 from flask import flash, redirect
+from flask_cors import cross_origin
 
 from deepchat import app, db
 from deepchat import web_bot
@@ -30,8 +31,8 @@ def load_gloabal_data():
 
 
 @app.route('/', methods=['GET', 'POST'])
-@app.route('/index/', methods=['GET', 'POST'])
 @app.route('/index', methods=['GET', 'POST'])
+@cross_origin()
 def index():
 
     # Create the (empty) forms that user can fill with info.
@@ -58,7 +59,7 @@ def index():
 
 
 @app.route('/chat', methods=['GET', 'POST'])
-@app.route('/chat/', methods=['POST'])
+@cross_origin()
 def chat():
 
     user_message = session.get('user_message')
@@ -106,7 +107,8 @@ def get_or_create_conversation(time, user):
     return conversation
 
 
-@app.route('/about')
 @app.route('/about/')
+@app.route('/about')
+@cross_origin()
 def about():
     return render_template('about.html', user=session.get('user'))
