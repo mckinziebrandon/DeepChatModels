@@ -159,12 +159,15 @@ class Dataset(DatasetABC):
         self.paths[prefix + '_tfrecords'] = output_path
 
     def sentence_generator(self, prefix='from'):
-        """Yields (as words) single sentences from training data, for testing purposes."""
-        with tf.gfile.GFile(self.paths['{}_train'.format(prefix)], mode="r") as text_file:
-            sentence = text_file.readline().strip()
+        """Yields (as words) single sentences from training data, 
+        for testing purposes.
+        """
+        self.log.info("Generating sentences from %s", self.paths[prefix+'_train'])
+        with tf.gfile.GFile(self.paths[prefix+'_train'], mode="r") as f:
+            sentence = self.as_words(map(int, f.readline().strip().lower().split()))
             while sentence:
                 yield sentence
-                sentence = text_file.readline().strip()
+                sentence = self.as_words(map(int, f.readline().strip().lower().split()))
 
     def train_generator(self, batch_size):
         """[Note: not needed by DynamicBot since InputPipeline]"""
@@ -250,7 +253,12 @@ class Dataset(DatasetABC):
 
     def as_words(self, sentence):
         """Convert list of integer tokens to a single sentence string."""
-        return " ".join([tf.compat.as_str(self._idx_to_word[i]) for i in sentence])
+        words = " ".join([tf.compat.as_str(self.idx_to_word[i]) for i in sentence])
+        words = words.replace(' , ', ', ').replace(' .', '.').replace(' !', '!')
+        words = words.replace(" ' ", "'").replace(" ?", "?")
+        if len(words) < 2:
+            return words
+        return words[0].upper() + words[1:]
 
     @property
     def name(self):
