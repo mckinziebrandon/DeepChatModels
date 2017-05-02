@@ -122,7 +122,11 @@ def flags_to_dict(flags):
     flags_dict = {}
     # Grab any values under supported keys defined in default config.
     for stream in DEFAULT_FULL_CONFIG:
-        yaml_stream = yaml.load(getattr(flags, stream))
+        stream_attr = getattr(flags, stream)
+        if not isinstance(stream_attr, dict):
+            yaml_stream = yaml.load(getattr(flags, stream))
+        else:
+            yaml_stream = stream_attr
         if yaml_stream:
             flags_dict.update({stream: yaml_stream})
         elif stream in ['model_params', 'dataset_params']:

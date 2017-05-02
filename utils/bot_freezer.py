@@ -11,9 +11,6 @@ import os
 import re
 from pydoc import locate
 
-#from collections import namedtuple
-#FrozenVocab = namedtuple('FrozenVocab', ['from', 'to'])
-
 
 def load_graph(frozen_model_dir):
     """Load frozen tensorflow graph into the default graph.
