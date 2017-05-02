@@ -401,10 +401,10 @@ def prepare_data(data_dir, from_train_path, to_train_path,
     # e.g. we set vocab_size = 40k but our data only has 5 unique words,
     # it would be wasteful to train a model on 40k.
     # Thus, we rename vocab filenames to have the true vocab size.
-    old_vocab_path = vocab_path
-    vocab_path = update_vocab_path(vocab_size)
-    if old_vocab_path != vocab_path:
-        Popen(['mv', old_vocab_path, vocab_path], stdout=PIPE).communicate()
+    #old_vocab_path = vocab_path
+    #vocab_path = update_vocab_path(vocab_size)
+    #if old_vocab_path != vocab_path:
+    #    Popen(['mv', old_vocab_path, vocab_path], stdout=PIPE).communicate()
 
     # Create token ids for the training data.
     to_train_ids_path = to_train_path + (".ids%d" % vocab_size)
