@@ -10,45 +10,77 @@ from pydoc import locate
 
 import data
 import chatbot
-from utils import io_utils
-from utils import bot_freezer
+from utils import io_utils, bot_freezer
 
-test_flags = tf.app.flags
-test_flags.DEFINE_string("config", "configs/test_config.yml", "path to config (.yml) file.")
-test_flags.DEFINE_string("model", "{}", "Options: chatbot.{DynamicBot,Simplebot,ChatBot}.")
-test_flags.DEFINE_string("model_params", "{}", "")
-test_flags.DEFINE_string("dataset", "{}", "Options: data.{Cornell,Ubuntu,WMT}.")
-test_flags.DEFINE_string("dataset_params", "{}", "")
-TEST_FLAGS = test_flags.FLAGS
+from main import FLAGS as TEST_FLAGS
+TEST_FLAGS.config = "configs/test_config.yml"
+logging.basicConfig(level=logging.INFO)
 
 
-def get_default_bot(flags=TEST_FLAGS):
-    """Creates and returns a fresh bot. Nice for testing specific methods quickly."""
+def create_bot(flags=TEST_FLAGS, return_dataset=False):
+    """Chatbot factory: Creates and returns a fresh bot. Nice for 
+    testing specific methods quickly.
+    """
+
+    # Wipe the graph and update config if needed.
     tf.reset_default_graph()
     config = io_utils.parse_config(flags)
-    print("Setting up %s dataset." % config['dataset'])
-    dataset_class = locate(config['dataset']) or getattr(data, config['dataset'])
+
+    # Instantiate a new dataset.
+    print("Setting up", config['dataset'], "dataset.")
+    dataset_class = locate(config['dataset']) \
+                    or getattr(data, config['dataset'])
     dataset = dataset_class(config['dataset_params'])
+
+    # Instantiate a new chatbot.
     print("Creating", config['model'], ". . . ")
     bot_class = locate(config['model']) or getattr(chatbot, config['model'])
     bot = bot_class(dataset, config)
-    return bot
+
+    if return_dataset:
+        return bot, dataset
+    else:
+        return bot
 
 
 class TestDynamicModels(unittest.TestCase):
 
-    def setUp(self):
-        logging.basicConfig(level=logging.INFO)
-        self.log = logging.getLogger('TestDynamicModelsLogger')
+    def test_create_bot(self):
+        """Ensure bot constructor is error-free."""
+        logging.info("Creating bot . . . ")
+        bot = create_bot()
+        self.assertIsInstance(bot, chatbot.DynamicBot)
+
+    def test_save_bot(self):
+        """Ensure we can save to bot ckpt dir."""
+        bot = create_bot()
+        self.assertIsInstance(bot, chatbot.DynamicBot)
+
+    def test_save_bot(self):
+        """Ensure teardown operations are working."""
+        bot = create_bot()
+        self.assertIsInstance(bot, chatbot.DynamicBot)
+        logging.info("Closing bot . . . ")
+        bot.close()
 
     def test_train(self):
+        """Simulate a brief training session."""
         flags = TEST_FLAGS
-        flags.model_params = (
-            "ckpt_dir: out/test_data,"
-            "reset_model: True,"
-            "steps_per_ckpt: 10")
-        bot = get_default_bot(flags)
-        bot.train()
+        bot = create_bot(flags)
+        self.assertEqual(bot.ckpt_dir, 'out/test_data')
+        self.assertEqual(bot.reset_model, True)
+        self.assertEqual(bot.steps_per_ckpt, 10)
+        self._quick_train(bot)
+
+    def test_base_methods(self):
+        """Call each method in chatbot._models.Model, checking for errors."""
+        bot = create_bot()
+        logging.info('Calling bot.save() . . . ')
+        bot.save()
+        logging.info('Calling bot.freeze() . . . ')
+        bot.freeze()
+        logging.info('Calling bot.close() . . . ')
+        bot.close()
 
     def test_manual_freeze(self):
         """Make sure we can freeze the bot, unfreeze, and still chat."""
@@ -57,33 +89,39 @@ class TestDynamicModels(unittest.TestCase):
         # 1. Create & train bot.
         # ================================================
         flags = TEST_FLAGS
-        flags.model_params = "{ckpt_dir: out/test_data, " \
-                             "reset_model: True, " \
-                             "steps_per_ckpt: 10}"
-        bot = get_default_bot(flags)
+        flags.model_params = dict(
+            ckpt_dir='out/test_data',
+            reset_model=True,
+            steps_per_ckpt=10,
+            max_steps=100)
+        bot = create_bot(flags)
+        self.assertEqual(bot.ckpt_dir, 'out/test_data')
+        self.assertEqual(bot.reset_model, True)
+        self.assertEqual(bot.steps_per_ckpt, 10)
+        self.assertEqual(bot.max_steps, 100)
         # Simulate small train sesh on bot.
-        self._quick_train(bot)
+        bot.train()
 
         # ================================================
         # 2. Recreate a chattable bot.
         # ================================================
         # Recreate bot from scratch with decode set to true.
-        self.log.info("Resetting default graph . . . ")
+        logging.info("Resetting default graph . . . ")
         tf.reset_default_graph()
         flags.model_params = "{ckpt_dir: out/test_data, " \
                              "reset_model: False, " \
                              "decode: True," \
                              "steps_per_ckpt: 10}"
-        bot = get_default_bot(flags)
+        bot = create_bot(flags)
         self.assertTrue(bot.is_chatting)
         self.assertTrue(bot.decode)
 
         print("Testing quick chat sesh . . . ")
         config = io_utils.parse_config(flags)
         dataset = locate(config['dataset'])(config['dataset_params'])
-        user_input = io_utils.get_sentence()
+        test_input = "How's it going?"
         encoder_inputs = io_utils.sentence_to_token_ids(
-            tf.compat.as_bytes(user_input),
+            tf.compat.as_bytes(test_input),
             dataset.word_to_idx)
         encoder_inputs = np.array([encoder_inputs[::-1]])
         bot.pipeline._feed_dict = {
@@ -91,49 +129,67 @@ class TestDynamicModels(unittest.TestCase):
 
         # Get output sentence from the chatbot.
         _, _, response = bot.step(forward_only=True)
-        # response has shape [1, response_length] and it's last elemeot is EOS_ID. :)
         print("Robot:", dataset.as_words(response[0][:-1]))
 
         # ================================================
         # 3. Freeze the chattable bot.
         # ================================================
-        self.log.info("Calling bot.freeze() . . . ")
+        logging.info("Calling bot.freeze() . . . ")
         bot.freeze()
 
         # ================================================
         # 4. Try to unfreeze and use it.
         # ================================================
-        self.log.info("Resetting default graph . . . ")
+        logging.info("Resetting default graph . . . ")
         tf.reset_default_graph()
-        self.log.info("Importing frozen graph into default . . . ")
+        logging.info("Importing frozen graph into default . . . ")
         frozen_graph = bot_freezer.load_graph(bot.ckpt_dir)
-        self._print_op_names(frozen_graph)
 
-        self.log.info("Extracting input/output tensors.")
-        tensors = bot_freezer.unfreeze_bot(bot.ckpt_dir)
-        keys = ['user_input', 'encoder_inputs', 'outputs']
-        for k in keys:
-            self.assertIsNotNone(tensors[k])
+        logging.info("Extracting input/output tensors.")
+        tensors, frozen_graph = bot_freezer.unfreeze_bot(bot.ckpt_dir)
+        self.assertIsNotNone(tensors['inputs'])
+        self.assertIsNotNone(tensors['outputs'])
 
         with tf.Session(graph=frozen_graph) as sess:
-            raw_input = io_utils.get_sentence()
+            raw_input = "How's it going?"
             encoder_inputs  = io_utils.sentence_to_token_ids(
                 tf.compat.as_bytes(raw_input),
                 dataset.word_to_idx)
             encoder_inputs = np.array([encoder_inputs[::-1]])
-            feed_dict = {tensors['user_input'].name: encoder_inputs}
-            plz = sess.run(tensors['outputs'], feed_dict=feed_dict)
+            feed_dict = {tensors['inputs'].name: encoder_inputs}
+            response = sess.run(tensors['outputs'], feed_dict=feed_dict)
+            logging.info('Reponse: %s', response)
 
-    def _print_op_names(self, g):
-        print("List of Graph Ops:")
-        for op in g.get_operations():
-            print(op.name)
 
-    def _quick_train(self, bot):
+    def test_memorize(self):
+        """Train a bot to memorize (overfit) the small test data, and 
+        show its responses to all train inputs when done.
+        """
+
+        flags = TEST_FLAGS
+        flags.model_params = dict(
+            ckpt_dir='out/test_data',
+            reset_model=True,
+            steps_per_ckpt=25,
+            max_steps=25)
+        bot, dataset = create_bot(flags=flags, return_dataset=True)
+        bot.train()
+
+        # Recreate bot (its session is automatically closed after training).
+        flags.model_params['reset_model'] = False
+        flags.model_params['decode'] = True
+        bot = create_bot(flags)
+
+        for sentence in dataset.sentence_generator():
+            print('Human:', sentence)
+            print('Robot:', bot.respond(sentence))
+
+
+    def _quick_train(self, bot, num_iter=10):
         """Quickly train manually on some test data."""
         coord   = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=bot.sess, coord=coord)
-        for _ in range(10):
+        for _ in range(num_iter):
             bot.step()
         summaries, loss, _ = bot.step()
         bot.save(summaries=summaries)
