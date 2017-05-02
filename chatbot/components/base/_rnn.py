@@ -90,7 +90,8 @@ class RNN(object):
                  embed_size,
                  dropout_prob,
                  num_layers,
-                 base_cell="GRUCell"):
+                 base_cell="GRUCell",
+                 state_wrapper=None):
         """
         Args:
             state_size: number of units in underlying rnn cell.
@@ -98,12 +99,15 @@ class RNN(object):
             dropout_prob: probability of a node being dropped.
             num_layers: how many cells to include in the MultiRNNCell.
             base_cell: (str) name of underling cell to use (e.g. 'GRUCell')
+            state_wrapper: allow states to store their wrapper class. See the
+                wrapper method docstring below for more info.
         """
         self.state_size = state_size
         self.embed_size = embed_size
         self.num_layers = num_layers
         self.dropout_prob = dropout_prob
         self.base_cell = base_cell
+        self._wrapper = state_wrapper
 
     def get_cell(self, name, **kwargs):
         with tf.name_scope(name, "get_cell"):
@@ -112,6 +116,21 @@ class RNN(object):
                         dropout_prob=self.dropout_prob,
                         base_cell=self.base_cell)
             return cell
+
+    def wrapper(self, state):
+        """Some RNN states are wrapped in namedtuples. 
+        (TensorFlow decision, definitely not mine...). 
+        
+        This is here for derived classes to specify their wrapper state. 
+        Some examples: LSTMStateTuple and AttentionWrapperState.
+        
+        Args:
+            state: tensor state tuple, will be unpacked into the wrapper tuple.
+        """
+        if self._wrapper is None:
+            return state
+        else:
+            return self._wrapper(state[0], state[1])
 
     def __call__(self, *args):
         raise NotImplemented

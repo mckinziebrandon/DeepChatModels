@@ -8,6 +8,7 @@ import os
 import copy
 import yaml
 import random
+import subprocess
 
 import numpy as np
 import tensorflow as tf
@@ -45,20 +46,15 @@ class Model(object):
         if 'website_config' in self.ckpt_dir:
             self.ckpt_dir = Model._build_hparam_path(
                 ckpt_dir=self.ckpt_dir,
-                base_cell=self.base_cell,
                 num_layers=self.num_layers,
-                max_seq_len=self.max_seq_len,
-                embed_size=self.embed_size,
-                encoder_class=getattr(self, 'encoder.class'),
-                decoder_class=getattr(self, 'decoder.class'),
-            )
+                max_seq_len=self.max_seq_len)
             self.log.info("New ckpt dir:", self.ckpt_dir)
 
         # Configure gpu options if we are using one.
         if gpu_found():
             self.log.info("GPU Found. Setting allow_growth to True.")
             gpu_config = tf.ConfigProto()
-            #gpu_config.gpu_options.allow_growth = True
+            gpu_config.gpu_options.allow_growth = True
             self.sess = tf.Session(config=gpu_config)
         else:
             self.log.warning("GPU not found. Not recommended for training.")
@@ -68,7 +64,8 @@ class Model(object):
             self.global_step    = tf.Variable(initial_value=0, trainable=False)
             self.learning_rate  = tf.constant(self.learning_rate)
 
-        os.popen('mkdir -p %s' % self.ckpt_dir)  # Just in case :)
+        # Create ckpt_dir if user hasn't already (if exists, has no effect).
+        subprocess.call(['mkdir', '-p', self.ckpt_dir])
         self.projector_config = projector.ProjectorConfig()
         # Good practice to set as None in constructor.
         self.loss = None
@@ -88,9 +85,6 @@ class Model(object):
 
         self.log.info("Checking for checkpoints . . .")
         checkpoint_state  = tf.train.get_checkpoint_state(self.ckpt_dir)
-        # Note: If you want to prevent from loading models trained on different dataset,
-        # you should store them in their own out/dataname folder, and pass that as
-        # the ckpt_dir to config.
 
         if not self.reset_model and checkpoint_state \
                 and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
@@ -101,7 +95,9 @@ class Model(object):
         else:
             print("Created model with fresh parameters:\n\t", self.ckpt_dir)
             # Recursively delete all files in output but keep directories.
-            os.popen("find {0}".format(self.ckpt_dir) + " -type f -exec rm {} \;")
+            subprocess.call([
+                'find', self.ckpt_dir, '-type', 'f', '-exec', 'rm', '{}', ';'
+            ])
             self.file_writer = tf.summary.FileWriter(self.ckpt_dir)
             # Add operation for calling all variable initializers.
             init_op = tf.global_variables_initializer()
@@ -111,7 +107,7 @@ class Model(object):
             self.file_writer.add_graph(self.sess.graph)
             # Initialize all model variables.
             self.sess.run(init_op)
-            # Store full model specifications in ckpt dir for easy loading later.
+            # Store model config in ckpt dir for easy loading later.
             with open(os.path.join(self.ckpt_dir, 'config.yml'), 'w') as f:
                 yaml.dump(getattr(self, "params"), f, default_flow_style=False)
 
@@ -155,8 +151,8 @@ class Model(object):
 
     @staticmethod
     def fill_params(dataset, params):
-        """For now, essentially just returns params, but placed in func in case
-            I want to customize later (likely).
+        """For now, essentially just returns (already parsed) params, 
+        but placed here in case I want to customize later (likely).
         """
         # Replace (string) specification of dataset with the actual instance.
         params['dataset'] = dataset
