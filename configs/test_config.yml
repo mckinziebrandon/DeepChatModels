@@ -16,5 +16,5 @@ model_params:
   steps_per_ckpt: 25
 dataset_params:
   data_dir: /home/brandon/Datasets/test_data
-  vocab_size: 100
+  vocab_size: 200
   max_seq_len: 15

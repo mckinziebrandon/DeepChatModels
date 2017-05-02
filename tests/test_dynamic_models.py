@@ -25,6 +25,7 @@ def create_bot(flags=TEST_FLAGS, return_dataset=False):
     # Wipe the graph and update config if needed.
     tf.reset_default_graph()
     config = io_utils.parse_config(flags)
+    io_utils.print_non_defaults(config)
 
     # Instantiate a new dataset.
     print("Setting up", config['dataset'], "dataset.")
@@ -170,19 +171,24 @@ class TestDynamicModels(unittest.TestCase):
         flags.model_params = dict(
             ckpt_dir='out/test_data',
             reset_model=True,
-            steps_per_ckpt=25,
-            max_steps=25)
+            steps_per_ckpt=100,
+            state_size=256,
+            max_steps=100)
+        flags.dataset_params = dict(
+            max_seq_len=20,
+            data_dir='/home/brandon/Datasets/test_data')
         bot, dataset = create_bot(flags=flags, return_dataset=True)
         bot.train()
 
         # Recreate bot (its session is automatically closed after training).
         flags.model_params['reset_model'] = False
         flags.model_params['decode'] = True
-        bot = create_bot(flags)
+        bot, dataset = create_bot(flags, return_dataset=True)
 
-        for sentence in dataset.sentence_generator():
-            print('Human:', sentence)
-            print('Robot:', bot.respond(sentence))
+        for inp_sent, resp_sent in dataset.pairs_generator():
+            print('\nHuman:', inp_sent)
+            print(('Robot: %s\tExpected: %s' % (
+                bot.respond(inp_sent), resp_sent)).expandtabs(30))
 
 
     def _quick_train(self, bot, num_iter=10):
