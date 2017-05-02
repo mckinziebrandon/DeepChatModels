@@ -28,14 +28,14 @@
 
 <!-- Render an instance of app.forms.BasicForm. -->
 {% macro render_chat_form(form, id, bot_name) %}
-  <div id="{{ id }}" class="row text-center chat-form">
+  <div class="row text-center chat-form">
     <div class="input-group">
       <!-- For CSRF reasons. -->
       {{ form.hidden_tag() }}
       {{ render_user_message(form.message, id=bot_name) }}
       <!-- Submit -->
       <div class="input-group-btn">
-        {{ render_submit(form.submit, class="chat-form-submit btn btn-primary btn-sm") }}
+        {{ render_submit(form.submit, data_name=bot_name, class="chat-form-submit btn btn-primary btn-sm") }}
       </div>
     </div>
   </div>

@@ -1,21 +1,23 @@
 $(document).ready(function() {
 
     // Extract the user input from the field.
-    var user_msg = $('input[name="message"]');
+    let chatForm = $('.chat-form');
+    let userMessage = chatForm.find('input[name="message"]');
+    let submitButton = chatForm.find('.chat-form-submit')
 
-    user_msg.on('keyup', function(e) {
+    submitButton.on('click', function(e) {
 
-        var dataName = $(this).attr('id');
-        user_msg = $('#'+dataName);
+        let dataName = $(this).data('name');
+        userMessage = $('#'+dataName);
 
-        if (e.which != 13 || !user_msg.val()) {  // don't do anything on empty input
+        if (!userMessage.val()) {  // don't do anything on empty input
             return;
         }
 
-        var chatLog = $('#'+dataName+'-chat-log');
-        var messageRow = $('<div/>').attr('class', 'row message');
+        let chatLog = $('#'+dataName+'-chat-log');
+        let messageRow = $('<div/>').attr('class', 'row message');
 
-        messageRow.append($('<div>' + user_msg.val() + '</div>')
+        messageRow.append($('<div>' + userMessage.val() + '</div>')
                 .addClass('user-message text-left')
                 .addClass('col-md-8 col-md-push-2')
                 .addClass('col-sm-10 col-sm-push-2'));
@@ -28,11 +30,10 @@ $(document).ready(function() {
 
         // Submit a POST request to collect user input.
         $.post('/', {
-            "message": user_msg.val(),
+            "message": userMessage.val(),
             "dataName": dataName
         }, function(data) {
-            console.log($SCRIPT_ROOT);
-            console.log(data);
+            console.log('Response data:', data);
             $('#'+dataName+'-chat-log').append($('<div/>').addClass('row message')
                     .append($('<div/>')
                             .addClass('bot-name text-left col-md-2 col-sm-2')
@@ -41,9 +42,15 @@ $(document).ready(function() {
                             .addClass('bot-message text-left col-md-8 col-sm-9')
                             .text(data))
                     .append($('<hr/>')));
-            chatLog.scrollTop(chatLog[0].scrollHeight);
-            user_msg.val("");
+            chatLog.scrollTop(chatLog.first().scrollHeight);
+            userMessage.val("");
         });
     });
+
+    userMessage.on('keyup', function(e) {
+        if (e.which == 13) {
+            $(this).parent().find('.btn').click();
+        }
+    })
 
 });

@@ -63,9 +63,6 @@
     <!-- Slider js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/9.7.3/bootstrap-slider.min.js"></script>
 
-    <!-- OVERRULED!! HAHA. But yeah, should probably move this (populates theme-options) -->
-    <script src="{{ url_for('static', filename='js/bootswatch.js') }}"></script>
-
   {% endblock head %}
 </head>
 
@@ -154,6 +151,8 @@
 <!-- Contact Form JavaScript -->
 <script src="{{ url_for('static', filename='js/jqBootstrapValidation.js') }}">
 </script>
+
+<script src="{{ url_for('static', filename='js/bootswatch.js') }}"></script>
 
 <!-- Chat Processing JavaScript -->
 <script src="{{ url_for('static', filename='js/chat_processing.js') }}"></script>

@@ -30,6 +30,7 @@ def load_gloabal_data():
 
 
 @app.route('/', methods=['GET', 'POST'])
+@app.route('/index/', methods=['GET', 'POST'])
 @app.route('/index', methods=['GET', 'POST'])
 def index():
 
@@ -56,7 +57,8 @@ def index():
         chat_form=chat_form)
 
 
-@app.route('/chat', methods=['POST'])
+@app.route('/chat', methods=['GET', 'POST'])
+@app.route('/chat/', methods=['POST'])
 def chat():
 
     user_message = session.get('user_message')
@@ -105,5 +107,6 @@ def get_or_create_conversation(time, user):
 
 
 @app.route('/about')
+@app.route('/about/')
 def about():
     return render_template('about.html', user=session.get('user'))

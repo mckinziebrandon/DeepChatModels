@@ -27,3 +27,15 @@ class UserForm(FlaskForm):
     submit = SubmitField(label='Submit')
 
 
+class SentencePairForm(FlaskForm):
+    input_sentence = StringField(
+        label='input-sentence',
+        id='input-sentence',
+        validators=[DataRequired()])
+    response_sentence = StringField(
+        label='response-sentence',
+        id='response-sentence',
+        validators=[DataRequired()])
+    submit = SubmitField(label='Submit')
+
+
