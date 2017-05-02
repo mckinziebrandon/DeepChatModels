@@ -36,26 +36,62 @@ import tensorflow as tf
 from pydoc import locate
 from utils import io_utils
 
-# Allow user to override config values with command-line args.
+# =============================================================================
+# FLAGS: Command line argument parser from TensorFlow.
+# =============================================================================
 flags = tf.app.flags
-flags.DEFINE_string("pretrained_dir", None, "path to pretrained model dir.")
-flags.DEFINE_string("config", None, "path to config (.yml) file.")
-flags.DEFINE_string("debug", False, "If true, increases output verbosity (log levels).")
-flags.DEFINE_string("model", "{}", "Options: chatbot.{DynamicBot,Simplebot,ChatBot}.")
-flags.DEFINE_string("model_params", "{}", "")
-flags.DEFINE_string("dataset", "{}", "Options: data.{Cornell,Ubuntu,Reddit}.")
-flags.DEFINE_string("dataset_params", "{}", "")
+flags.DEFINE_string(
+    flag_name="pretrained_dir",
+    default_value=None,
+    docstring="relative path to a pretrained model directory."
+              "It is assumed that the model is one from this repository, and "
+              " thus has certain files that are generated after any training"
+              " session (TL;DR: any ckpt_dir you've trained previously).")
+flags.DEFINE_string(
+    flag_name="config",
+    default_value=None,
+    docstring="relative path to a valid yaml config file."
+              " For example: configs/example_cornell.yml")
+flags.DEFINE_string(
+    flag_name="debug",
+    default_value=False,
+    docstring="If true, increases output verbosity (log levels).")
+flags.DEFINE_string(
+    flag_name="model",
+    default_value="{}",
+    docstring="Options: chatbot.{DynamicBot,Simplebot,ChatBot}.")
+flags.DEFINE_string(
+    flag_name="model_params",
+    default_value="{}",
+    docstring="Configuration dictionary, with supported keys specified by"
+              " those in chatbot.globals.py.")
+flags.DEFINE_string(
+    flag_name="dataset",
+    default_value="{}",
+    docstring="Name (capitalized) of dataset to use."
+              " Options: [data.]{Cornell,Ubuntu,Reddit}."
+              " - Legend: [optional] {Pick,One,Of,These}.")
+flags.DEFINE_string(
+    flag_name="dataset_params",
+    default_value="{}",
+    docstring="Configuration dictionary, with supported keys specified by"
+              " those in chatbot.globals.py.")
 FLAGS = flags.FLAGS
 
 
 def start_training(dataset, bot):
-    """Train bot. Will expand this function later to aid interactivity/updates."""
+    """Train bot. 
+    
+    Will expand this function later to aid interactivity/updates.
+    """
     print("Training bot. CTRL-C to stop training.")
     bot.train(dataset)
 
 
 def start_chatting(bot):
-    """Talk to bot. Will add teacher mode soon. Old implementation in _decode.py."""
+    """Talk to bot. 
+    
+    Will re-add teacher mode soon. Old implementation in _decode.py."""
     print("Initiating chat session.")
     print("Your bot has a temperature of %.2f." % bot.temperature, end=" ")
     if bot.temperature < 0.1:
@@ -77,7 +113,8 @@ def main(argv):
     # Extract the merged configs/dictionaries.
     config = io_utils.parse_config(FLAGS)
     if config['model_params']['decode'] and config['model_params']['reset_model']:
-        print("Setting reset to false for chat session . . . ")
+        print("Woops! You passed {decode: True, reset_model: True}." 
+              " You can't chat with a reset bot! I'll set reset to False.")
         config['model_params']['reset_model'] = False
     # If loading from pretrained, double-check that certain values are correct.
     if FLAGS.pretrained_dir is not None:
@@ -101,6 +138,5 @@ def main(argv):
         start_chatting(bot)
 
 if __name__ == "__main__":
-    tf.logging.set_verbosity(tf.logging.WARN)
     tf.app.run()
 
