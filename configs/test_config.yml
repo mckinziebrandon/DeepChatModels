@@ -1,20 +1,21 @@
-# Simple, but (unusually) effective.
-model: chatbot.DynamicBot
-dataset: data.TestData
+dataset: TestData
+dataset_params:
+  config_path: configs/test_config.yml
+  data_dir: /home/brandon/Datasets/test_data
+  max_seq_len: 15
+  optimize_params: true
+  vocab_size: 121
+model: DynamicBot
 model_params:
   base_cell: GRUCell
+  batch_size: 16
   ckpt_dir: out/test_data
-  decode: False
-  batch_size: 64
+  decode: false
   decoder.class: BasicDecoder
-  encoder.class: BasicEncoder
   embed_size: 32
+  encoder.class: BasicEncoder
   learning_rate: 0.002
   num_layers: 1
-  reset_model: True
+  reset_model: true
   state_size: 128
   steps_per_ckpt: 25
-dataset_params:
-  data_dir: /home/brandon/Datasets/test_data
-  vocab_size: 200
-  max_seq_len: 15

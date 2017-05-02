@@ -172,8 +172,9 @@ class TestDynamicModels(unittest.TestCase):
             ckpt_dir='out/test_data',
             reset_model=True,
             steps_per_ckpt=100,
-            state_size=256,
-            max_steps=100)
+            state_size=512,
+            embed_size=64,
+            max_steps=2000)
         flags.dataset_params = dict(
             max_seq_len=20,
             data_dir='/home/brandon/Datasets/test_data')
@@ -187,8 +188,12 @@ class TestDynamicModels(unittest.TestCase):
 
         for inp_sent, resp_sent in dataset.pairs_generator():
             print('\nHuman:', inp_sent)
-            print(('Robot: %s\tExpected: %s' % (
-                bot.respond(inp_sent), resp_sent)).expandtabs(30))
+            response = bot.respond(inp_sent)
+            if response == resp_sent:
+                print('Robot: %s\nCorrect!' % response)
+            else:
+                print('Robot: %s\nExpected: %s' % (
+                    response, resp_sent))
 
 
     def _quick_train(self, bot, num_iter=10):

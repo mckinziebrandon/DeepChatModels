@@ -3,16 +3,16 @@ model: chatbot.DynamicBot
 dataset: data.Cornell
 model_params:
   base_cell: GRUCell
-  ckpt_dir: out/cornell/basic
+  ckpt_dir: out/cornell/website_config
   decode: False
   batch_size: 256
   decoder.class: BasicDecoder
   encoder.class: BasicEncoder
-  embed_size: 64
+  embed_size: 128
   learning_rate: 0.002
   num_layers: 2
   reset_model: True
-  state_size: 256
+  state_size: 512
   steps_per_ckpt: 250
 dataset_params:
   data_dir: /home/brandon/Datasets/cornell

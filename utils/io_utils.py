@@ -9,9 +9,11 @@ import sys
 import yaml
 import copy
 import pandas as pd
+import logging
 
+from main import FLAGS
 import tensorflow as tf
-from collections import Counter
+from collections import Counter, namedtuple
 from tensorflow.python.platform import gfile
 from subprocess import Popen, PIPE
 from chatbot.globals import DEFAULT_FULL_CONFIG
@@ -49,15 +51,68 @@ def get_sentence(lower=True):
     sys.stdout.write("Human: ")
     sys.stdout.flush()
     sentence = input()
-    if not lower:
-        return sentence
-    else:
+    if lower:
         return sentence.lower()
+    return sentence
 
 
-def get_yaml_config(path):
+def update_config(
+        config=None,
+        config_path=None,
+        return_config=True,
+        **kwargs):
+    """Update contents of a config file, overwriting any that 
+    match those in kwargs.
+   
+    Args:
+        config: (dict) subset of DEFAULT_FULL_CONFIG.
+        config_path: (str) location of a yaml config file.
+        return_config: (bool) whether or not to return the config dictionary.
+        kwargs: key-value pairs to update in the config dictionary and/or file.
+         
+    At least one of {config, config_path} must be not None. If both are not
+    None, then we update the config dictionary with the kwargs, and then set
+    the file at config_path to match updated dictionary contents. 
+    
+    In other words, if config is not None, we do won't consider the contents 
+    of config_path when doing the updates.
+    """
+
+    if config is None and config_path is None:
+        raise ValueError("Configuration info not given to update_config.")
+
+    if config is None:
+        # Grab the current config file contents into a dictionary.
+        config = get_yaml_config(config_path)
+        logging.info("Updating config values %r for %s",
+                     list(kwargs.keys()), config_path)
+
+    # Update its values with those in kwargs.
+    for top_level_key in DEFAULT_FULL_CONFIG:
+        for update_key in kwargs:
+            if update_key == top_level_key:
+                config[update_key] = kwargs[update_key]
+            elif update_key in DEFAULT_FULL_CONFIG[top_level_key]:
+                if config.get(top_level_key) is None:
+                    config[top_level_key] = {}
+                config[top_level_key][update_key] = kwargs[update_key]
+
+    # Rewrite the config file.
+    if config_path is not None:
+        with open(os.path.join(config_path), 'w') as f:
+            yaml.dump(config, f, default_flow_style=False)
+
+    # Return the dictionary if requested.
+    if return_config:
+        return config
+
+
+def get_yaml_config(path, save_path=True):
     with open(path) as file:
         config = yaml.load(file)
+        if save_path:
+            if config.get('dataset_params') is not None:
+                config['dataset_params']['config_path'] = path
     return config
 
 
@@ -161,7 +216,7 @@ def merge_dicts(default_dict, preference_dict):
 
 
 def parse_config(flags):
-    """Get configuration information from TEST_FLAGS, namely:
+    """Get configuration information from FLAGS, namely:
         1. any configuration file (.yml) paths.
         2. any dictionaries defined by user at command-line.
 
@@ -176,21 +231,19 @@ def parse_config(flags):
         user-specified params on command-line (over .yml config files).
     """
 
-    # Quick implementation to support passing path string to pretrained model (website).
+    # Quick implementation to support passing path to pretrained model.
     if isinstance(flags, str):
-        # Make sure flags string is a path to a pretrained model.
-        required_config_file = os.path.join(flags, 'config.yml')
-        assert gfile.Exists(required_config_file), \
-            "Cannot parse from %s. No config.yml." % flags
-        path_to_pretrained = flags
+        config_path = flags
+        if '.yml' not in config_path:
+            # Assume user has passed us a pretrained_dir, in which case we
+            # know there is a config.yml inside (convention used by models).
+            config_path = os.path.join(config_path, 'config.yml')
+        assert gfile.Exists(config_path), \
+            "Cannot parse from %s. No config.yml." % config_path
 
         # Wrap flags string inside an actual tf.app.flags object.
-        _flags = tf.app.flags
-        for k in ['config', 'model', 'model_params', 'dataset', 'dataset_params']:
-            _flags.DEFINE_string(k, "{}", '')
-        flags = _flags.FLAGS
-        flags.config = None
-        flags.pretrained_dir = path_to_pretrained
+        flags = FLAGS
+        flags.config = config_path
 
     config = flags_to_dict(flags)
     if flags.config is not None:
@@ -224,7 +277,7 @@ def num_lines(file_path):
     return int(num_samples.strip().split()[0])
 
 
-def get_word_freq(path, counter, norm_digits=True):
+def get_word_freqs(path, counter, norm_digits=True):
     """Extract word-frequency mapping from file given by path.
     
     Args:
@@ -272,8 +325,8 @@ def create_vocabulary(vocab_path, from_path, to_path, max_vocab_size, norm_digit
 
     vocab = Counter()
     # Pool all data words together to reflect the data distribution well.
-    vocab = get_word_freq(from_path, vocab, norm_digits)
-    vocab = get_word_freq(to_path, vocab, norm_digits)
+    vocab = get_word_freqs(from_path, vocab, norm_digits)
+    vocab = get_word_freqs(to_path, vocab, norm_digits)
 
     # Get sorted vocabulary, from most frequent to least frequent.
     vocab_list = _START_VOCAB + sorted(vocab, key=vocab.get, reverse=True)
@@ -362,8 +415,14 @@ def data_to_token_ids(data_path, target_path, vocabulary_path, normalize_digits=
                     tokens_file.write(" ".join([str(tok) for tok in token_ids]) + "\n")
 
 
-def prepare_data(data_dir, from_train_path, to_train_path,
-                 from_valid_path, to_valid_path, vocab_size):
+def prepare_data(data_dir,
+                 vocab_size,
+                 from_train_path=None,
+                 to_train_path=None,
+                 from_valid_path=None,
+                 to_valid_path=None,
+                 optimize=True,
+                 config_path=None):
 
     """Prepare all necessary files that are required for the training.
 
@@ -373,7 +432,17 @@ def prepare_data(data_dir, from_train_path, to_train_path,
         to_train_path: path to the file that includes "to" training samples.
         from_valid_path: path to the file that includes "valid_from" samples.
         to_valid_path: path to the file that includes "valid_to" samples.
-        vocab_size: size of the "from language" vocabulary to create and use.
+        vocab_size: preferred number of words to use in vocabulary.
+        optimize: if True, allow program to rest this value if the actual
+            vocab_size (num unique words in data) < preferred vocab_size. 
+            This would decrease computational cost, should the situation arise.
+        config_path: (required if optimize==True) location of config file.
+        
+    Note on optimize:
+    - It will only have an effect if the following conditions are ALL met:
+      - config_path is not None (and is a valid path)
+      - optimize == True (of course)
+      - true vocab size != [preferred] vocab_size
 
     Returns:
         Tuple of:
@@ -385,39 +454,67 @@ def prepare_data(data_dir, from_train_path, to_train_path,
         (6) the true vocabulary size (less than or equal to max allowed)
     """
 
-    def update_vocab_path(vocab_size):
+    def maybe_set_param(param, file_name):
+        if param is None:
+            param = os.path.join(data_dir, file_name)
+            logging.info('Set path from None to %s', param)
+        return param
+
+    def get_vocab_path(vocab_size):
         return os.path.join(data_dir, "vocab%d.txt" % vocab_size)
 
+    def append_to_paths(s, **paths):
+        return {name: path + s for name, path in paths.items()}
+
+    # Set any paths that are None to default values.
+    from_train_path = maybe_set_param(from_train_path, 'train_from.txt')
+    to_train_path = maybe_set_param(to_train_path, 'train_to.txt')
+    from_valid_path = maybe_set_param(from_valid_path, 'valid_from.txt')
+    to_valid_path = maybe_set_param(to_valid_path, 'valid_to.txt')
+
     # Create vocabularies of the appropriate sizes.
-    vocab_sizes = dict()
-    vocab_path = update_vocab_path(vocab_size)
-    vocab_size = create_vocabulary(
+    vocab_path = get_vocab_path(vocab_size)
+    true_vocab_size = create_vocabulary(
         vocab_path,
         from_train_path,
         to_train_path,
         vocab_size)
+    assert true_vocab_size <= vocab_size
 
-    # Necessary when we overestimate the number of unique tokens in the data.
-    # e.g. we set vocab_size = 40k but our data only has 5 unique words,
-    # it would be wasteful to train a model on 40k.
-    # Thus, we rename vocab filenames to have the true vocab size.
-    #old_vocab_path = vocab_path
-    #vocab_path = update_vocab_path(vocab_size)
-    #if old_vocab_path != vocab_path:
-    #    Popen(['mv', old_vocab_path, vocab_path], stdout=PIPE).communicate()
+    # User-permitted, we reset the config file's vocab size and rename the
+    # vocabulary path name to the optimal values.
+    should_optimize = config_path is not None
+    should_optimize = (vocab_size != true_vocab_size) and should_optimize
+    should_optimize = optimize and should_optimize
+    if should_optimize:
+        logging.info('Optimizing vocab size in config and renaming files.')
+        # Necessary when we overestimate the number of unique words in the data.
+        # e.g. we set vocab_size = 40k but our data only has 5 unique words,
+        # it would be wasteful to train a model on 40k.
+        # Thus, we rename vocab filenames to have the true vocab size.
+        vocab_size = true_vocab_size
+        old_vocab_path = vocab_path
+        vocab_path = get_vocab_path(true_vocab_size)
+        if old_vocab_path != vocab_path:
+            Popen(['mv', old_vocab_path, vocab_path], stdout=PIPE).communicate()
 
-    # Create token ids for the training data.
-    to_train_ids_path = to_train_path + (".ids%d" % vocab_size)
-    from_train_ids_path = from_train_path + (".ids%d" % vocab_size)
-    data_to_token_ids(to_train_path, to_train_ids_path, vocab_path)
-    data_to_token_ids(from_train_path, from_train_ids_path, vocab_path)
+        # Reset the value of 'vocab_size' in the configuration file, so that
+        # we won't need to regenerate everything again if the user wants to
+        # resume training/chat/etc.
+        update_config(config_path=config_path, vocab_size=true_vocab_size)
 
-    # Create token ids for the development data.
-    to_valid_ids_path = to_valid_path + (".ids%d" % vocab_size)
-    from_valid_ids_path = from_valid_path + (".ids%d" % vocab_size)
-    data_to_token_ids(to_valid_path, to_valid_ids_path, vocab_path)
-    data_to_token_ids(from_valid_path, from_valid_ids_path, vocab_path)
+    id_paths = append_to_paths(
+        '.ids%d' % vocab_size,
+        from_train=from_train_path,
+        to_train=to_train_path,
+        from_valid=from_valid_path,
+        to_valid=to_valid_path)
 
-    train_ids_path = [from_train_ids_path, to_train_ids_path]
-    dev_ids_path = [from_valid_ids_path, to_valid_ids_path]
-    return train_ids_path, dev_ids_path, vocab_path, vocab_size
+    # Create token ids for all training and validation data.
+    for name in id_paths:
+        data_to_token_ids(
+            eval(name + '_path'),
+            id_paths[name],
+            vocab_path)
+
+    return id_paths, vocab_path, vocab_size
