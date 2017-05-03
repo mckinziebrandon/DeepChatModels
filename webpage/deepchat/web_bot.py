@@ -6,12 +6,14 @@ import os
 import re
 import numpy as np
 import tensorflow as tf
+import yaml
 os.environ['TF_CPP_MIN_LOG_LEVEL']='1'
 
 UNK_ID  = 3
 # Regular expressions used to tokenize.
 _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
 _DIGIT_RE = re.compile(br"\d")
+_PRIMARY_KEYS = ['model', 'dataset', 'model_params', 'dataset_params']
 
 
 def basic_tokenizer(sentence):
@@ -90,27 +92,48 @@ def unfreeze_bot(frozen_model_path):
 class FrozenBot:
     """The mouth and ears of a cornell_bot that's been serialized."""
 
-    def __init__(self, frozen_model_dir, vocab_size, is_testing=False):
+    def __init__(self, frozen_model_dir, is_testing=False):
         """
         Args:
-            is_testing: (bool) set True for testing (while GPU is busy training). In that case,
-                  just use a 'cornell_bot' that returns the user's sentence backwards.
+            is_testing: (bool) True for testing (while GPU is busy training).
+            In that case, just use a 'bot' that returns inputs reversed.
         """
 
         self.is_testing = is_testing
         if not is_testing:
+
             # Get absolute path to model directory.
-            here            = os.path.dirname(os.path.realpath(__file__))
-            assets_path     = os.path.join(here, 'static', 'assets')
-            abs_model_dir   = os.path.join(assets_path, 'frozen_models', frozen_model_dir)
+            here = os.path.dirname(os.path.realpath(__file__))
+            assets_path = os.path.join(here, 'static', 'assets')
+            abs_model_dir = os.path.join(assets_path,
+                                         'frozen_models',
+                                         frozen_model_dir)
+            self.load_config(os.path.join(abs_model_dir, 'config.yml'))
+
             # Get cornell_bot graph and input/output tensors.
             self.tensor_dict, graph = unfreeze_bot(abs_model_dir)
             self.sess = tf.Session(graph=graph)
-            # Make minimal config for retrieving vocab.
-            mock_config = {'dataset_params':
-                               {'data_dir': abs_model_dir,
-                                'vocab_size': vocab_size}}
-            self.word_to_idx, self.idx_to_word = self.get_frozen_vocab(mock_config)
+            self.word_to_idx, self.idx_to_word = self.get_frozen_vocab(
+                self.config)
+
+    def load_config(self, config_path):
+        with open(config_path) as f:
+            config = yaml.load(f)
+        config['dataset_params']['data_dir'] = os.path.dirname(config_path)
+        self.__dict__['__params'] = config
+
+    def __getattr__(self, name):
+        if name == 'config':
+            return self.__dict__['__params']
+        elif name in _PRIMARY_KEYS:
+            return self.__dict__['__params'][name]
+        else:
+            for primary_key in _PRIMARY_KEYS:
+                if not isinstance(self.__dict__['__params'][primary_key], dict):
+                    continue
+                elif name in self.__dict__['__params'][primary_key]:
+                    return self.__dict__['__params'][primary_key][name]
+        raise AttributeError(name)
 
     def get_frozen_vocab(self, config):
         """Helper function to get dictionaries between tokens and words."""
