@@ -135,7 +135,7 @@ class TestConfig(unittest.TestCase):
         self.assertTrue('model_params' in config)
 
         config = io_utils.update_config(
-            config_path,
+            config_path=config_path,
             return_config=True,
             vocab_size=1234)
 

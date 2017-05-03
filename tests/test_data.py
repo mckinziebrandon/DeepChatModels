@@ -11,20 +11,10 @@ dir = os.path.dirname(os.path.realpath(__file__))
 
 # Allow user to override config values with command-line args.
 # All test_flags with default as None are not accessed unless set.
-test_flags = tf.app.flags
-test_flags.DEFINE_string("config", "macros/test_config.yml", "path to config (.yml) file.")
-test_flags.DEFINE_string("model", "{}", "Options: chatbot.{DynamicBot,Simplebot,ChatBot}.")
-test_flags.DEFINE_string("model_params", "{}", "")
-test_flags.DEFINE_string("dataset", "{}", "Options: data.{Cornell,Ubuntu,Reddit}.")
-test_flags.DEFINE_string("dataset_params", "{}", "")
-TEST_FLAGS = test_flags.FLAGS
-KEYS = ['model', 'model_params', 'dataset', 'dataset_params']
-
-
-def reset_flags(flags):
-    """Reset flags to the default values."""
-    for name in KEYS:
-        setattr(flags, name, '{}')
+from main import FLAGS as TEST_FLAGS
+TEST_CONFIG_PATH = "configs/test_config.yml"
+TEST_FLAGS.config = TEST_CONFIG_PATH
+logging.basicConfig(level=logging.INFO)
 
 
 class TestData(unittest.TestCase):
@@ -36,25 +26,43 @@ class TestData(unittest.TestCase):
 
     def test_basic(self):
         """Instantiate all supported datasets and check they satisfy basic conditions.
+        
+        THIS MAY TAKE A LONG TIME TO COMPLETE. Since we are testing that the 
+        supported datasets can be instantiated successfully, it necessarily 
+        means that the data must exist in proper format. Since the program
+        will generate the proper format(s) if not found, this will take 
+        about 15 minutes if run from a completely fresh setup.
+        
+        Otherwise, a few seconds. :)
         """
+
+        if os.getenv('DATA') is None \
+            and not os.path.exists('/home/brandon/Datasets'):
+            print('To run this test, please enter the path to your datasets: ')
+            data_dir = input()
+        else:
+            data_dir = '/home/brandon/Datasets'
 
         for dataset_name in self.supported_datasets:
             logging.info('Testing %s', dataset_name)
-            dataset_params = {'vocab_size': 40000,
-                              'max_seq_len': 10}
 
+            incomplete_params = {
+                'vocab_size': 40000,
+                'max_seq_len': 10}
+            self.assertIsNotNone(incomplete_params)
             dataset_class = getattr(data, dataset_name)
             # User must specify data_dir, which we have not done yet.
-            try:
-                self.assertRaises(ValueError, dataset_class(dataset_params))
-            except ValueError:
-                # Really?...
-                pass
+            self.assertRaises(ValueError, dataset_class, incomplete_params)
 
-            dataset_params['data_dir'] = '/home/brandon/Datasets/' + dataset_name.lower()
+            config = io_utils.parse_config(TEST_FLAGS)
+            dataset_params = config.get('dataset_params')
+            dataset_params['data_dir'] = os.path.join(
+                data_dir,
+                dataset_name.lower())
             dataset = dataset_class(dataset_params)
 
-            # Ensure all parms in DEFAULT_FULL_CONFIG['dataset_params'] are specified.
+            # Ensure all params from DEFAULT_FULL_CONFIG['dataset_params']
+            # are set to a value in our dataset object.
             for default_key in DEFAULT_FULL_CONFIG['dataset_params']:
                 self.assertIsNotNone(getattr(dataset, default_key))
 
@@ -69,6 +77,8 @@ class TestData(unittest.TestCase):
             self.assertEqual(len(dataset.word_to_idx), len(dataset.idx_to_word))
             self.assertEqual(len(dataset.word_to_idx), dataset.vocab_size)
             self.assertEqual(len(dataset.idx_to_word), dataset.vocab_size)
+
+            incomplete_params.clear()
             dataset_params.clear()
 
 

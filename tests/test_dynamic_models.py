@@ -67,6 +67,9 @@ class TestDynamicModels(unittest.TestCase):
     def test_train(self):
         """Simulate a brief training session."""
         flags = TEST_FLAGS
+        flags.model_params = dict(
+            reset_model=True,
+            steps_per_ckpt=10)
         bot = create_bot(flags)
         self.assertEqual(bot.ckpt_dir, 'out/test_data')
         self.assertEqual(bot.reset_model, True)
@@ -93,12 +96,12 @@ class TestDynamicModels(unittest.TestCase):
         flags.model_params = dict(
             ckpt_dir='out/test_data',
             reset_model=True,
-            steps_per_ckpt=10,
+            steps_per_ckpt=50,
             max_steps=100)
         bot = create_bot(flags)
         self.assertEqual(bot.ckpt_dir, 'out/test_data')
         self.assertEqual(bot.reset_model, True)
-        self.assertEqual(bot.steps_per_ckpt, 10)
+        self.assertEqual(bot.steps_per_ckpt, 50)
         self.assertEqual(bot.max_steps, 100)
         # Simulate small train sesh on bot.
         bot.train()
@@ -109,17 +112,21 @@ class TestDynamicModels(unittest.TestCase):
         # Recreate bot from scratch with decode set to true.
         logging.info("Resetting default graph . . . ")
         tf.reset_default_graph()
-        flags.model_params = "{ckpt_dir: out/test_data, " \
-                             "reset_model: False, " \
-                             "decode: True," \
-                             "steps_per_ckpt: 10}"
+        flags.model_params = dict(
+            ckpt_dir='out/test_data',
+            reset_model=False,
+            decode=True,
+            steps_per_ckpt=10)
         bot = create_bot(flags)
         self.assertTrue(bot.is_chatting)
         self.assertTrue(bot.decode)
 
         print("Testing quick chat sesh . . . ")
         config = io_utils.parse_config(flags)
-        dataset = locate(config['dataset'])(config['dataset_params'])
+        import pydoc
+        dataset_class = pydoc.locate(config['dataset']) \
+                        or getattr(data, config['dataset'])
+        dataset = dataset_class(config['dataset_params'])
         test_input = "How's it going?"
         encoder_inputs = io_utils.sentence_to_token_ids(
             tf.compat.as_bytes(test_input),
@@ -174,7 +181,7 @@ class TestDynamicModels(unittest.TestCase):
             steps_per_ckpt=100,
             state_size=512,
             embed_size=64,
-            max_steps=2000)
+            max_steps=300)
         flags.dataset_params = dict(
             max_seq_len=20,
             data_dir='/home/brandon/Datasets/test_data')
