@@ -8,7 +8,7 @@ objects created from these classes into rows in the proper database table.
     - ORM: Object Relational Mapper; links b/w tables corresp. to objects.
 """
 
-from deepchat import db, app
+from deepchat import db
 from flask import jsonify
 import json
 from flask_sqlalchemy import SQLAlchemy

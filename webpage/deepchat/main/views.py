@@ -1,19 +1,19 @@
-import pydoc
 from datetime import datetime
+
+
+from . import main
+from .. import db, web_bot
+
+from flask import redirect, current_app
 from flask import render_template
-from flask import request
-from flask import session, url_for, request, g
-from flask import flash, redirect
+from flask import session, url_for, request
 from flask_cors import cross_origin
 
-from deepchat import app, db
-from deepchat import web_bot
 from .forms import ChatForm, UserForm
-from .models import User, Chatbot, Conversation, Turn
-from wtforms import StringField
+from ..models import User, Chatbot, Conversation, Turn
 
 
-@app.before_first_request
+@main.before_app_first_request
 def load_gloabal_data():
     """Create the cornell_bot to be used for chat session."""
     global cornell_bot, reddit_bot
@@ -23,15 +23,15 @@ def load_gloabal_data():
     cornell_bot = web_bot.FrozenBot(
         frozen_model_dir='cornell',
         vocab_size=vocab_size,
-        is_testing=app.testing)
+        is_testing=current_app.testing)
     reddit_bot = web_bot.FrozenBot(
         frozen_model_dir='reddit',
         vocab_size=vocab_size,
-        is_testing=app.testing)
+        is_testing=current_app.testing)
 
 
-@app.route('/', methods=['GET', 'POST'])
-@app.route('/index', methods=['GET', 'POST'])
+@main.route('/', methods=['GET', 'POST'])
+@main.route('/index', methods=['GET', 'POST'])
 @cross_origin()
 def index():
 
@@ -58,7 +58,7 @@ def index():
         chat_form=chat_form)
 
 
-@app.route('/chat', methods=['GET', 'POST'])
+@main.route('/chat', methods=['GET', 'POST'])
 @cross_origin()
 def chat():
 
@@ -107,8 +107,8 @@ def get_or_create_conversation(time, user):
     return conversation
 
 
-@app.route('/about/')
-@app.route('/about')
+@main.route('/about/')
+@main.route('/about')
 @cross_origin()
 def about():
     return render_template('about.html', user=session.get('user'))
