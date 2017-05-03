@@ -212,7 +212,7 @@ class Model(object):
         """
         kwargs = copy.deepcopy(kwargs)
         new_ckpt_dir = ckpt_dir
-        for key in kwargs:
+        for key in sorted(kwargs):
             if not isinstance(kwargs[key], str):
                 dir_name = key + "_" + str(kwargs[key]).replace('.', '_')
             else:
@@ -229,10 +229,13 @@ class BucketModel(Model):
     """
 
     def __init__(self, logger, buckets, dataset, params):
-        super(BucketModel, self).__init__(logger, dataset, params)
         self.buckets = buckets
+        super(BucketModel, self).__init__(
+            logger=logger,
+            dataset=dataset,
+            params=params)
 
-    def compile(self, optimizer=None, max_gradient=5.0, reset=False):
+    def compile(self):
         """ Configure training process. Name was inspired by Keras. <3 """
 
         if self.losses is None:
@@ -243,19 +246,18 @@ class BucketModel(Model):
         params = tf.trainable_variables()
         # train_op will store the parameter (S)GD train_op.
         self.apply_gradients = []
-        if optimizer is None:
-            optimizer = tf.train.AdagradOptimizer(self.learning_rate)
-        # TODO: Think about how this could optimized, main bottleneck for BucketModels.
+        optimizer = OPTIMIZERS[self.optimizer](self.learning_rate)
         for b in range(len(self.buckets)):
             gradients = tf.gradients(self.losses[b], params)
             # Gradient clipping is actually extremely simple, it basically just
-            # checks if L2Norm(gradients) > max_gradient, and if it is, it returns
-            # (gradients / L2Norm(gradients)) * max_grad.
-            clipped_gradients, _ = tf.clip_by_global_norm(gradients, max_gradient)
-            self.apply_gradients.append(optimizer.apply_gradients(zip(clipped_gradients, params),
-                                                          global_step=self.global_step))
+            # checks if L2Norm(gradients) > max_gradient, and if it is,
+            # it returns (gradients / L2Norm(gradients)) * max_grad.
+            clipped_gradients, _ = tf.clip_by_global_norm(
+                gradients, self.max_gradient)
+            self.apply_gradients.append(optimizer.apply_gradients(
+                zip(clipped_gradients, params),global_step=self.global_step))
 
-        super(BucketModel, self).compile(reset=reset)
+        super(BucketModel, self).compile()
 
     def check_input_lengths(self, inputs, expected_lengths):
         """
