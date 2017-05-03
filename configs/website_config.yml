@@ -1,4 +1,4 @@
-# Experimenting with best model params for heroku server.
+# Experimenting with best model params for website.
 model: DynamicBot
 dataset: Reddit
 model_params:

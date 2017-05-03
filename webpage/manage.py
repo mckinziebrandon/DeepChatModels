@@ -2,13 +2,14 @@
 
 """manage.py: Start up the web server and the application."""
 
+import os
 from deepchat import create_app, db
 from deepchat.models import User, Chatbot, Conversation, Turn
 
 from flask_script import Manager, Shell
 from flask_migrate import Migrate, MigrateCommand
 
-app = create_app('default')
+app = create_app(os.getenv('APPENGINE_CONFIG', 'default'))
 # For better CLI.
 manager = Manager(app)
 # Database tables can be created or upgraded with a single command:

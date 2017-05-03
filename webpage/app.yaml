@@ -9,3 +9,7 @@ resources:
 
 runtime_config:
     python_version: 3.5
+
+# Define environment vars for app configuration.
+env_variables:
+  APPENGINE_CONFIG: 'production'
