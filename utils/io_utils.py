@@ -168,6 +168,10 @@ def flags_to_dict(flags):
        'model', 'dataset', 'model_params', 'dataset_params'.
     """
 
+    if isinstance(flags, dict):
+        logging.warning('The `flags` object is already a dictionary!')
+        return flags
+
     if flags.pretrained_dir is not None:
         config = load_pretrained_config(flags.pretrained_dir)
         config['model_params'] = {**config['model_params'],

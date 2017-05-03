@@ -9,7 +9,6 @@ import logging
 import numpy as np
 import tensorflow as tf
 from utils import io_utils
-from utils.io_utils import PAD_ID
 from abc import ABCMeta, abstractmethod, abstractproperty
 
 from chatbot.globals import DEFAULT_FULL_CONFIG
@@ -63,7 +62,8 @@ class DatasetABC(metaclass=ABCMeta):
 class Dataset(DatasetABC):
 
     def __init__(self, dataset_params):
-        """Implements the general of subset of operations that all classes can use.
+        """Implements the general of subset of operations that all 
+        dataset subclasses can use.
 
         Args:
             dataset_params: dictionary of configuration parameters. 
@@ -73,26 +73,27 @@ class Dataset(DatasetABC):
         self.__dict__['__params'] = Dataset.fill_params(dataset_params)
         # We query io_utils to ensure all data files are organized properly,
         # and io_utils returns the paths to files of interest.
-        paths_triplet = io_utils.prepare_data(self.data_dir,
-                                              self.data_dir + "/train_from.txt",
-                                              self.data_dir + "/train_to.txt",
-                                              self.data_dir + "/valid_from.txt",
-                                              self.data_dir + "/valid_to.txt",
-                                              self.vocab_size)
-        train_paths, valid_paths, vocab_path, true_vocab_size = paths_triplet
-        self.vocab_size = min(self.vocab_size, true_vocab_size)
-        dataset_params['vocab_size'] = self.vocab_size
+        id_paths, vocab_path, vocab_size = io_utils.prepare_data(
+            data_dir=self.data_dir,
+            vocab_size=self.vocab_size,
+            optimize=dataset_params.get('optimize_params'),
+            config_path=dataset_params.get('config_path'))
+
+        if vocab_size != self.vocab_size:
+            self.log.info("Updating vocab size from %d to %d",
+                          self.vocab_size, vocab_size)
+            self.vocab_size = vocab_size
+            # Also update the input dict, in case it is used later/elsewhere.
+            dataset_params['vocab_size'] = self.vocab_size
 
         self.paths = dict()
-        self.paths['from_train'] = train_paths[0]
-        self.paths['to_train'] = train_paths[1]
-        self.paths['from_valid'] = valid_paths[0]
-        self.paths['to_valid'] = valid_paths[1]
-        self.paths['vocab'] = vocab_path
-        self.paths['train_tfrecords'] = None
-        self.paths['valid_tfrecords'] = None
-
-        self._word_to_idx, self._idx_to_word = io_utils.get_vocab_dicts(vocab_path)
+        self.paths = {
+            **id_paths,
+            'vocab': vocab_path,
+            'train_tfrecords': None,
+            'valid_tfrecords': None}
+        self._word_to_idx, self._idx_to_word = io_utils.get_vocab_dicts(
+            vocab_path)
 
         # Create tfrecords file if not located in data_dir.
         self.convert_to_tf_records('train')
@@ -209,9 +210,11 @@ class Dataset(DatasetABC):
         def padded_batch(encoder_tokens, decoder_tokens):
             max_sent_len = longest_sentence(encoder_tokens, decoder_tokens)
             encoder_batch = np.array(
-                [s + [PAD_ID] * (max_sent_len - len(s)) for s in encoder_tokens])[:, ::-1]
+                [s + [io_utils.PAD_ID] * (max_sent_len - len(s))
+                 for s in encoder_tokens])[:, ::-1]
             decoder_batch = np.array(
-                [s + [PAD_ID] * (max_sent_len - len(s)) for s in decoder_tokens])
+                [s + [io_utils.PAD_ID] * (max_sent_len - len(s))
+                 for s in decoder_tokens])
             return encoder_batch, decoder_batch
 
         encoder_tokens = []
@@ -222,20 +225,21 @@ class Dataset(DatasetABC):
                 source, target = source_file.readline(), target_file.readline()
                 while source and target:
 
-                    # Skip any sentence pairs that are too long for user specifications.
+                    # Skip sentence pairs that are too long for specifications.
                     space_needed = max(len(source.split()), len(target.split()))
                     if space_needed > self.max_seq_len:
                         source, target = source_file.readline(), target_file.readline()
                         continue
 
                     # Reformat token strings to token lists.
-                    # Note: GO_ID is prepended by the chat bot, since it determines
-                    # whether or not it's responsible for responding.
+                    # Note: GO_ID is prepended by the chat bot, since it
+                    # determines whether or not it's responsible for responding.
                     encoder_tokens.append([int(x) for x in source.split()])
                     decoder_tokens.append(
                         [int(x) for x in target.split()] + [io_utils.EOS_ID])
 
-                    # Have we collected batch_size number of sentences? If so, pad & yield.
+                    # Have we collected batch_size number of sentences?
+                    # If so, pad & yield.
                     assert len(encoder_tokens) == len(decoder_tokens)
                     if len(encoder_tokens) == batch_size:
                         yield padded_batch(encoder_tokens, decoder_tokens)
