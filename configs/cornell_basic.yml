@@ -18,3 +18,4 @@ dataset_params:
   data_dir: /home/brandon/Datasets/cornell
   vocab_size: 40000
   max_seq_len: 10
+  optimize_params: true

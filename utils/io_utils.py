@@ -213,10 +213,9 @@ def flags_to_dict(flags):
 
 def merge_dicts(default_dict, preference_dict):
     """Preferentially (and recursively) merge input dictionaries.
-        - Ensures that all values in preference dict are used, and
-          all other (i.e. unspecified) items are from default dict.
-        - Updates default_dict to have the correct values, and
-          returns the updated default_dict when done.
+    
+    Ensures that all values in preference dict are used, and
+    all other (i.e. unspecified) items are from default dict.
     """
 
     merged_dict = copy.deepcopy(default_dict)
@@ -236,10 +235,9 @@ def merge_dicts(default_dict, preference_dict):
     return merged_dict
 
 
-def parse_config(
-        flags=None,
-        pretrained_dir=None,
-        config_path=None):
+def parse_config(flags=None,
+                 pretrained_dir=None,
+                 config_path=None):
     """Get custom configuration dictionary from either a tensorflow flags 
     object, a path to a training directory, or a path to a yaml file. Only pass 
     one of these. See "Args" below for more details.
@@ -489,6 +487,12 @@ def prepare_data(data_dir,
         (5) path to the vocabulary file,
         (6) the true vocabulary size (less than or equal to max allowed)
     """
+
+    if optimize is None:
+        logging.warning("You have not requested that your choice for "
+                        "vocab_size be optimized. This can lead to slower "
+                        "training times. Set 'optimize: true' under "
+                        "dataset_params in your yaml config to enable.")
 
     def maybe_set_param(param, file_name):
         if param is None:

@@ -4,7 +4,7 @@ dataset_params:
   data_dir: /home/brandon/Datasets/test_data
   max_seq_len: 15
   optimize_params: true
-  vocab_size: 1234
+  vocab_size: 121
 model: DynamicBot
 model_params:
   base_cell: GRUCell
