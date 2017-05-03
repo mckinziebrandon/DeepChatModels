@@ -37,7 +37,11 @@ class ChatBot(BucketModel):
 
         logging.basicConfig(level=logging.INFO)
         logger = logging.getLogger('ChatBotLogger')
-        super(ChatBot, self).__init__(logger, dataset, params)
+        super(ChatBot, self).__init__(
+            logger=logger,
+            buckets=buckets,
+            dataset=dataset,
+            params=params)
 
         if len(buckets) > 1:
             self.log.error("ChatBot requires len(buckets) be 1 since tensorflow's"
@@ -215,13 +219,18 @@ class SimpleBot(BucketModel):
 
     def __init__(self, dataset, params):
 
-        logging.basicConfig(level=logging.INFO)
-        logger = logging.getLogger('SimpleBotLogger')
-        super(SimpleBot, self).__init__(logger, dataset, params)
-
         # SimpleBot allows user to not worry about making their own buckets.
         # SimpleBot does that for you. SimpleBot cares.
-        buckets = [(self.max_seq_len // 2,  self.max_seq_len // 2), (self.max_seq_len, self.max_seq_len)]
+        max_seq_len = dataset.max_seq_len
+        buckets = [(max_seq_len // 2,  max_seq_len // 2), (max_seq_len, max_seq_len)]
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger('SimpleBotLogger')
+        super(SimpleBot, self).__init__(
+            logger=logger,
+            buckets=buckets,
+            dataset=dataset,
+            params=params)
+
 
         # ==========================================================================================
         # Create placeholder lists for encoder/decoder sequences.
