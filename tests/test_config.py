@@ -61,7 +61,7 @@ class TestConfig(unittest.TestCase):
         TEST_FLAGS.
         """
 
-        config = io_utils.parse_config(TEST_FLAGS)
+        config = io_utils.parse_config(flags=TEST_FLAGS)
 
         # ==============================================================
         # Easy tests.
@@ -101,7 +101,7 @@ class TestConfig(unittest.TestCase):
         size, updates it in the config file, and updates any assoc. file names.
         """
 
-        config = io_utils.parse_config(TEST_FLAGS)
+        config = io_utils.parse_config(flags=TEST_FLAGS)
         logging.info(config)
 
         # Manually set vocab size to huge (non-optimal for TestData) value.
@@ -127,7 +127,7 @@ class TestConfig(unittest.TestCase):
 
         logging.info(os.getcwd())
         config_path = 'configs/test_config.yml'
-        config = io_utils.parse_config(config_path)
+        config = io_utils.parse_config(config_path=config_path)
         self.assertIsInstance(config, dict)
         self.assertTrue('model' in config)
         self.assertTrue('dataset' in config)

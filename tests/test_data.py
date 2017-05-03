@@ -54,7 +54,7 @@ class TestData(unittest.TestCase):
             # User must specify data_dir, which we have not done yet.
             self.assertRaises(ValueError, dataset_class, incomplete_params)
 
-            config = io_utils.parse_config(TEST_FLAGS)
+            config = io_utils.parse_config(flags=TEST_FLAGS)
             dataset_params = config.get('dataset_params')
             dataset_params['data_dir'] = os.path.join(
                 data_dir,

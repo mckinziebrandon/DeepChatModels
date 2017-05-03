@@ -24,7 +24,7 @@ def create_bot(flags=TEST_FLAGS, return_dataset=False):
 
     # Wipe the graph and update config if needed.
     tf.reset_default_graph()
-    config = io_utils.parse_config(flags)
+    config = io_utils.parse_config(flags=flags)
     io_utils.print_non_defaults(config)
 
     # Instantiate a new dataset.
@@ -122,7 +122,7 @@ class TestDynamicModels(unittest.TestCase):
         self.assertTrue(bot.decode)
 
         print("Testing quick chat sesh . . . ")
-        config = io_utils.parse_config(flags)
+        config = io_utils.parse_config(flags=flags)
         import pydoc
         dataset_class = pydoc.locate(config['dataset']) \
                         or getattr(data, config['dataset'])

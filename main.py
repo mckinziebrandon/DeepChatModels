@@ -112,7 +112,7 @@ def main(argv):
         logging.basicConfig(level=logging.INFO)
 
     # Extract the merged configs/dictionaries.
-    config = io_utils.parse_config(FLAGS)
+    config = io_utils.parse_config(flags=FLAGS)
     if config['model_params']['decode'] and config['model_params']['reset_model']:
         print("Woops! You passed {decode: True, reset_model: True}." 
               " You can't chat with a reset bot! I'll set reset to False.")

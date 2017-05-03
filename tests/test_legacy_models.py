@@ -18,7 +18,7 @@ class TestLegacyModels(unittest.TestCase):
 
     def setUp(self):
         self.seq_len = 20
-        self.config = io_utils.parse_config(TEST_FLAGS)
+        self.config = io_utils.parse_config(flags=TEST_FLAGS)
         self.dataset = data.TestData(self.config['dataset_params'])
         self.batch_size = 2
         logging.basicConfig(level=logging.INFO)

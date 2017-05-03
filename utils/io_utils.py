@@ -11,7 +11,6 @@ import copy
 import pandas as pd
 import logging
 
-from main import FLAGS
 import tensorflow as tf
 from collections import Counter, namedtuple
 from tensorflow.python.platform import gfile
@@ -35,6 +34,12 @@ UNK_ID = 3
 # Regular expressions used to tokenize.
 _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
 _DIGIT_RE = re.compile(br"\d")
+
+
+_flags = tf.app.flags
+_flags.model = _flags.model_params = '{}'
+_flags.dataset = _flags.dataset_params = '{}'
+_FLAGS = _flags.FLAGS
 
 
 def save_hyper_params(hyper_params, fname):
@@ -181,16 +186,28 @@ def flags_to_dict(flags):
     flags_dict = {}
     # Grab any values under supported keys defined in default config.
     for stream in DEFAULT_FULL_CONFIG:
+
         stream_attr = getattr(flags, stream)
         if not isinstance(stream_attr, dict):
             yaml_stream = yaml.load(getattr(flags, stream))
         else:
             yaml_stream = stream_attr
+
         if yaml_stream:
             flags_dict.update({stream: yaml_stream})
         elif stream in ['model_params', 'dataset_params']:
             # Explicitly set it as empty for merging with default later.
             flags_dict[stream] = {}
+
+    # If provided, incorporate yaml config file as well.
+    # Give preference to values in flags_dict, since those are
+    # values provided by user on command-line.
+    if flags.config is not None:
+        yaml_config = get_yaml_config(flags.config)
+        flags_dict = merge_dicts(
+            default_dict=yaml_config,
+            preference_dict=flags_dict)
+
     return flags_dict
 
 
@@ -219,48 +236,63 @@ def merge_dicts(default_dict, preference_dict):
     return merged_dict
 
 
-def parse_config(flags):
-    """Get configuration information from FLAGS, namely:
-        1. any configuration file (.yml) paths.
-        2. any dictionaries defined by user at command-line.
+def parse_config(
+        flags=None,
+        pretrained_dir=None,
+        config_path=None):
+    """Get custom configuration dictionary from either a tensorflow flags 
+    object, a path to a training directory, or a path to a yaml file. Only pass 
+    one of these. See "Args" below for more details.
+    
+    The result is a dictionary of the same key-val structure as seen in
+    chatbot.globals.DEFAULT_FULL_CONFIG. For any key-value pair not found from
+    the (single) argument passed, it will be set to the default found in
+    DEFAULT_FULL_CONFIG.
 
     Args:
-        flags: either a tf.app.flags.FLAGS instance or a string.
-                If FLAGS instance: Assumes that the following keys exist: model, dataset,
-                model_params, and dataset_params.
-                If string: assumed to be the path to a pretrained model directory.
+        flags: A tf.app.flags.FLAGS object. See FLAGS in main.py.
+        pretrained_dir: relative [to project root] path to a pretrained model 
+            directory, i.e. a directory where a chatbot was previously 
+            saved/trained (a ckpt_dir).
+        config_path: relative [to project root] path to a valid yaml 
+            configuration file. For example: 'configs/my_config.yml'.
 
     Returns:
         config: dictionary of merged config info, where precedence is given to
         user-specified params on command-line (over .yml config files).
     """
 
-    # Quick implementation to support passing path to pretrained model.
-    if isinstance(flags, str):
-        config_path = flags
-        if '.yml' not in config_path:
-            # Assume user has passed us a pretrained_dir, in which case we
-            # know there is a config.yml inside (convention used by models).
-            config_path = os.path.join(config_path, 'config.yml')
+    # Only pass one of the options!
+    assert sum(x is not None for x in [flags, pretrained_dir, config_path]) == 1
+
+    # Build a flags object from other params, if it doesn't exist.
+    if flags is None:
+
+        # Get the config_path from the pretrained directory.
+        if config_path is None:
+            config_path = os.path.join(pretrained_dir, 'config.yml')
         assert gfile.Exists(config_path), \
             "Cannot parse from %s. No config.yml." % config_path
 
         # Wrap flags string inside an actual tf.app.flags object.
-        flags = FLAGS
+        flags = _FLAGS
+        # Make sure we are using a clean slate.
+        flags.model = flags.model_params = '{}'
+        flags.dataset = flags.dataset_params = '{}'
         flags.config = config_path
+    assert flags is not None
 
+    # Get configuration dictionary containing user-specified parameters.
     config = flags_to_dict(flags)
-    if flags.config is not None:
-        yaml_config = get_yaml_config(flags.config)
-        config = merge_dicts(default_dict=yaml_config, preference_dict=config)
-    else:
-        # Get mandatory info from user.
-        if 'ckpt_dir' not in config['model_params']:
-            print('Robot: Please enter a directory for saving checkpoints:')
-            config['model_params']['ckpt_dir'] = get_sentence(lower=False)
-        if 'data_dir' not in config['dataset_params']:
-            print('Robot: Please enter full path to directory containing data:')
-            config['dataset_params']['data_dir'] = get_sentence(lower=False)
+
+    # Sanity check: make sure we have values that don't have defaults.
+    if 'ckpt_dir' not in config['model_params']:
+        print('Robot: Please enter a directory for saving checkpoints:')
+        config['model_params']['ckpt_dir'] = get_sentence(lower=False)
+    if 'data_dir' not in config['dataset_params']:
+        print('Robot: Please enter full path to directory containing data:')
+        config['dataset_params']['data_dir'] = get_sentence(lower=False)
+
     # Then, fill in any blanks with the full default config.
     config = merge_dicts(default_dict=DEFAULT_FULL_CONFIG,
                          preference_dict=config)

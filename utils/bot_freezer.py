@@ -61,7 +61,7 @@ def unfreeze_and_chat(frozen_model_path):
     """Summon a bot back from the dead and have a nice lil chat with it."""
 
     tensor_dict, graph = unfreeze_bot(frozen_model_path)
-    config  = io_utils.parse_config(frozen_model_path)
+    config  = io_utils.parse_config(pretrained_dir=frozen_model_path)
     word_to_idx, idx_to_word = get_frozen_vocab(config)
 
     def as_words(sentence):
