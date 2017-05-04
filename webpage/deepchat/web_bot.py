@@ -67,8 +67,7 @@ def load_graph(frozen_model_dir):
             input_map=None,
             return_elements=None,
             op_dict=None,
-            producer_op_list=None
-        )
+            producer_op_list=None)
     return graph
 
 
@@ -102,19 +101,16 @@ class FrozenBot:
         # Get absolute path to model directory.
         here = os.path.dirname(os.path.realpath(__file__))
         assets_path = os.path.join(here, 'static', 'assets')
-        abs_model_dir = os.path.join(assets_path,
+        self.abs_model_dir = os.path.join(assets_path,
                                      'frozen_models',
                                      frozen_model_dir)
-        self.load_config(os.path.join(abs_model_dir, 'config.yml'))
+        self.load_config(os.path.join(self.abs_model_dir, 'config.yml'))
+        self.word_to_idx, self.idx_to_word = self.get_frozen_vocab(self.config)
         self.is_testing = is_testing
 
         # Setup tensorflow graph(s)/session(s) iff not testing.
         if not is_testing:
-            # Get cornell_bot graph and input/output tensors.
-            self.tensor_dict, graph = unfreeze_bot(abs_model_dir)
-            self.sess = tf.Session(graph=graph)
-            self.word_to_idx, self.idx_to_word = self.get_frozen_vocab(
-                self.config)
+            self.unfreeze()
 
     def load_config(self, config_path):
         with open(config_path) as f:
@@ -161,8 +157,6 @@ class FrozenBot:
         return words[0].upper() + words[1:]
 
 
-
-
     def __call__(self, sentence):
         """Outputs response sentence (string) given input (string)."""
 
@@ -182,4 +176,17 @@ class FrozenBot:
         response = self.as_words(response[0][:-1])
         print("Bot:", response)
         return response
+
+    def unfreeze(self):
+        # Setup tensorflow graph(s)/session(s) iff not testing.
+        if not self.is_testing:
+            # Get bot graph and input/output tensors.
+            self.tensor_dict, graph = unfreeze_bot(self.abs_model_dir)
+            self.sess = tf.Session(graph=graph)
+
+    def freeze(self):
+        if not self.is_testing:
+            self.sess.close()
+            self.graph = self.tensor_dict = None
+
 

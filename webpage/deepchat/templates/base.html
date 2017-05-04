@@ -91,11 +91,13 @@
           {% endfor %}
         </ul>
 
-        {% if user %}
           <ul class="nav navbar-nav navbar-right">
+            {% if user %}
             <span id='nav-session-user' class="navbar-text">User: {{ user }}</span>
+              {% else %}
+            <span id='nav-session-user' class="navbar-text">User: Anon</span>
+            {% endif %}
           </ul>
-        {% endif %}
       </div>  <!-- end: navbar -->
 
     </div>  <!-- end: container -->

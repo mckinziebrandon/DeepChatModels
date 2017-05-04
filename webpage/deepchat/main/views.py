@@ -70,14 +70,11 @@ def about():
 @cross_origin()
 def chat():
 
-    user_message = session.get('user_message')
     # Get the bot's response.
-    if session.get('data_name') == 'cornell':
-        chatbot_message = cornell_bot(user_message)
-    else:
-        chatbot_message = reddit_bot(user_message)
+    user_message = session.get('user_message')
+    chatbot_message = get_active_bot()(user_message)
 
-    user = get_or_create_user(session.get('user', 'Anonymous'))
+    user = get_or_create_user(session.get('user', 'Anon'))
     if session.get('start_time') is None:
         session['start_time'] = datetime.utcnow()
     conversation = get_or_create_conversation(session.get('start_time'), user)
@@ -108,20 +105,18 @@ def get_active_bot():
 def get_or_create_conversation(time, user):
 
     conversation = Conversation.query.filter_by(start_time=time).first()
-
     if conversation is None:
 
         if current_app.testing:
             bot_name = 'Reverse TestBot'
         else:
             bot_name = 'Baby {}'.format(session.get('data_name', 'Unknown Bot'))
-
         print('bot name: ', bot_name)
-        # Get or create the bot . . .
+
+        # Get or create the bot (db.Model) . . .
         chatbot = Chatbot.query.filter_by(name=bot_name).first()
         if chatbot is None:
             chatbot = Chatbot(bot_name, get_active_bot().config)
-
         conversation = Conversation(start_time=time,
                                     user=user,
                                     chatbot=chatbot)

@@ -140,19 +140,22 @@
               let activeTab = $('[data-target="#' + event.relatedTarget.id + '"]');
               activeTab.addClass('active');
               activeTab.find('span').addClass('text-primary');
+
+              // TODO: Send a POST request to activate the chatbot, so we can
+              // initialize/destroy them dynamically instead of all at once.
+              });
+
+              // From nav-pills to carousel . . .
+              // Just simulates moving the carousel to the right index,
+              // so we can put most of the behavior in that handler instead.
+              $('.nav-tabs li').click(function(event) {
+                  let index = $(this).data('slide-to');
+                  $('#chat-carousel').carousel(index);
+                  event.preventDefault();
+              });
+
           });
+      </script>
 
-          // From nav-pills to carousel . . .
-          // Just simulates moving the carousel to the right index,
-          // so we can put most of the behavior in that handler instead.
-          $('.nav-tabs li').click(function(event) {
-              let index = $(this).data('slide-to');
-              $('#chat-carousel').carousel(index);
-              event.preventDefault();
-          });
-
-      });
-  </script>
-
-{% endblock scripts %}
+    {% endblock scripts %}
 
