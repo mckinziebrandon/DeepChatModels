@@ -81,7 +81,14 @@ class DataHelper:
 
         # 2. Get absolute paths to all data filenames in self.file_paths.
         self.file_paths = []
-        years = prompt("Years to process", default="2007,2008,2009").split(',')
+        years = prompt("Years to process", default="2007,2008,2009")
+        # Secretly supports passing a range too. Shhhh.
+        if '-' in years:
+            years = list(map(int, years.split('-')))
+            years = list(range(years[0], years[1]+1))
+            years = list(map(str, years))
+        else:
+            years = years.split(',')
         for y in years:
             # The path is: $ROOT/raw_data/$YEAR
             # Add the entirety of the directory to the file paths.
@@ -121,8 +128,10 @@ class DataHelper:
             print("\rLoaded file", self.file_paths[i], end="")
             sys.stdout.flush()
             if mem_usage > self.max_mem:
-                print("\nPast max capacity: %r! Leaving data collection early.", mem_usage)
-                logging.warning('Terminated data loading after reading %d files.', i + 1)
+                print("\nPast max capacity:", mem_usage,
+                      "Leaving data collection early.")
+                logging.warning('Terminated data loading after '
+                                'reading %d files.', i + 1)
                 logging.info('Files read into df: %r', self.file_paths[:i+1])
                 break
         print()
@@ -136,6 +145,21 @@ class DataHelper:
         logging.info("Column names from raw data file: %r", df.columns)
         logging.info("DataHelper.safe_load: df.head() = %r", df.head())
         return df
+
+    def load_random(self, year=None):
+        """Load a random data file and return as a DataFrame.
+        
+        Args:
+            year: (int) If given, get a random file from this year.
+        """
+
+        files = self.file_paths
+        if year is not None:
+            files = list(filter(lambda f: str(year) in f, files))
+
+        rand_index = np.random.randint(low=0, high=len(files))
+        print('Returning data from file:\n', files[rand_index])
+        return pd.read_json(files[rand_index], lines=True)
 
     def set_word_freq(self, wf):
         """Hacky (temporary) fix related to multiprocessing.Pool complaints
