@@ -1,14 +1,11 @@
 {% macro with_errors(field) %}
   <!-- Wraps a form field with error handling. -->
-  <div class="form_field">
-    {% if field and field.errors %}
-      {% set css_class = 'has_error ' + kwargs.pop('class', '') %}
-      {{ field(class=css_class, **kwargs) }}
-      <ul class="errors">{% for error in field.errors %}<li>{{ error|e }}</li>{% endfor %}</ul>
-    {% else %}
-      {{ field(**kwargs) }}
-    {% endif %}
-  </div>
+  {% if field and field.errors %}
+    {{ field(class=css_class, **kwargs) }}
+    <ul class="errors">{% for error in field.errors %}<li>{{ error|e }}</li>{% endfor %}</ul>
+  {% else %}
+    {{ field(**kwargs) }}
+  {% endif %}
 {% endmacro %}
 
 <!-- Render a field label. -->
@@ -18,7 +15,7 @@
 
 <!-- Render the user message input field. -->
 {% macro render_user_message(message) %}
-  {{ message(class="form-control input-sm", autocomplete="off", **kwargs) }}
+  {{ message(class="form-control", autocomplete="off", **kwargs) }}
 {% endmacro %}
 
 <!-- Render a submit button. -->
@@ -28,7 +25,7 @@
 
 <!-- Render an instance of app.forms.BasicForm. -->
 {% macro render_chat_form(form, id, bot_name) %}
-  <div class="row text-center chat-form">
+  <div class="row text-center chat-form form-group">
     <div class="input-group">
       <!-- For CSRF reasons. -->
       {{ form.hidden_tag() }}
@@ -46,14 +43,20 @@
   <div id="{{ id }}" class="form-group">
     <!-- For CSRF reasons. -->
     {{ form.hidden_tag() }}
-    <div class="input-input-group">
-    <!-- User Name -->
-    {{ render_label(form.name.label) }}
-    {{ form.name(class="form-control", autocomplete="off") }}
-    <!-- Submit -->
-      <br>
-    {{ render_submit(form.submit, id=id + '-submit', class='user-form-submit btn btn-primary btn-sm') }}
+
+    <!-- Key Input -->
+    <div class="col-sm-9">
+      <div class="input-group input-group-sm">
+        <span id="key-addon" class="input-group-addon">Name</span>
+        {{ form.name(class="form-control", placeholder="User McUserFace" , autocomplete="off") }}
+      </div>
     </div>
+
+    <div class="col-sm-2">
+      <!-- Submit -->
+      {{ render_submit(form.submit, id=id + '-submit', class='user-form-submit btn btn-primary btn-sm') }}
+    </div>
+
   </div>
 {% endmacro %}
 

@@ -1,5 +1,6 @@
 /* Various style tweaks for chat boxes and bootstrap css. */
 
+
 .jumbotron {
   background-color: whitesmoke;
 }
@@ -16,6 +17,7 @@
 .chat-box {
   /* color, image, repeat */
   background: rgba(176, 196, 222, 0.6) none no-repeat;
+  border-radius: 10px;
 }
 
 .chat-log {

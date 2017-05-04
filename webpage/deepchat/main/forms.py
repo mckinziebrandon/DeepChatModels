@@ -1,7 +1,8 @@
 """apps/forms.py: """
 
 from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField, TextAreaField, HiddenField
+from wtforms import StringField, SubmitField, \
+    TextField, TextAreaField, HiddenField
 from wtforms.validators import DataRequired, InputRequired
 from wtforms.validators import ValidationError
 
@@ -20,9 +21,8 @@ class ChatForm(FlaskForm):
 
 class UserForm(FlaskForm):
     """Form for creating/editing a user."""
-    name = StringField(
-        label='name',
-        id='user-name',
+    name = StringField(label='name',
+                       id='user-name',
         validators=[DataRequired(), bad_chars])
     submit = SubmitField(label='Submit')
 

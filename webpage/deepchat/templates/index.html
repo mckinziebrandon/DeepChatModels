@@ -10,18 +10,45 @@
     <p>Have a chat with a deep neural network.</p>
   </div>
 
+
+  <h2>Give Yourself a Nickname &nbsp;
+    <button type="button" class="btn btn-xs btn-info"
+            data-toggle="popover"
+            title="&quot;Data&quot;"
+            data-content="I'm slowly building a
+              database of conversations, and it helps to
+              have an identifier for the user (defaults to 'Anon').
+              It can be anything!">
+      Why?
+    </button>
+  </h2>
+
   <div class="row">
-    <h3>Who Are You?</h3>
     <div class="col-xs-12 col-sm-8">
-      <p>The bot would like to know who it is talking to. Feel free to tell it your name!</p>
+      <p>
+        The bot would like to know who it is talking to.
+        Feel free to enter a nickname for yourself below:
+      </p>
+
+      <div class="row">
       {{ render_user_form(user_form, "user-form") }}
+      </div>
+
     </div>
   </div>
 
   <hr>
+  <h2>Cornell - Simple</h2>
   <div class="row">
-    <h2>Cornell - Simple</h2>
-    <p>This model, a simple encoder-decoder, was trained on the Cornell Movie Dialogs dataset.</p>
+
+    <div class="col-xs-12 col-sm-10">
+      <p>
+        This model, a simple encoder-decoder, was trained on the
+        Cornell Movie Dialogs dataset. It is the simplest model the project
+        currently supports, and also the most compact/easiest to fit on a website.
+      </p>
+    </div>
+
     <div class="col-xs-12 col-sm-10">
       <!-- The big ol' (blue background) chat box. -->
       <div id="cornell-chat-box" class="chat-box row">
@@ -48,6 +75,13 @@
 
     </div>  <!-- end: col -->
   </div>
+
+
+  <script>
+      $(function() {
+          $('[data-toggle="popover"]').popover();
+      });
+  </script>
 
 
 {%  endblock page_content %}
