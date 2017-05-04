@@ -1,7 +1,7 @@
 runtime: python
 env: flex
 threadsafe: false
-entrypoint: gunicorn -b :$PORT deepchat:app
+entrypoint: gunicorn -b :$PORT manage:app
 
 resources:
   cpu: 2  # Number of cores. Default: 1
