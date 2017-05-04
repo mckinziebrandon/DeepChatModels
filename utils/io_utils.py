@@ -61,11 +61,10 @@ def get_sentence(lower=True):
     return sentence
 
 
-def update_config(
-        config=None,
-        config_path=None,
-        return_config=True,
-        **kwargs):
+def update_config(config=None,
+                  config_path=None,
+                  return_config=True,
+                  **kwargs):
     """Update contents of a config file, overwriting any that 
     match those in kwargs.
    
@@ -235,9 +234,7 @@ def merge_dicts(default_dict, preference_dict):
     return merged_dict
 
 
-def parse_config(flags=None,
-                 pretrained_dir=None,
-                 config_path=None):
+def parse_config(flags=None, pretrained_dir=None, config_path=None):
     """Get custom configuration dictionary from either a tensorflow flags 
     object, a path to a training directory, or a path to a yaml file. Only pass 
     one of these. See "Args" below for more details.

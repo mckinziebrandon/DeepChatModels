@@ -49,7 +49,7 @@ class User(db.Model):
 class Chatbot(db.Model):
     """Chatbot. Fields are the same as from yaml config files."""
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(64), index=True, unique=True)
+    name = db.Column(db.String(64), index=True, unique=True)  # TODO: make unique?
     dataset = db.Column(db.String(64))
     base_cell = db.Column(db.String(64))
     encoder = db.Column(db.String(64))

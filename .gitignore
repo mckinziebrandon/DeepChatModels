@@ -30,3 +30,5 @@ compact.sh
 **/reference/*
 **/saved_train_data/**
 /webpage/data_dev.db
+/notebooks/reference/
+/notebooks/.ipynb_checkpoints/

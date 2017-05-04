@@ -40,7 +40,9 @@ def index():
     if request.method == 'POST':
         if user_form.name.data:
             session['user'] = user_form.name.data
+            # TODO: is this used anymore?
             session['user_saved'] = True
+
         # Triggered by ajax call; simply return the response string.
         if chat_form.message.data:
             session['user_message'] = chat_form.message.data
@@ -104,7 +106,14 @@ def get_active_bot():
 def get_or_create_conversation(time, user):
     conversation = Conversation.query.filter_by(start_time=time).first()
     if conversation is None:
+
+        count = 0
         bot_name = 'Baby {}'.format(session.get('data_name', 'Unknown Bot'))
+        bot_name += "_{}".format(count)
+        while Chatbot.query.filter_by(name=bot_name).first() is not None:
+            count += 1
+            bot_name = bot_name[:-1] + str(count)
+
         chatbot = Chatbot(bot_name, get_active_bot().config)
         conversation = Conversation(start_time=time,
                                     user=user,
