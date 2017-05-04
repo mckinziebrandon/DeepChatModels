@@ -22,6 +22,8 @@ def load_gloabal_data():
     """Create the cornell_bot to be used for chat session."""
     global cornell_bot, reddit_bot
 
+    session['start_time'] = None
+
     cornell_bot = web_bot.FrozenBot(frozen_model_dir='cornell',
                                     is_testing=current_app.testing)
     reddit_bot = web_bot.FrozenBot(frozen_model_dir='reddit',
@@ -104,17 +106,22 @@ def get_active_bot():
 
 
 def get_or_create_conversation(time, user):
+
     conversation = Conversation.query.filter_by(start_time=time).first()
+
     if conversation is None:
 
-        count = 0
-        bot_name = 'Baby {}'.format(session.get('data_name', 'Unknown Bot'))
-        bot_name += "_{}".format(count)
-        while Chatbot.query.filter_by(name=bot_name).first() is not None:
-            count += 1
-            bot_name = bot_name[:-1] + str(count)
+        if current_app.testing:
+            bot_name = 'Reverse TestBot'
+        else:
+            bot_name = 'Baby {}'.format(session.get('data_name', 'Unknown Bot'))
 
-        chatbot = Chatbot(bot_name, get_active_bot().config)
+        print('bot name: ', bot_name)
+        # Get or create the bot . . .
+        chatbot = Chatbot.query.filter_by(name=bot_name).first()
+        if chatbot is None:
+            chatbot = Chatbot(bot_name, get_active_bot().config)
+
         conversation = Conversation(start_time=time,
                                     user=user,
                                     chatbot=chatbot)

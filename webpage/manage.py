@@ -9,7 +9,14 @@ from deepchat.models import User, Chatbot, Conversation, Turn
 from flask_script import Manager, Shell
 from flask_migrate import Migrate, MigrateCommand
 
-app = create_app(os.getenv('APPENGINE_CONFIG', 'default'))
+# First check if we are being called on the app engine.
+config_name = os.getenv('APPENGINE_CONFIG')
+# If not, either set to my (Brandon) preference given by FLASK_CONFIG, or
+# set to default if not found (e.g. you != Brandon || haven't set FLASK_CONFIG)
+if config_name is None:
+    config_name = os.getenv('FLASK_CONFIG', 'default')
+
+app = create_app(config_name)
 # For better CLI.
 manager = Manager(app)
 # Database tables can be created or upgraded with a single command:

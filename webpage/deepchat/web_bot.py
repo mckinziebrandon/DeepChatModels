@@ -99,17 +99,17 @@ class FrozenBot:
             In that case, just use a 'bot' that returns inputs reversed.
         """
 
+        # Get absolute path to model directory.
+        here = os.path.dirname(os.path.realpath(__file__))
+        assets_path = os.path.join(here, 'static', 'assets')
+        abs_model_dir = os.path.join(assets_path,
+                                     'frozen_models',
+                                     frozen_model_dir)
+        self.load_config(os.path.join(abs_model_dir, 'config.yml'))
         self.is_testing = is_testing
+
+        # Setup tensorflow graph(s)/session(s) iff not testing.
         if not is_testing:
-
-            # Get absolute path to model directory.
-            here = os.path.dirname(os.path.realpath(__file__))
-            assets_path = os.path.join(here, 'static', 'assets')
-            abs_model_dir = os.path.join(assets_path,
-                                         'frozen_models',
-                                         frozen_model_dir)
-            self.load_config(os.path.join(abs_model_dir, 'config.yml'))
-
             # Get cornell_bot graph and input/output tensors.
             self.tensor_dict, graph = unfreeze_bot(abs_model_dir)
             self.sess = tf.Session(graph=graph)

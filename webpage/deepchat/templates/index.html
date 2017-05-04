@@ -31,60 +31,128 @@
       </p>
 
       <div class="row">
-      {{ render_user_form(user_form, "user-form") }}
+        {{ render_user_form(user_form, "user-form") }}
       </div>
 
     </div>
   </div>
+  <br>
 
   <hr>
-  <h2>Cornell - Simple</h2>
+  <h2>Chat with a Bot</h2>
+
   <div class="row">
+  <div class="col-xs-12 col-sm-10">
+  <p>
+  I've uploaded two simple models here that you can chat with. One was trained on
+  the Cornell Movie Dialogs, the other on a subset (2007-2009) of the Reddit comments
+  dataset. They both have the same model architecture. I'll upload the full configurations
+  soon, but their key components are as follows:
+  <ul>
+  <li>Max sentence length: 10</li>
+    <li>Vocabulary size: 40000</li>
+    <li>BasicEncoder to BasicDecoder; single-layer each</li>
+  </ul>
+  The rest of the parameters (and some of the above) are the default values. They represent
+  the simplest model(s) the project supports.
+  </p>
+  </div>
+  </div>
 
-    <div class="col-xs-12 col-sm-10">
-      <p>
-        This model, a simple encoder-decoder, was trained on the
-        Cornell Movie Dialogs dataset. It is the simplest model the project
-        currently supports, and also the most compact/easiest to fit on a website.
-      </p>
+
+  <div class="row">
+    <div class="col-xs-12">
+      <ul class="nav nav-tabs">
+        <li role="presentation"
+            data-target="#cornell-chat-box"
+            data-slide-to="0"
+            class="active">
+          <a href="#"><span class="text-primary">Cornell</span></a></li>
+        <li role="presentation"
+            data-target="#reddit-chat-box"
+            data-slide-to="1">
+          <a href="#"><span>Reddit</span></a></li>
+      </ul>
     </div>
+  </div>
 
-    <div class="col-xs-12 col-sm-10">
-      <!-- The big ol' (blue background) chat box. -->
-      <div id="cornell-chat-box" class="chat-box row">
+
+  <div id="chat-carousel" class="carousel slide">
+
+    <!-- Indicators
+    <ol class="carousel-indicators">
+      <li data-target="#chat-carousel" data-slide-to="0" class="active"></li>
+      <li data-target="#chat-carousel" data-slide-to="1"></li>
+    </ol> -->
+
+    <!-- Wrapper for slides -->
+    <div class="carousel-inner" role="listbox">
+
+      <!-- SLIDE: 0 -->
+      <div id="cornell-chat-box" class="chat-box item active">
         <!-- chat box injected here -->
         <div id='cornell-chat-log' class="chat-log col-xs-12 col-sm-10 col-sm-offset-1">
         </div>
         <!-- User input injected here -->
         {{ render_chat_form(chat_form, "cornell-chat-form", "cornell") }}
-      </div>  <!-- end: chat-box  -->
-    </div>  <!-- end: col -->
-  </div>
-  <br>
+      </div>  <!-- end: #cornell-chat-box  -->
 
-  <hr>
-  <div class="row">
-    <h2>Reddit - Simple</h2>
-    <p>This model, a simple encoder-decoder, was trained on a subset of the Reddit dataset.</p>
-    <div class="col-xs-12 col-sm-10">
-
-      <div id="reddit-chat-box" class="chat-box row">
-        <div id='reddit-chat-log' class="chat-log col-xs-12 col-sm-10 col-sm-offset-1"></div>
+      <!-- SLIDE: 1 -->
+      <div id="reddit-chat-box" class="chat-box item">
+        <!-- chat box injected here -->
+        <div id='reddit-chat-log' class="chat-log col-xs-12 col-sm-10 col-sm-offset-1">
+        </div>
         {{ render_chat_form(chat_form, "reddit-chat-form", "reddit") }}
       </div>  <!-- end: chat-box  -->
 
-    </div>  <!-- end: col -->
+    </div> <!-- end: .carousel-inner -->
+
+    <!-- Controls -->
+    <a class="left carousel-control" href="#chat-carousel" role="button" data-slide="prev">
+      <span class="glyphicon glyphicon-chevron-left" aria-hidden="true"></span>
+      <span class="sr-only">Previous</span>
+    </a>
+    <a class="right carousel-control" href="#chat-carousel" role="button" data-slide="next">
+      <span class="glyphicon glyphicon-chevron-right" aria-hidden="true"></span>
+      <span class="sr-only">Next</span>
+    </a>
   </div>
 
-
-  <script>
-      $(function() {
-          $('[data-toggle="popover"]').popover();
-      });
-  </script>
-
+  <hr>
+  <br><br>
 
 {%  endblock page_content %}
 
+{% block scripts %}
+  {{ super() }}
+  <script>
+      $(function() {
+          $('[data-toggle="popover"]').popover();
 
+          // Activate the carousel.
+          //$('.carousel').carousel();
+          $('.carousel').carousel('pause');
+
+          // From carousel to nav-pills . . .
+          $('#chat-carousel').on('slide.bs.carousel', function(event) {
+              $('.nav-tabs li').removeClass('active');
+              $('.nav-tabs li span').removeClass('text-primary');
+              let activeTab = $('[data-target="#' + event.relatedTarget.id + '"]');
+              activeTab.addClass('active');
+              activeTab.find('span').addClass('text-primary');
+          });
+
+          // From nav-pills to carousel . . .
+          // Just simulates moving the carousel to the right index,
+          // so we can put most of the behavior in that handler instead.
+          $('.nav-tabs li').click(function(event) {
+              let index = $(this).data('slide-to');
+              $('#chat-carousel').carousel(index);
+              event.preventDefault();
+          });
+
+      });
+  </script>
+
+{% endblock scripts %}
 

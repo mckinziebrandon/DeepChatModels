@@ -21,8 +21,8 @@ pagedown = PageDown()
 # Flask-restful api interface.
 api = Api()
 # Database visualizer.
-admin = Admin(name=os.getenv('APPENGINE_CONFIG', 'Development').title(),
-              template_mode='bootstrap3')
+#name=os.getenv('APPENGINE_CONFIG', 'Development').title(),
+admin = Admin(template_mode='bootstrap3')
 # Basic authentication (mainly for using flask-admin).
 basic_auth = BasicAuth()
 
@@ -57,6 +57,7 @@ def create_app(config_name):
     # Client-sdie Markdown-to-HTML converter implemented in JS.
     pagedown.init_app(app)
     #
+    admin.name = config_name.title()
     admin.init_app(app)
 
     basic_auth.init_app(app)

@@ -1,0 +1,19 @@
+<!-- Customizing admin page. Note that we need to copy
+stuff from abstract_base.html since Jinja doesn't support
+multiple inheritance.
+
+See: flask-admin.readthedocs.io -->
+{% extends 'admin/master.html' %}
+
+  {% block head %}
+    {{ super() }}
+
+
+
+  {% endblock head %}
+
+
+{% block body %}
+
+
+{% endblock body %}

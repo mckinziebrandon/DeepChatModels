@@ -14,9 +14,14 @@
   border-color: rgb(20, 130, 200);
 }
 
-.chat-box {
+/*.chat-box, */.carousel-inner {
   /* color, image, repeat */
   background: rgba(176, 196, 222, 0.6) none no-repeat;
+  border-radius: 10px;
+}
+
+.carousel-control {
+  width: 15px;
   border-radius: 10px;
 }
 

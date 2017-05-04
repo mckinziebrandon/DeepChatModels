@@ -1,0 +1,39 @@
+
+  <hr>
+  <h2>Cornell - Simple</h2>
+  <div class="row">
+
+    <div class="col-xs-12 col-sm-10">
+      <p>
+        This model, a simple encoder-decoder, was trained on the
+        Cornell Movie Dialogs dataset. It is the simplest model the project
+        currently supports, and also the most compact/easiest to fit on a website.
+      </p>
+    </div>
+
+    <div class="col-xs-12 col-sm-10">
+      <!-- The big ol' (blue background) chat box. -->
+      <div id="cornell-chat-box" class="chat-box row">
+        <!-- chat box injected here -->
+        <div id='cornell-chat-log' class="chat-log col-xs-12 col-sm-10 col-sm-offset-1">
+        </div>
+        <!-- User input injected here -->
+        {{ render_chat_form(chat_form, "cornell-chat-form", "cornell") }}
+      </div>  <!-- end: chat-box  -->
+    </div>  <!-- end: col -->
+  </div>
+  <br>
+
+  <hr>
+  <div class="row">
+    <h2>Reddit - Simple</h2>
+    <p>This model, a simple encoder-decoder, was trained on a subset of the Reddit dataset.</p>
+    <div class="col-xs-12 col-sm-10">
+
+      <div id="reddit-chat-box" class="chat-box row">
+        <div id='reddit-chat-log' class="chat-log col-xs-12 col-sm-10 col-sm-offset-1"></div>
+        {{ render_chat_form(chat_form, "reddit-chat-form", "reddit") }}
+      </div>  <!-- end: chat-box  -->
+
+    </div>  <!-- end: col -->
+  </div>
