@@ -12,10 +12,8 @@ class Config:
     # Used to create cryptographic token used to valide a form.
     SECRET_KEY = os.getenv('SECRET_KEY', 'not-really-a-secret-now')
 
-    # __________ SQLAlchemy Configuration __________
-    # Suppress error from package itself.
+    # SQLAlchemy configuration.
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    # Folder where we'll store SQLAlchemy-migrate data files.
     SQLALCHEMY_COMMIT_ON_TEARDOWN = True
 
     # Username/password for flask admin access.
@@ -43,6 +41,8 @@ class TestingConfig(Config):
 class ProductionConfig(Config):
     # Path of our db file. Required by Flask-SQLAlchemy extension.
     SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(basedir, 'data.db')
+    SESSION_COOKIE_HTTPONLY = False
+    PREFERRED_URL_SCHEME = 'https'
 
 config = {
     'development': DevelopmentConfig,

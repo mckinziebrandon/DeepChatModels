@@ -51,7 +51,8 @@
           href="{{ url_for('static', filename='css/style_modifications.css') }}">
 
     <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
-    <script src="{{ url_for('static', filename='vendor/jquery/jquery-3.2.1.min.js') }}"></script>
+    <script type="text/javascript"
+            src="{{ url_for('static', filename='vendor/jquery/jquery-3.2.1.min.js') }}"></script>
 
   {% endblock head %}
 </head>
@@ -91,13 +92,13 @@
           {% endfor %}
         </ul>
 
-          <ul class="nav navbar-nav navbar-right">
-            {% if user %}
+        <ul class="nav navbar-nav navbar-right">
+          {% if user %}
             <span id='nav-session-user' class="navbar-text">User: {{ user }}</span>
-              {% else %}
+          {% else %}
             <span id='nav-session-user' class="navbar-text">User: Anon</span>
-            {% endif %}
-          </ul>
+          {% endif %}
+        </ul>
       </div>  <!-- end: navbar -->
 
     </div>  <!-- end: container -->
@@ -128,38 +129,39 @@
 
 
 {% block scripts %}
-<!-- Recommended by flask docs. -->
-<script>
-    var $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
-    var $INDEX_URL = "{{ url_for('main.index', _scheme='https', _external=True ) }}";
-</script>
+  <!-- Recommended by flask docs. -->
+  <script>
+      var $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
+      var $INDEX_URL = "{{ url_for('main.index', _scheme='https', _external=True ) }}";
+  </script>
 
 
-<!-- Latest Bootstrap JavaScript -->
-<script src="{{ url_for('static', filename='vendor/bootstrap-3.3.7-dist/js/bootstrap.min.js') }}"></script>
+  <!-- Latest Bootstrap JavaScript -->
+  <script src="{{ url_for('static', filename='vendor/bootstrap-3.3.7-dist/js/bootstrap.min.js') }}"></script>
 
-<!-- Plugin JavaScript -->
-<script src="{{ url_for('static', filename='vendor/jquery/jquery.easing.1.3.js') }}"></script>
-<!--<script src="{{ url_for('static', filename='vendor/plugins/tether.min.js') }}"></script>-->
+  <!-- Plugin JavaScript -->
+  <script src="{{ url_for('static', filename='vendor/jquery/jquery.easing.1.3.js') }}"></script>
+  <!--<script src="{{ url_for('static', filename='vendor/plugins/tether.min.js') }}"></script>-->
 
-<!-- Contact Form JavaScript -->
-<script src="{{ url_for('static', filename='js/jqBootstrapValidation.js') }}">
-</script>
+  <!-- Contact Form JavaScript -->
+  <script src="{{ url_for('static', filename='js/jqBootstrapValidation.js') }}">
+  </script>
 
-<!-- Chat Processing JavaScript -->
-<script src="{{ url_for('static', filename='js/chat_processing.js') }}"></script>
-<script src="{{ url_for('static', filename='js/user_form.js') }}"></script>
-<script type="text/javascript">
-    var csrf_token = "{{ csrf_token() }}";
-    $.ajaxSetup({
-        beforeSend: function(xhr, settings) {
-            if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain) {
-                xhr.setRequestHeader("X-CSRFToken", csrf_token);
-            }
-        }
-    });
-</script>
+  <!-- Chat Processing JavaScript -->
+  <script src="{{ url_for('static', filename='js/chat_processing.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/user_form.js') }}"></script>
 
+  <script type="text/javascript">
+      var csrf_token = "{{ csrf_token() }}";
+      $.ajaxSetup({
+          beforeSend: function(xhr, settings) {
+              console.log('this.crossDomain:', this.crossDomain);
+              if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain) {
+                  xhr.setRequestHeader("X-CSRFToken", csrf_token);
+              }
+          }
+      });
+  </script>
 
 {% endblock scripts %}
 

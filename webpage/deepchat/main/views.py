@@ -1,4 +1,5 @@
 from datetime import datetime
+import os
 import yaml
 
 from flask import make_response, flash
@@ -21,9 +22,7 @@ from ..models import User, Chatbot, Conversation, Turn
 def load_gloabal_data():
     """Create the cornell_bot to be used for chat session."""
     global cornell_bot, reddit_bot
-
     session['start_time'] = None
-
     cornell_bot = web_bot.FrozenBot(frozen_model_dir='cornell',
                                     is_testing=current_app.testing)
     reddit_bot = web_bot.FrozenBot(frozen_model_dir='reddit',
@@ -50,13 +49,15 @@ def index():
             session['user_message'] = chat_form.message.data
             print('dataName:', request.form.get('dataName'))
             session['data_name'] = request.form.get('dataName')
-            return redirect(url_for('.chat'), code=307)
+            #if os.getenv('APPENGINE_CONFIG'):
+            #    return redirect(url_for('.chat'), code=307, _scheme='https', _external=True)
+            #return redirect(url_for('.chat'), code=307)
+            return chat()
 
-    return render_template(
-        'index.html',
-        user=session.get('user'),
-        user_form=user_form,
-        chat_form=chat_form)
+    return render_template('index.html',
+                           user=session.get('user'),
+                           user_form=user_form,
+                           chat_form=chat_form)
 
 
 @main.route('/about/')
@@ -122,6 +123,7 @@ def get_or_create_conversation(time, user):
                                     chatbot=chatbot)
     return conversation
 
+
 # -------------------------------------------------------
 # ADMIN: Authentication for the admin (me) on /admin.
 # -------------------------------------------------------
@@ -149,4 +151,14 @@ admin.add_view(ModelView(Chatbot, db.session))
 admin.add_view(ModelView(Conversation, db.session))
 admin.add_view(ModelView(Turn, db.session))
 
+#@main.before_app_request
+#@cross_origin()
+#def before_request():
+#    """JUST GIVE ME HTTPS"""
+#
+#    if os.getenv('APPENGINE_CONFIG'):
+#        from flask import _request_ctx_stack
+#        if _request_ctx_stack is not None:
+#            reqctx = _request_ctx_stack.top
+#            reqctx.url_adapter.url_scheme = 'https'
 
