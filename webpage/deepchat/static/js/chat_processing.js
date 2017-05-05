@@ -7,7 +7,10 @@ $(document).ready(function() {
 
     submitButton.on('click', function(e) {
 
-        let dataName = $(this).data('name');
+        // Not sure why the specificity is required here (it isn't for my machine)
+        // but the deployed app always selects the first chat box otherwise.
+        let dataName = $('.chat-box.active .chat-form-submit').data('name');
+        console.log('Event triggered for button with data name:', dataName);
         userMessage = $('#'+dataName);
 
         if (!userMessage.val()) {  // don't do anything on empty input

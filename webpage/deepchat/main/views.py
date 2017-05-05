@@ -111,12 +111,12 @@ def get_or_create_conversation(time, user):
             bot_name = 'Reverse TestBot'
         else:
             bot_name = 'Baby {}'.format(session.get('data_name', 'Unknown Bot'))
-        print('bot name: ', bot_name)
 
         # Get or create the bot (db.Model) . . .
         chatbot = Chatbot.query.filter_by(name=bot_name).first()
         if chatbot is None:
             chatbot = Chatbot(bot_name, get_active_bot().config)
+
         conversation = Conversation(start_time=time,
                                     user=user,
                                     chatbot=chatbot)
