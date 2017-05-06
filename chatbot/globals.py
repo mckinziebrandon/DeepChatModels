@@ -11,19 +11,19 @@ OPTIMIZERS = {
 
 # All allowed and/or used default configuration values, period.
 DEFAULT_FULL_CONFIG = {
-    "model": "chatbot.DynamicBot",
-    "dataset": "data.Cornell",
+    "model": "DynamicBot",
+    "dataset": "Cornell",
     "model_params": {
         "base_cell": "GRUCell",
         "ckpt_dir": "out",
         "decode": False,
         "batch_size": 256,
         "dropout_prob": 0.2,
-        "decoder.class": "chatbot.components.decoders.BasicDecoder",
-        "encoder.class": "chatbot.components.encoders.BasicEncoder",
-        "embed_size": 64,
+        "decoder.class": "BasicDecoder",
+        "encoder.class": "BasicEncoder",
+        "embed_size": 128,
         "learning_rate": 0.002,
-        "l1_reg": 1e-6,
+        "l1_reg": 1.0e-6,
         "lr_decay": 0.98,
         "max_gradient": 5.0,
         "max_steps": int(1e6),
@@ -37,8 +37,9 @@ DEFAULT_FULL_CONFIG = {
         "temperature": 0.0,
     },
     "dataset_params": {
-        "data_dir": None,
+        "data_dir": None,  # Require user to specify.
         "vocab_size": 40000,
-        "max_seq_len": 10
+        "max_seq_len": 10,
+        "optimize_params": True
     },
 }

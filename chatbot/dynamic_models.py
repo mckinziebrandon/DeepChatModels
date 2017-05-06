@@ -270,7 +270,7 @@ class DynamicBot(Model):
         # Note: Calling sleep allows sustained GPU utilization across training.
         # Without it, GPU has to wait for data to be enqueued more often.
         print('QUEUE RUNNERS RELEASED.', end=" ")
-        for _ in range(4):
+        for _ in range(3):
             print('.', end=" ");
             time.sleep(1);
             sys.stdout.flush()
@@ -364,7 +364,10 @@ class DynamicBot(Model):
         _, _, response = self.step(forward_only=True)
         # response has shape [1, response_length].
         # Its last element is the EOS_ID, which we don't show user.
-        return self.dataset.as_words(response[0][:-1])
+        response = self.dataset.as_words(response[0][:-1])
+        if 'UNK' in response:
+            response = "I don't know."
+        return response
 
     def chat(self):
         """Alias for decode."""

@@ -61,8 +61,8 @@ class Model(object):
             self.sess = tf.Session()
 
         with self.graph.name_scope(tf.GraphKeys.SUMMARIES):
-            self.global_step    = tf.Variable(initial_value=0, trainable=False)
-            self.learning_rate  = tf.constant(self.learning_rate)
+            self.global_step = tf.Variable(initial_value=0, trainable=False)
+            self.learning_rate = tf.constant(self.learning_rate)
 
         # Create ckpt_dir if user hasn't already (if exists, has no effect).
         subprocess.call(['mkdir', '-p', self.ckpt_dir])
@@ -88,7 +88,8 @@ class Model(object):
 
         if not self.reset_model and checkpoint_state \
                 and tf.train.checkpoint_exists(checkpoint_state.model_checkpoint_path):
-            print("Reading model parameters from %s" % checkpoint_state.model_checkpoint_path)
+            print("Reading model parameters from",
+                  checkpoint_state.model_checkpoint_path)
             self.file_writer = tf.summary.FileWriter(self.ckpt_dir)
             self.saver = tf.train.Saver(tf.global_variables())
             self.saver.restore(self.sess, checkpoint_state.model_checkpoint_path)
@@ -203,12 +204,14 @@ class Model(object):
         """Returns relative path build from args for descriptive checkpointing.
 
         The new path becomes ckpt_dir appended with directories named by kwargs:
-            - If a given kwargs[key] is a string, that is set as the appended dir name.
-            - Otherwise, it gets formatted, e.g. for key='learning_rate' it may become
-                'learning_rate_0_001'
+            - If a given kwargs[key] is a string, that is set as the 
+              appended dir name.
+            - Otherwise, it gets formatted, e.g. for key='learning_rate' it 
+              may become 'learning_rate_0_001'
 
         Returns:
-            ckpt_dir followed by sequentially appended directories, named by kwargs.
+            ckpt_dir followed by sequentially appended directories, 
+            named by kwargs.
         """
         kwargs = copy.deepcopy(kwargs)
         new_ckpt_dir = ckpt_dir
@@ -312,7 +315,8 @@ class BucketModel(Model):
         for i in range(self.batch_size):
             batch_weights[-1][i] = 0.0
 
-        # Also set any decoder-input-weights to 0 that have PAD as target decoder output.
+        # Also set any decoder-input-weights to 0 that have PAD
+        # as target decoder output.
         for unit_id in range(decoder_size - 1):
             ids_with_pad_target = [b for b in range(self.batch_size)
                                    if decoder_inputs[b][unit_id+1] == io_utils.PAD_ID]

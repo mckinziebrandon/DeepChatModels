@@ -1,3 +1,4 @@
+import logging
 import tensorflow as tf
 from utils import io_utils
 from tensorflow.contrib.training import bucket_by_sequence_length
@@ -28,8 +29,8 @@ class InputPipeline:
         """
         with tf.name_scope(scope, 'input_pipeline') as scope:
             if capacity is None:
-                self.capacity = max(50 * batch_size, int(5e4))
-                print("Input capacity set to %d examples." % self.capacity)
+                self.capacity = max(50 * batch_size, int(1e4))
+                logging.info("Input capacity set to %d examples." % self.capacity)
             self.batch_size = batch_size
             self.paths = file_paths
             self.control = {'train': 0, 'valid': 1}
