@@ -488,7 +488,7 @@ def prepare_data(data_dir,
     if optimize is None:
         logging.warning("You have not requested that your choice for "
                         "vocab_size be optimized. This can lead to slower "
-                        "training times. Set 'optimize: true' under "
+                        "training times.\nSet 'optimize_params: true' under "
                         "dataset_params in your yaml config to enable.")
 
     def maybe_set_param(param, file_name):
