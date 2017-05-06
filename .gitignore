@@ -38,3 +38,4 @@ compact.sh
 **/ubuntu/*
 **/data_dev.db
 **/data_test.db
+/webpage/deepchat/static/assets/frozen_models/

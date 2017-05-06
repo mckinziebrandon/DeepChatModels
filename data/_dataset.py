@@ -127,6 +127,8 @@ class Dataset(DatasetABC):
             decoder_list = [io_utils.GO_ID] \
                            + [int(x) for x in decoder_line.split()] \
                            + [io_utils.EOS_ID]
+
+            # Why tensorflow . . . why . . .
             example.context.feature['encoder_sequence_length'].int64_list.value.append(
                 len(encoder_list))
             example.context.feature['decoder_sequence_length'].int64_list.value.append(
@@ -156,7 +158,9 @@ class Dataset(DatasetABC):
                         decoder_line = decoder_file.readline()
 
         self.log.info("Converted text files %s and %s into tfrecords file %s" \
-                      % (from_path, to_path, output_path))
+                      % (os.path.basename(from_path),
+                         os.path.basename(to_path),
+                         os.path.basename(output_path)))
         self.paths[prefix + '_tfrecords'] = output_path
 
     def sentence_generator(self, prefix='from'):
@@ -165,18 +169,29 @@ class Dataset(DatasetABC):
         """
         self.log.info("Generating sentences from %s", self.paths[prefix+'_train'])
         with tf.gfile.GFile(self.paths[prefix+'_train'], mode="r") as f:
-            sentence = self.as_words(map(int, f.readline().strip().lower().split()))
+            sentence = self.as_words(
+                list(map(int, f.readline().strip().lower().split())))
             while sentence:
                 yield sentence
-                sentence = self.as_words(map(int, f.readline().strip().lower().split()))
+                sentence = self.as_words(
+                    list(map(int, f.readline().strip().lower().split())))
 
-    def pairs_generator(self):
-        input_sentences = self.sentence_generator('from')
-        input_sentences = [s for s in input_sentences]
-        response_sentences = self.sentence_generator('to')
-        response_sentences = [s for s in response_sentences]
-        for input_sent, response_sent in zip(input_sentences, response_sentences):
-            yield input_sent, response_sent
+    def pairs_generator(self, num_generate=None):
+        in_sentences = self.sentence_generator('from')
+        in_sentences = [s for s in in_sentences]
+        out_sentences = self.sentence_generator('to')
+        out_sentences = [s for s in out_sentences]
+
+        if num_generate is None:
+            num_generate = len(in_sentences)
+
+        count = 0
+        for in_sent, out_sent in zip(in_sentences, out_sentences):
+            yield in_sent, out_sent
+
+            count += 1
+            if count >= num_generate:
+                break
 
     def train_generator(self, batch_size):
         """[Note: not needed by DynamicBot since InputPipeline]"""
@@ -265,7 +280,20 @@ class Dataset(DatasetABC):
 
     def as_words(self, sentence):
         """Convert list of integer tokens to a single sentence string."""
-        words = " ".join([tf.compat.as_str(self.idx_to_word[i]) for i in sentence])
+
+        words = []
+        for token in sentence:
+            word = self.idx_to_word[token]
+            try:
+                word = tf.compat.as_str(word)
+            except UnicodeDecodeError:
+                logging.error("UnicodeDecodeError on (token, word): "
+                              "(%r, %r)", token, word)
+                word = str(word)
+            words.append(word)
+
+        words = " ".join(words)
+        #words = " ".join([tf.compat.as_str(self.idx_to_word[i]) for i in sentence])
         words = words.replace(' , ', ', ').replace(' .', '.').replace(' !', '!')
         words = words.replace(" ' ", "'").replace(" ?", "?")
         if len(words) < 2:
