@@ -34,4 +34,7 @@ compact.sh
 /notebooks/.ipynb_checkpoints/
 
 # TEMP:
+**/frozen_models/*
 **/ubuntu/*
+**/data_dev.db
+**/data_test.db

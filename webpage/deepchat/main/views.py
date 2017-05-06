@@ -21,15 +21,15 @@ from .. import models
 from pydoc import locate
 
 
+@main.context_processor
+def inject_enumerate():
+    return dict(enumerate=enumerate)
+
+
 @main.before_app_first_request
 def load_gloabal_data():
     """Create the cornell_bot to be used for chat session."""
-    global cornell_bot, reddit_bot
     session['start_time'] = None
-    cornell_bot = web_bot.FrozenBot(frozen_model_dir='cornell',
-                                    is_testing=current_app.testing)
-    reddit_bot = web_bot.FrozenBot(frozen_model_dir='reddit',
-                                   is_testing=current_app.testing)
 
 
 @main.route('/')
@@ -58,7 +58,7 @@ def update_database(user_message, bot_response):
     user = get_database_model('User', filter=session.get('user', 'Anon'))
 
     # 2. Get the Chatbot db.Model.
-    bot_name = get_bot_name()
+    bot_name = ChatAPI.bot_name
     chatbot = get_database_model('Chatbot', filter=bot_name)
 
     # 3. Get the Conversation db.Model.
@@ -75,12 +75,6 @@ def update_database(user_message, bot_response):
                            chatbot_message=bot_response,
                            conversation=conversation)
     db.session.commit()
-
-
-def get_bot_name():
-    if current_app.testing:
-        return 'Reverse TestBot'
-    return 'Baby {}'.format(session.get('data_name', 'Unknown Bot'))
 
 
 def get_database_model(class_name, filter=None, **kwargs):
@@ -107,18 +101,31 @@ def get_database_model(class_name, filter=None, **kwargs):
 # APIs
 # -------------------------------------------------------
 
+class UserAPI(Resource):
+    def post(self):
+        name = request.values.get('name', 'Anon')
+        session['user'] = name
+        user_model = get_database_model('User', filter=name)
+        return {'name': user_model.name}
+
+
 class ChatAPI(Resource):
     # Class attributes. This is convenient since we only want one active
     # bot at any given time.
-    bot_name = None
+    bot_name = 'Unk Bot'
     bot = None
 
     def __init__(self, data_name):
         if ChatAPI.bot_name != data_name:
             ChatAPI.bot_name = data_name
-            # TODO: what teardown, if any, should be done when switching bots?
             ChatAPI.bot = web_bot.FrozenBot(frozen_model_dir=data_name,
-                                         is_testing=current_app.testing)
+                                            is_testing=current_app.testing)
+            config = ChatAPI.bot.config
+            _ = get_database_model('Chatbot',
+                                   filter=ChatAPI.bot_name,
+                                   dataset=config['dataset'],
+                                   **config['model_params'])
+            db.session.commit()
             # TODO: delete this after refactor rest of file.
             session['data_name'] = data_name
 
@@ -139,8 +146,15 @@ class CornellAPI(ChatAPI):
     def __init__(self):
         super(CornellAPI, self).__init__('cornell')
 
+
+class UbuntuAPI(ChatAPI):
+    def __init__(self):
+        super(UbuntuAPI, self).__init__('ubuntu')
+
+api.add_resource(UserAPI, '/user/')
 api.add_resource(RedditAPI, '/chat/reddit/')
 api.add_resource(CornellAPI, '/chat/cornell/')
+api.add_resource(UbuntuAPI, '/chat/ubuntu/')
 
 # -------------------------------------------------------
 # ADMIN: Authentication for the admin (me) on /admin.

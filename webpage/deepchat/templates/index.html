@@ -63,15 +63,12 @@
   <div class="row">
     <div class="col-xs-12">
       <ul class="nav nav-tabs">
-        <li role="presentation"
-            data-target="#cornell-chat-box"
-            data-slide-to="0"
-            class="active">
-          <a href="#"><span class="text-primary">Cornell</span></a></li>
-        <li role="presentation"
-            data-target="#reddit-chat-box"
-            data-slide-to="1">
-          <a href="#"><span>Reddit</span></a></li>
+        {% for i, dataset_name in enumerate(['cornell', 'reddit', 'ubuntu']) %}
+          <li role="presentation"
+              data-target="#{{ dataset_name }}-chat-box"
+              data-slide-to="{{ i }}">
+            <a href="#"><span>{{ dataset_name | capitalize }}</span></a></li>
+        {% endfor %}
       </ul>
     </div>
   </div>
@@ -82,23 +79,16 @@
     <!-- Wrapper for slides -->
     <div class="carousel-inner" role="listbox">
 
-      <!-- SLIDE: 0 -->
-      <div id="cornell-chat-box" class="chat-box item active">
-        <!-- chat box injected here -->
-        <div id='cornell-chat-log' class="chat-log col-xs-12 col-sm-10 col-sm-offset-1">
+      {% for dataset_name in ['cornell', 'reddit', 'ubuntu'] %}
+        <div id="{{ dataset_name }}-chat-box" class="chat-box item">
+          <!-- chat box injected here -->
+          <div id='{{ dataset_name }}-chat-log'
+               class="chat-log col-xs-12 col-sm-10 col-sm-offset-1">
+          </div>
+          <!-- User input injected here -->
+          {{ render_chat_form(chat_form, dataset_name+"-chat-form", dataset_name) }}
         </div>
-        <!-- User input injected here -->
-        {{ render_chat_form(chat_form, "cornell-chat-form", "cornell") }}
-      </div>  <!-- end: #cornell-chat-box  -->
-
-      <!-- SLIDE: 1 -->
-      <div id="reddit-chat-box" class="chat-box item">
-        <!-- chat box injected here -->
-        <div id='reddit-chat-log' class="chat-log col-xs-12 col-sm-10 col-sm-offset-1">
-        </div>
-        {{ render_chat_form(chat_form, "reddit-chat-form", "reddit") }}
-      </div>  <!-- end: chat-box  -->
-
+      {% endfor %}
     </div> <!-- end: .carousel-inner -->
 
     <!-- Controls -->
@@ -125,7 +115,12 @@
 
           // Activate the carousel.
           //$('.carousel').carousel();
-          $('#chat-carousel').carousel('pause');
+          $('#chat-carousel').carousel({interval: false});
+
+          $('#cornell-chat-box').addClass('active');
+          $('.nav-tabs li[data-target="#cornell-chat-box"]')
+                  .addClass('active')
+                  .find('span').addClass('text-primary');
           $('#chat-carousel').carousel({interval: 9999});
 
           // From carousel to nav-pills . . .

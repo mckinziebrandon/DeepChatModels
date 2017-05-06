@@ -92,13 +92,14 @@
           {% endfor %}
         </ul>
 
+        {% block nav_session_user %}
         <ul class="nav navbar-nav navbar-right">
-          {% if user %}
-            <span id='nav-session-user' class="navbar-text">User: {{ user }}</span>
-          {% else %}
-            <span id='nav-session-user' class="navbar-text">User: Anon</span>
-          {% endif %}
+        <span id='nav-session-user' class="navbar-text">
+          <!-- user_form.js injects name of current user here -->
+        </span>
         </ul>
+        {% endblock nav_session_user %}
+
       </div>  <!-- end: navbar -->
 
     </div>  <!-- end: container -->

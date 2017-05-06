@@ -33,8 +33,9 @@ $(document).ready(function() {
 
         // Submit a POST request to collect user input.
         $.post('/chat/' + dataName + '/', {
-            "message": userMessage.val(),
+            "user_message": userMessage.val()
         }, function(data) {
+            userMessage.val("");
             console.log('Response received from bot', data.bot_name)
             $('#'+dataName+'-chat-log').append($('<div/>').addClass('row message')
                     .append($('<div/>')
@@ -45,7 +46,6 @@ $(document).ready(function() {
                             .text(data.response))
                     .append($('<hr/>')));
             chatLog.scrollTop(chatLog.first().scrollHeight);
-            userMessage.val("");
         });
     });
 

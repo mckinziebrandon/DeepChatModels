@@ -59,15 +59,16 @@ class Chatbot(db.Model):
     state_size = db.Column(db.Integer)
     conversations = db.relationship('Conversation', backref='chatbot', lazy='dynamic')
 
-    def __init__(self, name, bot_config):
+    def __init__(self, name, **bot_kwargs):
+        print("BOT KWARGS:\n", bot_kwargs)
         self.name = (name or 'Unknown Bot')
-        self.dataset = bot_config['dataset']
-        self.base_cell = bot_config['model_params']['base_cell']
-        self.encoder = bot_config['model_params']['encoder.class']
-        self.decoder = bot_config['model_params']['decoder.class']
-        self.learning_rate = bot_config['model_params']['learning_rate']
-        self.num_layers = bot_config['model_params']['num_layers']
-        self.state_size = bot_config['model_params']['state_size']
+        self.dataset = bot_kwargs['dataset']
+        self.base_cell = bot_kwargs['base_cell']
+        self.encoder = bot_kwargs['encoder.class']
+        self.decoder = bot_kwargs['decoder.class']
+        self.learning_rate = bot_kwargs['learning_rate']
+        self.num_layers = bot_kwargs['num_layers']
+        self.state_size = bot_kwargs['state_size']
 
 
     def __repr__(self):

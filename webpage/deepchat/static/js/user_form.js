@@ -6,8 +6,8 @@ $(document).ready(function() {
             return;
         }
         // Submit a POST request to collect user input.
-        $.post('/', {"name": userName.val()}, function(data) {
-            $('#nav-session-user').text('User: ' + userName.val());
+        $.post('/user/', {"name": userName.val()}, function(data) {
+            $('#nav-session-user').html('User: ' + data.name);
             userName.val("");
         });
     });

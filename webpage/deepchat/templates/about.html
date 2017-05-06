@@ -1,6 +1,20 @@
 {%  extends  "base.html" %}
 {% set active_page = "about" %}
 
+{% block nav_session_user %}
+<ul class="nav navbar-nav navbar-right">
+<span id='nav-session-user' class="navbar-text">
+  {% if user %}
+    User: {{ user }}
+  {% else %}
+    User: Anon
+  {% endif %}
+</span>
+</ul>
+{% endblock nav_session_user %}
+
+
+
 <!-- Chat Section -->
 {% block page_content %}
   <div class="jumbotron">
