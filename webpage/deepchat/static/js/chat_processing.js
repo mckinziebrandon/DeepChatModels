@@ -32,18 +32,17 @@ $(document).ready(function() {
         chatLog.append(messageRow);
 
         // Submit a POST request to collect user input.
-        $.post('/', {
+        $.post('/chat/' + dataName + '/', {
             "message": userMessage.val(),
-            "dataName": dataName
         }, function(data) {
-            console.log('Response data:', data);
+            console.log('Response received from bot', data.bot_name)
             $('#'+dataName+'-chat-log').append($('<div/>').addClass('row message')
                     .append($('<div/>')
                             .addClass('bot-name text-left col-md-2 col-sm-2')
                             .text('Botty'))
                     .append($('<div/>')
                             .addClass('bot-message text-left col-md-8 col-sm-9')
-                            .text(data))
+                            .text(data.response))
                     .append($('<hr/>')));
             chatLog.scrollTop(chatLog.first().scrollHeight);
             userMessage.val("");

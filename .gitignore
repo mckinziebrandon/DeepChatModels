@@ -32,3 +32,6 @@ compact.sh
 /webpage/data_dev.db
 /notebooks/reference/
 /notebooks/.ipynb_checkpoints/
+
+# TEMP:
+**/ubuntu/*

@@ -125,7 +125,8 @@
 
           // Activate the carousel.
           //$('.carousel').carousel();
-          $('.carousel').carousel('pause');
+          $('#chat-carousel').carousel('pause');
+          $('#chat-carousel').carousel({interval: 9999});
 
           // From carousel to nav-pills . . .
           $('#chat-carousel').on('slide.bs.carousel', function(event) {

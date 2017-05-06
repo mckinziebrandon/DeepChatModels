@@ -174,6 +174,9 @@ class FrozenBot:
         feed_dict={self.tensor_dict['inputs']: sentence_tokens}
         response = self.sess.run(fetches=fetches, feed_dict=feed_dict)
         response = self.as_words(response[0][:-1])
+        # Translate from confused-bot-language to English...
+        if 'UNK' in response:
+            response = "I don't know."
         print("Bot:", response)
         return response
 
