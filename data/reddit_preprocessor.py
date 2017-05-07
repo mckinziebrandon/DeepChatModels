@@ -161,33 +161,49 @@ def children_dict(df):
 
 
 def main():
-    # Get up to max_mem GiB of data.
-    df = data_helper.safe_load()
-    df = remove_extra_columns(df)
-    df = regex_replacements(df)
-    df = remove_large_comments(max_len=MAX_SEQ_LEN, df=df)
-    df = expand_contractions(df)
+    """Processes each file individually through the whole pipeline.
+    
+    This decision was made due to the very large (many larger than 5 Gb) files.
+    I have scripts that combine the output files, and I plan on making those
+    available soon (very basic). 
+    """
 
-    sentences = parallel_map_list(fn=DataHelper.word_tokenizer, iterable=df.body.values)
-    data_helper.set_word_freq(Counter(chain.from_iterable(sentences)))
+    current_file = data_helper.next_file_path
+    df = data_helper.load_next()
+    while df is not None:
 
-    print('Bout to score!')
-    df['score'] = parallel_map_list(fn=sentence_score, iterable=sentences)
-    del sentences
+        # Execute preprocessing steps on current_file's dataframe.
+        df = remove_extra_columns(df)
+        df = regex_replacements(df)
+        df = remove_large_comments(max_len=MAX_SEQ_LEN, df=df)
+        df = expand_contractions(df)
 
-    # Keep the desired percentage of lowest-scored sentences. (low == good)
-    keep_best_percent = 0.8
-    df = df.loc[df['score'] < df['score'].quantile(keep_best_percent)]
+        sentences = parallel_map_list(fn=DataHelper.word_tokenizer, iterable=df.body.values)
+        data_helper.set_word_freq(Counter(chain.from_iterable(sentences)))
 
-    print('Prepping for the grand finale.')
-    comments_dict = pd.Series(df.body.values, index=df.name).to_dict()
-    root_to_children = children_dict(df)
-    data_helper.generate_files(
-        from_file_path="from_{}.txt".format("file"),
-        to_file_path="to_{}.txt".format("file"),
-        root_to_children=root_to_children,
-        comments_dict=comments_dict)
+        print('Bout to score!')
+        df['score'] = parallel_map_list(fn=sentence_score, iterable=sentences)
+        del sentences
+
+        # Keep the desired percentage of lowest-scored sentences. (low == good)
+        keep_best_percent = 0.8
+        df = df.loc[df['score'] < df['score'].quantile(keep_best_percent)]
+
+        print('Prepping for the grand finale.')
+        comments_dict = pd.Series(df.body.values, index=df.name).to_dict()
+        root_to_children = children_dict(df)
+        file_basename = os.path.join('processed_data',
+                                     data_helper.get_year_from_path(current_file),
+                                     os.path.basename(current_file))
+        data_helper.generate_files(
+            from_file_path="{}_encoder.txt".format(file_basename),
+            to_file_path="{}_decoder.txt".format(file_basename),
+            root_to_children=root_to_children,
+            comments_dict=comments_dict)
+
+        # Prep for next loop.
+        current_file = data_helper.next_file_path
+        df = data_helper.load_next()
 
 if __name__ == '__main__':
-    data_helper = DataHelper()
     main()

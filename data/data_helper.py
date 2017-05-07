@@ -98,6 +98,8 @@ class DataHelper:
                 os.path.join(base_path, f) for f in rel_paths \
                 if not f.endswith(".bz2")
             ])
+
+        self._next_file_path = self.file_paths[0]
         print("These are the files I found:")
         pprint(self.file_paths)
         print()
@@ -136,9 +138,11 @@ class DataHelper:
                 break
         print()
 
-        # If the user decides they want to continue loading later (when memory frees up),
-        # we want the file_counter set so that it starts on the next file.
+        # If the user decides they want to continue loading later
+        # (when memory frees up), we want the file_counter set so that it
+        # starts on the next file.
         self.file_counter = i + 1
+        self._next_file_path = self.file_paths[self.file_counter]
 
         df = pd.concat(list_).reset_index()
         logging.info("Number of lines in raw data file: %r", len(df.index))
@@ -161,6 +165,19 @@ class DataHelper:
         print('Returning data from file:\n', files[rand_index])
         return pd.read_json(files[rand_index], lines=True)
 
+    def load_next(self):
+        if self.next_file_path is None:
+            logging.warning('Tried loading next file but no files remain.')
+            return None
+
+        df = pd.read_json(self.next_file_path, lines=True)
+        self.file_counter += 1
+        if self.file_counter < len(self.file_paths):
+            self._next_file_path = self.file_paths[self.file_counter]
+        else:
+            self._next_file_path = None
+        return df
+
     def set_word_freq(self, wf):
         """Hacky (temporary) fix related to multiprocessing.Pool complaints
         for the reddit preprocessing script.
@@ -171,11 +188,32 @@ class DataHelper:
     def word_freq(self):
         return self._word_freq
 
-    def generate_files(self, from_file_path, to_file_path, root_to_children, comments_dict):
-        """ Generates two files, [from_file_path] and [to_file_path] of 1-1 comments."""
+    @property
+    def next_file_path(self):
+        return self._next_file_path
+
+    def get_year_from_path(self, path):
+        year = path.strip('/').split('/')[-2]
+        try:
+            _ = int(year)
+        except ValueError:
+            logging.warning("Couldn't get year from file path. Your directory"
+                            " structure is unexpected.")
+            return None
+        logging.info('Extracted year %s', year)
+        return year
+
+    def generate_files(self,
+                       from_file_path,
+                       to_file_path,
+                       root_to_children,
+                       comments_dict):
+        """Generates two files, [from_file_path] and [to_file_path] 
+        of 1-1 comments.
+        """
         from_file_path = os.path.join(self.data_root, from_file_path)
         to_file_path = os.path.join(self.data_root, to_file_path)
-        print("Writing data files:\n%s\n%s", from_file_path, to_file_path)
+        print("Writing data files:\n", from_file_path, "\n", to_file_path)
 
         with open(from_file_path, 'w') as from_file:
             with open(to_file_path, 'w') as to_file:
@@ -194,11 +232,10 @@ class DataHelper:
         print("Final processed file has %d samples total." % num_samples)
 
         # First make sure user has copy of bash script we're about to use.
-        os.popen('cp %s %s' % (os.path.join(HERE, 'split_into_n.sh'), self.data_root))
-
+        # os.popen('cp %s %s' % (os.path.join(HERE, 'split_into_n.sh'), self.data_root))
         # Split data into 90% training and 10% validation.
-        os.popen('bash %s %d' % (os.path.join(self.data_root, 'split_into_n.sh'),
-                                 0.1 * num_samples))
+        # os.popen('bash %s %d' % (os.path.join(self.data_root, 'split_into_n.sh'),
+        #                        0.1 * num_samples))
 
     def df_generator(self):
         """ Generates df from single files at a time."""
