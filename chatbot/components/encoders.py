@@ -62,7 +62,11 @@ class BidirectionalEncoder(RNN):
             dtype=tf.float32)
 
         # Concatenate each of the tuples fw and bw dimensions.
+        # Now we are dealing with the concatenated "states" with dimension:
+        # [batch_size, max_time, state_size * 2].
         outputs = tf.concat(outputs_tuple, 2)
+        # Similarly, combine the tuple of final states, resulting in:
+        # [batch_size, state_size * 2].
         final_state = tf.concat(final_state_tuple, -1)
         bridge = self.get_bridge("bridge", outputs.dtype)
 

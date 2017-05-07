@@ -3,6 +3,8 @@
 import numpy as np
 import tensorflow as tf
 from utils import io_utils
+from tensorflow.python.util import nest
+from tensorflow.contrib.seq2seq import AttentionMechanism
 
 
 def dynamic_sampled_softmax_loss(labels, logits, output_projection, vocab_size,
@@ -144,14 +146,79 @@ def _dynamic_sampled_from_scratch(labels, logits, output_projection, vocab_size,
                                         dtype=tf.float32))
 
 
-def sentence_to_inputs(sentence, word_to_idx):
-    """Purpose: make an op for translating stdin sentence input from user
-    into input suitable for **frozen** model in particular.
-    """
-    with tf.name_scope("sentence_to_inputs",
-                       values=[sentence, word_to_idx]) as scope:
-        encoder_inputs = io_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence),
-                                                        word_to_idx)
-        encoder_inputs = np.array([encoder_inputs[::-1]])
-        return tf.convert_to_tensor(encoder_inputs, name=scope)
+def dot_prod(x, y):
+    return tf.reduce_sum(tf.multiply(x, y))
 
+
+def bahdanau_score(attention_dim, h_j, s_i):
+    state_size = tf.get_shape(h_j)[0]
+    h_proj = tf.get_variable('W_1',
+                             [attention_dim, state_size],
+                             dtype=tf.float32)
+    s_proj = tf.get_variable('W_2',
+                             [attention_dim, state_size],
+                             dtype=tf.float32)
+    v = tf.get_variable('v',
+                        [attention_dim, state_size],
+                        dtype=tf.float32)
+    score = dot_prod(v, tf.tanh(h_proj + s_proj))
+    return score
+
+
+def luong_score(attention_dim, h_j, s_i):
+
+    query = s_i
+    encoder_hidden_state = h_j
+
+    h_proj = tf.get_variable('W_1',
+                             [attention_dim, tf.get_shape(h_j)[0]],
+                             dtype=tf.float32)
+    s_proj = tf.get_variable('W_2',
+                             [attention_dim, tf.get_shape(s_i)[0]],
+                             dtype=tf.float32)
+    score = dot_prod(h_proj, s_proj)
+    return score
+
+
+def linear_map(args, output_size, biases=None):
+    """Linear map: sum_i(args[i] * W[i]), where W[i] is a variable.
+    
+    Basically, you pass in a bunch of vectors (ok you got me, 2D tensors because
+    batch dimensions) that you want added together but need their dimensions
+    to match. This function has you covered.
+
+    Args:
+        args: a 2D Tensor or a list of 2D, batch x n, Tensors.
+        output_size: int, second dimension of W[i].
+        biases: tensor of shape [output_size] added to all in batch if not None.
+
+    Returns:
+        A 2D Tensor with shape [batch x output_size] equal to
+        sum_i(args[i] * W[i]), where W[i]s are newly created matrices.
+    """
+
+    if not nest.is_sequence(args):
+        args = [args]
+
+    # Calculate the total size of arguments on dimension 1.
+    total_arg_size = 0
+    shapes = [a.get_shape() for a in args]
+    for shape in shapes:
+        total_arg_size += shape[1].value
+
+    dtype = args[0].dtype
+
+    # Now the computation.
+    scope = tf.get_variable_scope()
+    with tf.variable_scope(scope) as outer_scope:
+
+        weights = tf.get_variable('weights',
+            [total_arg_size, output_size],
+            dtype=dtype)
+
+        if len(args) == 1:
+            res = tf.matmul(args[0], weights)
+        else:
+            res = tf.matmul(tf.concat(args, 1), weights)
+
+        return res if not biases else tf.nn.bias_add(res, biases)

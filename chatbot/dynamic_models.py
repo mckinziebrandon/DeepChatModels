@@ -109,15 +109,12 @@ class DynamicBot(Model):
             # For now, encoders require just the RNN params when created.
             encoder = encoder_class(**rnn_params)
             # Apply embedded inputs to encoder for the final (context) state.
-            _, encoder_state = encoder(embedded_enc_inputs)
+            encoder_outputs, encoder_state = encoder(embedded_enc_inputs)
 
         with tf.variable_scope("decoder"):
             embedded_dec_inputs = self.embedder(self.decoder_inputs)
-            # Note: encoder_outputs is passed as None for now until all the
-            # kinks are worked out for the attention decoders, which are the
-            # only decoders that require this parameter.
             self.decoder = decoder_class(
-                encoder_outputs=None,
+                encoder_outputs=encoder_outputs,
                 vocab_size=self.vocab_size,
                 max_seq_len=dataset.max_seq_len,
                 temperature=self.temperature,

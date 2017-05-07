@@ -187,7 +187,8 @@ class Model(object):
 
     def __getattr__(self, name):
         if name == 'params':
-            replace_dict = {'dataset': "data."+self.data_name.title()}
+            camel_case = self.data_name.title().replace('_', '')
+            replace_dict = {'dataset': "data."+camel_case}
             return {**self.__dict__['__params'], **replace_dict}
         elif name in DEFAULT_FULL_CONFIG: # Requesting a top-level key.
             return self.__dict__['__params'][name]
