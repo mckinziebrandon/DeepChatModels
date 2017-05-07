@@ -11,9 +11,7 @@ Typical use cases:
         command-line args taking precedence over any values.
             ./main.py \
                 --config path_to/my_config.yml \
-                --model_params "
-                    batch_size: 32,
-                    optimizer: RMSProp "
+                --model_params "{'batch_size': 32, 'optimizer': 'RMSProp'}"
 
     3.  Load a pretrained model that was saved in path_to/pretrained_dir,
         which is assumed to be relative to the project root.
@@ -26,8 +24,13 @@ from __future__ import absolute_import
 from __future__ import division
 
 import os
-# Default behavior (1): INFO messages are not printed.
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+# Meaning of values:
+#   1: INFO messages are not printed.
+#   2: INFO, WARNING messages are not printed.
+# I'm temporarily making the default '2' since the TF master
+# branch (as of May 6) is spewing warnings that are clearly
+# due to bugs on their side.
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 import data
 import chatbot
@@ -117,7 +120,9 @@ def main(argv):
         print("Woops! You passed {decode: True, reset_model: True}." 
               " You can't chat with a reset bot! I'll set reset to False.")
         config['model_params']['reset_model'] = False
+
     # If loading from pretrained, double-check that certain values are correct.
+    # (This is not something a user need worry about -- done automatically)
     if FLAGS.pretrained_dir is not None:
         assert config['model_params']['decode'] \
                and not config['model_params']['reset_model']
@@ -139,5 +144,6 @@ def main(argv):
         start_chatting(bot)
 
 if __name__ == "__main__":
+    tf.logging.set_verbosity('ERROR')
     tf.app.run()
 
