@@ -4,18 +4,14 @@ sys.path.append("..")
 import os
 import unittest
 import tensorflow as tf
+from pydoc import locate
+import chatbot
 from utils import io_utils
 import data
 from chatbot.globals import DEFAULT_FULL_CONFIG
 dir = os.path.dirname(os.path.realpath(__file__))
 
-# Allow user to override config values with command-line args.
-# All test_flags with default as None are not accessed unless set.
-from main import FLAGS as TEST_FLAGS
-TEST_CONFIG_PATH = "configs/test_config.yml"
-TEST_FLAGS.config = TEST_CONFIG_PATH
-logging.basicConfig(level=logging.INFO)
-
+from tests.utils import TEST_FLAGS, create_bot
 
 class TestData(unittest.TestCase):
     """Tests for the datsets."""
@@ -80,6 +76,44 @@ class TestData(unittest.TestCase):
 
             incomplete_params.clear()
             dataset_params.clear()
+
+    def test_cornell(self):
+        """Train a bot on cornell and display responses when given
+        training data as input -- a sanity check that the data is clean.
+        """
+
+        flags = TEST_FLAGS
+        flags.model_params = dict(
+            ckpt_dir='out/tests/test_cornell',
+            batch_size=256,
+            reset_model=True,
+            steps_per_ckpt=50,
+            num_layers=1,
+            state_size=512,
+            embed_size=64,
+            max_steps=500)
+        flags.dataset_params = dict(
+            vocab_size=50000,
+            max_seq_len=8,
+            data_dir='/home/brandon/Datasets/cornell')
+        flags.dataset = 'Cornell'
+
+        bot, dataset = create_bot(flags=flags, return_dataset=True)
+        bot.train()
+
+        # Recreate bot (its session is automatically closed after training).
+        flags.model_params['reset_model'] = False
+        flags.model_params['decode'] = True
+        bot, dataset = create_bot(flags, return_dataset=True)
+
+        for inp_sent, resp_sent in dataset.pairs_generator(100):
+            print('\nHuman:', inp_sent)
+            response = bot.respond(inp_sent)
+            if response == resp_sent:
+                print('Robot: %s\nCorrect!' % response)
+            else:
+                print('Robot: %s\nExpected: %s' % (
+                    response, resp_sent))
 
 
 if __name__ == '__main__':

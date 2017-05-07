@@ -7,11 +7,8 @@ import sys
 from utils import io_utils
 import data
 import chatbot
-from main import FLAGS as TEST_FLAGS
 
-TEST_CONFIG_PATH = "configs/test_config.yml"
-TEST_FLAGS.config = TEST_CONFIG_PATH
-logging.basicConfig(level=logging.INFO)
+from tests.utils import TEST_FLAGS
 
 class TestLegacyModels(unittest.TestCase):
     """Test behavior of tf.contrib.rnn after migrating to r1.0."""

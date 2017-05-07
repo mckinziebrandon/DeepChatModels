@@ -11,14 +11,7 @@ import chatbot
 import data
 from chatbot.globals import DEFAULT_FULL_CONFIG
 dir = os.path.dirname(os.path.realpath(__file__))
-
-# Allow user to override config values with command-line args.
-# All test_flags with default as None are not accessed unless set.
-from main import FLAGS as TEST_FLAGS
-TEST_CONFIG_PATH = "configs/test_config.yml"
-TEST_FLAGS.config = TEST_CONFIG_PATH
-logging.basicConfig(level=logging.INFO)
-
+from tests.utils import TEST_FLAGS
 
 def update_config(config, **kwargs):
     new_config = {}
@@ -108,7 +101,7 @@ class TestConfig(unittest.TestCase):
         config = io_utils.update_config(config=config, vocab_size=99999)
         self.assertEqual(config['dataset_params']['vocab_size'], 99999)
         self.assertEqual(config['dataset_params']['config_path'],
-                         TEST_CONFIG_PATH)
+                         'configs/test_config.yml')
 
         # Instantiate a new dataset.
         # This where the 'optimize' flag comes into play, since
