@@ -89,7 +89,7 @@ class Decoder(RNN):
                  initial_state,
                  is_chatting,
                  loop_embedder,
-                 **kwargs):
+                 cell):
         """Run the inputs on the decoder. 
         
         If we are chatting, then conduct dynamic sampling, which is the process 
@@ -115,7 +115,6 @@ class Decoder(RNN):
                 [batch_size, state_size]. Otherwise, None.
         """
 
-        cell = kwargs['cell']
         self.rnn = tf.make_template('decoder_rnn',
                                     tf.nn.dynamic_rnn,
                                     cell=cell,
@@ -243,7 +242,7 @@ class Decoder(RNN):
         """Because LSTMStateTuple is the bane of my existence.
         Leave now to retain your sanity.
         """
-        if "LSTM" not in self.base_cell and attn is False:
+        if self._wrapper is None:
             return state
         if self.num_layers > 1:
             return tuple(list(map(fn, state)))
@@ -259,15 +258,14 @@ class BasicDecoder(Decoder):
                  initial_state=None,
                  is_chatting=False,
                  loop_embedder=None,
-                 **kwargs):
+                 cell=None):
 
-        kwargs['cell'] = self.get_cell('decoder_cell')
         return super(BasicDecoder, self).__call__(
             inputs=inputs,
             initial_state=initial_state,
             is_chatting=is_chatting,
             loop_embedder=loop_embedder,
-            **kwargs)
+            cell=self.get_cell('decoder_cell'))
 
 
 class AttentionDecoder(Decoder):
@@ -302,6 +300,7 @@ class AttentionDecoder(Decoder):
             max_seq_len=max_seq_len,
             state_wrapper=AttentionWrapperState)
 
+        # TODO: Allow user to specify which attention mechanism to use.
         self.attention_mechanism = BahdanauAttention(num_units=128,
                                                      memory=encoder_outputs)
 
@@ -310,18 +309,26 @@ class AttentionDecoder(Decoder):
                  initial_state=None,
                  is_chatting=False,
                  loop_embedder=None,
-                 **kwargs):
+                 cell=None):
+        """
+        The only modifcation to the superclass is we pass in our own
+        cell that is wrapped with a custom attention class (specified in
+        base/_rnn.py). It is mostly the same as tensorflow's, but with minor
+        tweaks so that it could easily hang out with the other components of
+        the project.
+        """
 
-        kwargs['cell'] = self.get_cell('attn_cell',
-                                       attn=self.attention_mechanism,
-                                       encoder_outputs=self.encoder_outputs,
-                                       attention_size=self.state_size)
+        if not cell:
+            cell = self.get_cell('attn_cell',
+                                 attn=self.attention_mechanism,
+                                 encoder_outputs=self.encoder_outputs,
+                                 attention_size=self.state_size)
 
         return super(AttentionDecoder, self).__call__(
             inputs=inputs,
-            initial_state=kwargs['cell'].zero_state(tf.shape(inputs)[0]),
+            initial_state=cell.zero_state(tf.shape(inputs)[0]),
             is_chatting=is_chatting,
             loop_embedder=loop_embedder,
-            **kwargs)
+            cell=cell)
 
 

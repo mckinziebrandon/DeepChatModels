@@ -95,7 +95,6 @@ class Cell(RNNCell):
         return output, new_state
 
 
-
 class RNN(object):
     """Base class for encoders/decoders. Has simple instance attributes and
     an RNNCell object and getter.
@@ -153,47 +152,16 @@ class RNN(object):
         if self._wrapper is None:
             return state
         else:
-            #return self._wrapper(state[0], state[1])
             return self._wrapper(*state)
 
     def __call__(self, *args):
         raise NotImplemented
 
 
-class BasicRNNCell(RNNCell):
-    """Same as tf.contrib.rnn.BasicRNNCell, rewritten for clarity.
-
-    For example, many TF implementations have leftover code debt from past 
-    versions, so I wanted to show what is actually going on, with the fluff 
-    removed. Also, I've removed generally accepted values from parameters/args 
-    in favor of just setting them.
-    """
-
-    def __init__(self, num_units, reuse=None):
-        self._num_units = num_units
-        self._reuse = reuse
-
-    @property
-    def state_size(self):
-        return self._num_units
-
-    @property
-    def output_size(self):
-        return self._num_units
-
-    def __call__(self, inputs, state, scope=None):
-        """Most basic RNN. Define as:
-            output = new_state = act(W * input + U * state + B).
-        """
-        output = tf.tanh(bot_ops.linear_map(
-            args=[inputs, state],
-            output_size=self._num_units,
-            bias=True))
-        return output, output
-
-
 class MyAttentionWrapper(RNNCell):
     """Wraps another `RNNCell` with attention.
+    Mostly the same as tf.contrib.seq2seq.AttentionWrapper, but with less 
+    headaches (for me) and custom tweaks to fit with the project better.
     """
 
     def __init__(self,
@@ -222,6 +190,7 @@ class MyAttentionWrapper(RNNCell):
         """
         super(MyAttentionWrapper, self).__init__(name=name)
 
+        # Assume that 'cell' is an instance of the custom 'Cell' class above.
         self._base_cell = cell._base_cell
         self._num_layers = cell._num_layers
         self._state_size = cell._state_size
@@ -331,7 +300,40 @@ class MyAttentionWrapper(RNNCell):
     @property
     def shape(self):
         """Such a hack. Why must you bring me to this, TensorFlow. Why."""
-        return [tf.TensorShape([None, 128]),
-                tf.TensorShape([None, 128]),
+        return [tf.TensorShape([None, self._state_size]),
+                tf.TensorShape([None, self._attention_size]),
                 tf.TensorShape(None), ()]
+
+
+class BasicRNNCell(RNNCell):
+    """Same as tf.contrib.rnn.BasicRNNCell, rewritten for clarity.
+
+    For example, many TF implementations have leftover code debt from past 
+    versions, so I wanted to show what is actually going on, with the fluff 
+    removed. Also, I've removed generally accepted values from parameters/args 
+    in favor of just setting them.
+    """
+
+    def __init__(self, num_units, reuse=None):
+        self._num_units = num_units
+        self._reuse = reuse
+
+    @property
+    def state_size(self):
+        return self._num_units
+
+    @property
+    def output_size(self):
+        return self._num_units
+
+    def __call__(self, inputs, state, scope=None):
+        """Most basic RNN. Define as:
+            output = new_state = act(W * input + U * state + B).
+        """
+        output = tf.tanh(bot_ops.linear_map(
+            args=[inputs, state],
+            output_size=self._num_units,
+            bias=True))
+        return output, output
+
 
