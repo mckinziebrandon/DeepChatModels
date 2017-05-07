@@ -9,9 +9,9 @@ model: DynamicBot
 model_params:
   base_cell: GRUCell
   batch_size: 16
-  ckpt_dir: out/test_data
+  ckpt_dir: out/tests/test_decoder
   decode: false
-  decoder.class: BasicDecoder
+  decoder.class: AttentionDecoder
   embed_size: 32
   encoder.class: BasicEncoder
   learning_rate: 0.002

@@ -1,21 +1,20 @@
-# Simple, but (unusually) effective.
-model: chatbot.DynamicBot
-dataset: data.Cornell
+model: DynamicBot
+dataset: Cornell
 model_params:
   base_cell: GRUCell
-  ckpt_dir: out/cornell/talkativeDeepGRU
+  ckpt_dir: out/cornell/talkativeAttention
   decode: False
-  batch_size: 256
-  decoder.class: BasicDecoder
+  batch_size: 128
+  decoder.class: AttentionDecoder
   encoder.class: BasicEncoder
   embed_size: 128
   learning_rate: 0.002
-  num_layers: 3
+  num_layers: 1
   reset_model: True
   state_size: 512
-  steps_per_ckpt: 500
+  steps_per_ckpt: 200
 dataset_params:
   data_dir: /home/brandon/Datasets/cornell
-  vocab_size: 50000
-  max_seq_len: 20
+  vocab_size: 52000
+  max_seq_len: 25
   optimize_params: true

@@ -1,11 +1,14 @@
 model: DynamicBot
 dataset: Cornell
 model_params:
-  base_cell: LSTMCell
-  ckpt_dir: out/cornell/deep
-  steps_per_ckpt: 5
+    batch_size: 128
+    base_cell: LSTMCell
+    encoder: BidirectionalEncoder
+    num_layers: 1
+    ckpt_dir: out/cornell/deepTalkativeBidi
+    steps_per_ckpt: 100
 dataset_params:
-  data_dir: /home/brandon/Datasets/cornell # The only truly 'mandatory' parameter.
-  vocab_size: 45000 # Approximately the true number of unique words in the dataset.
-  max_seq_len: 15
-  optimize_params: True
+    data_dir: /home/brandon/Datasets/cornell # The only truly 'mandatory' parameter.
+    vocab_size: 52000 # Approximately the true number of unique words in the dataset.
+    max_seq_len: 20
+    optimize_params: True

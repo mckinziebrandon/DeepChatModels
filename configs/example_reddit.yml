@@ -1,14 +1,16 @@
-model: chatbot.DynamicBot
 dataset: data.Reddit
+dataset_params:
+  config_path: configs/example_reddit.yml
+  data_dir: /home/brandon/Datasets/reddit
+  max_seq_len: 25
+  vocab_size: 80000
+model: DynamicBot
 model_params:
   base_cell: GRUCell
-  ckpt_dir: out/reddit/example_reddit
-  batch_size: 256
-  embed_size: 64
-  num_layers: 3
-  reset_model: True
-  steps_per_ckpt: 100
-dataset_params:
-  data_dir: /home/brandon/Datasets/reddit
-  vocab_size: 40000 #23765
-  max_seq_len: 10
+  batch_size: 64
+  ckpt_dir: out/reddit/talkativeAttention
+  decoder.class: AttentionDecoder
+  embed_size: 128
+  num_layers: 1
+  reset_model: true
+  steps_per_ckpt: 200
