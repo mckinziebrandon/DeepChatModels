@@ -184,6 +184,7 @@ class Model(object):
         with tf.gfile.GFile(output_fname, 'wb') as f:
             f.write(output_graph_def.SerializeToString())
         print("%d ops in the final graph." % len(output_graph_def.node))
+        subprocess.call(['cp', self.dataset.paths['vocab'], self.ckpt_dir])
 
     def __getattr__(self, name):
         if name == 'params':

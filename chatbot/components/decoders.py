@@ -1,4 +1,6 @@
+import logging
 import tensorflow as tf
+import sys
 
 # Required due to TensorFlow's unreliable naming across versions . . .
 try:
@@ -15,13 +17,12 @@ except ImportError:
 from tensorflow.contrib.seq2seq import BahdanauAttention, LuongAttention
 from tensorflow.contrib.rnn import LSTMStateTuple, LSTMCell
 from tensorflow.python.util import nest
-
 from chatbot.components.base._rnn import RNN
 from utils import io_utils
 
 
 class Decoder(RNN):
-    """Dynamic decoding class that supports both training and inference without
+    """Dynamic decoding (base) class that supports both training and inference without
        requiring superfluous helper objects. With simple boolean parameters,
        handles the decoder sub-graph construction dynamically in its entirety.
     """
@@ -244,6 +245,8 @@ class Decoder(RNN):
         """
         if self._wrapper is None:
             return state
+        if self._wrapper == AttentionWrapperState:
+            return fn(state)
         if self.num_layers > 1:
             return tuple(list(map(fn, state)))
         else:
@@ -287,6 +290,16 @@ class AttentionDecoder(Decoder):
            - Specify we need the state wrapped in AttentionWrapperState.
            - Specify our attention mechanism (will allow customization soon).
         """
+
+        if 'LSTM' in base_cell:
+            logging.error(
+                'LSTM with Attention not supported yet, due to the'
+                ' sad fact that LSTMStateTuple does not play nice with'
+                ' attention state wrappers. Don\'t worry, I\'m working'
+                ' on making them play nice. Since I can\'t reset your cells'
+                ' across the program (i.e. the encoder, I\'m going to have to'
+                ' terminate the program now. Sorry!')
+            sys.exit()
 
         super(AttentionDecoder, self).__init__(
             encoder_outputs=encoder_outputs,
