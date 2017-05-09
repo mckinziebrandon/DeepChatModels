@@ -206,8 +206,8 @@ class Decoder(RNN):
             time_major_outputs = tf.reshape(outputs, [seq_len, -1, st_size])
 
             # Project batch at single timestep from state space to output space.
-            def proj_op(b):
-                return tf.matmul(b, self._projection[0]) + self._projection[1]
+            def proj_op(batch):
+                return tf.matmul(batch, self._projection[0]) + self._projection[1]
 
             # Get projected output states;
             # 3D Tensor with shape [batch_size, seq_len, ouput_size].
@@ -285,6 +285,7 @@ class AttentionDecoder(Decoder):
                  dropout_prob=1.0,
                  num_layers=2,
                  temperature=0.0,
+                 attention_size=256,
                  max_seq_len=50):
         """We need to explicitly call the constructor now, so we can:
            - Specify we need the state wrapped in AttentionWrapperState.
@@ -301,6 +302,8 @@ class AttentionDecoder(Decoder):
                 ' terminate the program now. Sorry!')
             sys.exit()
 
+        self.attention_size = attention_size
+        print('received attn size of ', attention_size)
         super(AttentionDecoder, self).__init__(
             encoder_outputs=encoder_outputs,
             base_cell=base_cell,
@@ -314,7 +317,7 @@ class AttentionDecoder(Decoder):
             state_wrapper=AttentionWrapperState)
 
         # TODO: Allow user to specify which attention mechanism to use.
-        self.attention_mechanism = BahdanauAttention(num_units=128,
+        self.attention_mechanism = BahdanauAttention(num_units=attention_size,
                                                      memory=encoder_outputs)
 
     def __call__(self,
@@ -335,7 +338,7 @@ class AttentionDecoder(Decoder):
             cell = self.get_cell('attn_cell',
                                  attn=self.attention_mechanism,
                                  encoder_outputs=self.encoder_outputs,
-                                 attention_size=self.state_size)
+                                 attention_size=self.attention_size)
 
         return super(AttentionDecoder, self).__call__(
             inputs=inputs,

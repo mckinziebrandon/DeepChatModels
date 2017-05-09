@@ -14,6 +14,7 @@ DEFAULT_FULL_CONFIG = {
     "model": "DynamicBot",
     "dataset": "Cornell",
     "model_params": {
+        "attention_size": None,
         "base_cell": "GRUCell",
         "ckpt_dir": "out",
         "decode": False,

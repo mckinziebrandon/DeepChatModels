@@ -39,3 +39,5 @@ compact.sh
 **/data_dev.db
 **/data_test.db
 /webpage/deepchat/static/assets/frozen_models/
+/configs/test_lstm.yml
+/configs/cornell.yml

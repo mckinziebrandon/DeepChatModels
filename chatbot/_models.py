@@ -170,6 +170,10 @@ class Model(object):
         Args: directory containing model ckpt files we'd like to freeze.
         """
 
+        if not tf.get_collection('freezer'):
+            self.log.warning('No freezer found. Not saving a frozen model.')
+            return
+
         # Note: output_node_names is only used to tell tensorflow what is can
         # throw away in the frozen graph (e.g. training ops).
         output_node_names = ",".join(

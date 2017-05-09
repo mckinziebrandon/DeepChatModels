@@ -168,7 +168,7 @@ class MyAttentionWrapper(RNNCell):
                  cell,
                  attention_mechanism,
                  attention_layer_size=128,
-                 output_attention=True,
+                 output_attention=False,
                  name=None):
         """Construct the `AttentionWrapper`.
 
@@ -297,12 +297,20 @@ class MyAttentionWrapper(RNNCell):
         else:
             return cell_output, next_state
 
+
     @property
     def shape(self):
-        """Such a hack. Why must you bring me to this, TensorFlow. Why."""
-        return [tf.TensorShape([None, self._state_size]),
-                tf.TensorShape([None, self._attention_size]),
-                tf.TensorShape(None), ()]
+        """The hoops you make me jump through, TensorFlow..."""
+        if self._num_layers == 1:
+            return [tf.TensorShape([None, self._state_size]),
+                    tf.TensorShape([None, self._attention_size]),
+                    tf.TensorShape(None), ()]
+        else:
+            def layer_shape():
+                return tf.TensorShape([None, self._state_size])
+            return [tuple([layer_shape() for _ in range(self._num_layers)]),
+                    tf.TensorShape([None, self._attention_size]),
+                    tf.TensorShape(None), ()]
 
 
 class BasicRNNCell(RNNCell):

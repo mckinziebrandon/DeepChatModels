@@ -4,7 +4,6 @@ import numpy as np
 import tensorflow as tf
 from utils import io_utils
 from tensorflow.python.util import nest
-from tensorflow.contrib.seq2seq import AttentionMechanism
 
 
 def dynamic_sampled_softmax_loss(labels, logits, output_projection, vocab_size,
@@ -166,10 +165,6 @@ def bahdanau_score(attention_dim, h_j, s_i):
 
 
 def luong_score(attention_dim, h_j, s_i):
-
-    query = s_i
-    encoder_hidden_state = h_j
-
     h_proj = tf.get_variable('W_1',
                              [attention_dim, tf.get_shape(h_j)[0]],
                              dtype=tf.float32)
@@ -202,9 +197,9 @@ def linear_map(args, output_size, biases=None):
 
     # Calculate the total size of arguments on dimension 1.
     total_arg_size = 0
-    shapes = [a.get_shape() for a in args]
+    shapes = [tf.shape(a)[1] for a in args]
     for shape in shapes:
-        total_arg_size += shape[1].value
+        total_arg_size = tf.add(total_arg_size, shape)
 
     dtype = args[0].dtype
 
