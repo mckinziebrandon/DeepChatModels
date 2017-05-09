@@ -1,6 +1,6 @@
 
 {%  extends  "base.html" %}
-{% set active_page = "about" %}
+{% set active_page = "plots" %}
 
 {% block nav_session_user %}
   <ul class="nav navbar-nav navbar-right">
@@ -14,22 +14,46 @@
   </ul>
 {% endblock nav_session_user %}
 
+{% block head %}
+  {{ super() }}
+
+  <style type="text/css">
+    ul.custom {
+      list-style-type: circle;
+    }
+
+    .popover-content {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .jumbotron .popover {
+      max-height: 600px;
+      max-width: 500px;
+    }
+
+
+  </style>
+
+{% endblock head %}
+
 
 {% block page_content %}
-  <style type="text/css">
-  ul.custom {
-    list-style-type: circle;
-  }
-  </style>
+
 
   <div class="jumbotron">
     <h1>Interactive Plots</h1>
-      <button type="button" class="btn btn-med btn-primary"
-            data-toggle="popover">
-        How do I interact with things?
+    <button type="button" class="btn btn-med btn-primary"
+            data-toggle="popover"
+            title="Hover over a plot">
+      How do I interact with things?
     </button>
   </div>
 
+  <h2>Preliminary Plots</h2>
+  <p>Below are plots on training accuracy, training loss, and validation loss for a handful of
+  models trained on the Cornell dataset. You can find the full configuration for each at the bottom of the page. There is nothing that special about these, I just wanted to get
+  this page layout made and they were ready. I'm training more interesting models currently which will be displayed here soon.</p>
   <div class="row">
     <div class="col-xs-12 col-sm-10">
       <div id="accuracy-fig"></div>
@@ -43,6 +67,14 @@
       <div id="validation-loss-fig"></div>
     </div>
   </div>
+  <hr>
+
+  <h2>Configuration Parameters</h2>
+  <p>By clicking one of the buttons below, which each correspond with a legend label above,
+    you can view the full set of configuration parameters. I plan on integrating these more cleanly
+  as an interactive legend of sorts later.</p>
+  <div id="configs-row" class="row">
+  </div>
 
 
 {% endblock page_content %}
@@ -52,15 +84,19 @@
   {{ super() }}
   <script src="{{ url_for('static', filename='js/bootstrapify.js') }}"></script>
   <script>
-      let popoverButton = $('[data-toggle="popover"]');
-      popoverButton.data('html', 'true');
+      let popoverButton = $('.jumbotron [data-toggle="popover"]');
       popoverButton.data('content',
-      '<ul class="custom">' +
-      '<li>To move the plot view around, click the arrow cross thing.</li>' +
-      '<li>To zoom in a rectangle selection, click the magnifying glass and make your selection.</li>' +
-      '<li>At any time, you can reset back to default view by clicking the home button.</li>' +
-      '</ul>');
-      popoverButton.popover();
+              '<p>At the bottom left of each plot (upon hovering), a few buttons are shown:</p>' +
+              '<ul class="custom">' +
+              '<li>To move the plot view around, click the arrow cross thing.</li>' +
+              '<li>To zoom in a rectangle selection, click the magnifying glass and make your selection.</li>' +
+              '<li>At any time, you can reset back to default view by clicking the home button.</li>' +
+              '</ul>');
+      popoverButton.popover({
+          id: 'jumbotron-popover',
+          container: 'body',
+          html: true
+      });
   </script>
 
   <script>
@@ -94,6 +130,52 @@
               plotJSON(url, 'validation-loss-fig');
 
           });
+      });
+
+      //var configs;
+      // Retrieve the configuration dictionaries for each model plotted.
+      $.getJSON('{{ url_for('static', filename='assets/plots/configs.json') }}', function(response) {
+          let configs = response;
+          //let plotNames = Object.keys(configs);
+          let configsRow = $('#configs-row');
+          Object.keys(configs).map((plotName) => {
+
+              let content = '';
+              Object.keys(configs[plotName]).map((key) => {
+                  if (configs[plotName][key] instanceof Object) {
+                      content += '<p>' + key + ': <ul class="list-group">';
+                      Object.keys(configs[plotName][key]).map((k) => {
+                          content += '<li class="list-group-item"><small><small>' + k +
+                                  ': ' + configs[plotName][key][k] + '</small></small></li>';
+                      });
+                      content += '</ul></p>';
+                  } else {
+                      content += '<p>' +
+                              key + ': ' + JSON.stringify(configs[plotName][key]) +
+                              '</p>';
+                  }
+              });
+
+              // Create new column in configs row for the config button to be placed.
+              let configCol = $('<div class="col-xs-2"></div>');
+
+              // Place the new config button in the config column.
+              $('<btn/>', {
+                  'class': 'btn btn-primary btn-sm btn-block',
+                  'data-toggle': 'popover',
+                  text: plotName
+              }).popover({
+                  title: plotName,
+                  placement: 'top',
+                  container: 'body',
+                  html: true,
+                  content: content
+              }).appendTo(configCol);
+
+
+              configCol.appendTo(configsRow);
+          });
+
       });
   </script>
 
