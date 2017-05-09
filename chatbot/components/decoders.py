@@ -49,7 +49,7 @@ class Decoder(RNN):
             temperature: (float) determines randomness of outputs/responses.
                 - Some notable values (to get some intuition):
                   - t -> 0: outputs approach simple argmax.
-                  - t = 1: same as sampling from softmax distribution over 
+                  - t = 1: same as sampling from softmax distribution over
                     outputs, interpreting the softmax outputs as from a
                     multinomial (probability) distribution.
                   - t -> inf: outputs approach uniform random distribution.
@@ -91,9 +91,9 @@ class Decoder(RNN):
                  is_chatting,
                  loop_embedder,
                  cell):
-        """Run the inputs on the decoder. 
-        
-        If we are chatting, then conduct dynamic sampling, which is the process 
+        """Run the inputs on the decoder.
+
+        If we are chatting, then conduct dynamic sampling, which is the process
         of generating a response given inputs == GO_ID.
 
         Args:
@@ -101,18 +101,18 @@ class Decoder(RNN):
                 For training, inputs are the 'to' sentence tokens (embedded).
                 For chatting, first input is <GO> and thereafter, the input is
                 the bot's previous output (looped around through embedding).
-            initial_state: Tensor with shape [batch_size, state_size]. 
+            initial_state: Tensor with shape [batch_size, state_size].
             is_chatting: (bool) Determines how we retrieve the outputs and the
                          returned Tensor shape.
             loop_embedder: required if is_chatting==True.
-                           Embedder instance needed to feed decoder outputs 
+                           Embedder instance needed to feed decoder outputs
                            as next inputs.
-                           
+
         Returns:
-            outputs: if not chatting, tensor of shape 
-                [batch_size, max_time, vocab_size]. Otherwise, tensor of 
+            outputs: if not chatting, tensor of shape
+                [batch_size, max_time, vocab_size]. Otherwise, tensor of
                 response IDs with shape [batch_size, max_time].
-            state:   if not is_chatting, tensor of shape 
+            state:   if not is_chatting, tensor of shape
                 [batch_size, state_size]. Otherwise, None.
         """
 
@@ -185,11 +185,11 @@ class Decoder(RNN):
         return outputs, None
 
     def apply_projection(self, outputs, scope=None):
-        """Defines & applies the affine transformation from state space 
+        """Defines & applies the affine transformation from state space
         to output space.
 
         Args:
-            outputs: Tensor of shape [batch_size, max_time, state_size] 
+            outputs: Tensor of shape [batch_size, max_time, state_size]
                 returned by tf dynamic_rnn.
             scope: (optional) variable scope for any created here.
 
@@ -227,7 +227,7 @@ class Decoder(RNN):
             projected_output = tf.div(projected_output, self.temperature)
             projected_output = tf.div(
                 tf.exp(projected_output),
-                tf.reduce_sum(tf.exp(projected_output), axis=0))
+                tf.reduce_sum(tf.exp(projected_output), axis=-1))
 
             sample_ID = tf.squeeze(
                 tf.multinomial(tf.expand_dims(projected_output, 0), 1))
