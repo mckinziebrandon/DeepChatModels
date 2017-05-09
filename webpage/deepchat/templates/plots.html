@@ -1,0 +1,100 @@
+
+{%  extends  "base.html" %}
+{% set active_page = "about" %}
+
+{% block nav_session_user %}
+  <ul class="nav navbar-nav navbar-right">
+<span id='nav-session-user' class="navbar-text">
+  {% if user %}
+    User: {{ user }}
+  {% else %}
+    User: Anon
+  {% endif %}
+</span>
+  </ul>
+{% endblock nav_session_user %}
+
+
+{% block page_content %}
+  <style type="text/css">
+  ul.custom {
+    list-style-type: circle;
+  }
+  </style>
+
+  <div class="jumbotron">
+    <h1>Interactive Plots</h1>
+      <button type="button" class="btn btn-med btn-primary"
+            data-toggle="popover">
+        How do I interact with things?
+    </button>
+  </div>
+
+  <div class="row">
+    <div class="col-xs-12 col-sm-10">
+      <div id="accuracy-fig"></div>
+    </div>
+
+    <div class="col-xs-12 col-sm-10">
+      <div id="training-loss-fig"></div>
+    </div>
+
+    <div class="col-xs-12 col-sm-10">
+      <div id="validation-loss-fig"></div>
+    </div>
+  </div>
+
+
+{% endblock page_content %}
+
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/bootstrapify.js') }}"></script>
+  <script>
+      let popoverButton = $('[data-toggle="popover"]');
+      popoverButton.data('html', 'true');
+      popoverButton.data('content',
+      '<ul class="custom">' +
+      '<li>To move the plot view around, click the arrow cross thing.</li>' +
+      '<li>To zoom in a rectangle selection, click the magnifying glass and make your selection.</li>' +
+      '<li>At any time, you can reset back to default view by clicking the home button.</li>' +
+      '</ul>');
+      popoverButton.popover();
+  </script>
+
+  <script>
+      let mpld3LoadLib = (url, callback) => {
+          var s = document.createElement('script');
+          s.src = url;
+          s.async = true;
+          s.onreadystatechange = s.onload = callback;
+          s.onerror = function(){console.warn("failed to load library " + url);};
+          document.getElementsByTagName("head")[0].appendChild(s);
+      }
+
+      mpld3LoadLib("https://mpld3.github.io/js/d3.v3.min.js", function(){
+          mpld3LoadLib("https://mpld3.github.io/js/mpld3.v0.3.js", function() {
+
+              let plotJSON = (fileName, divName) => {
+                  $.getJSON(url, function(response) {
+                      response.width = $('#'+divName).width();
+                      mpld3.draw_figure(divName, response);
+                  });
+              };
+
+              // DARN YOU url_for/JAVASCRIPT!!!!!
+              let url = '{{ url_for('static', filename='assets/plots/accuracy.json') }}';
+              plotJSON(url, 'accuracy-fig');
+
+              url = '{{ url_for('static', filename='assets/plots/training.json') }}';
+              plotJSON(url, 'training-loss-fig');
+
+              url = '{{ url_for('static', filename='assets/plots/validation.json') }}';
+              plotJSON(url, 'validation-loss-fig');
+
+          });
+      });
+  </script>
+
+{% endblock scripts %}

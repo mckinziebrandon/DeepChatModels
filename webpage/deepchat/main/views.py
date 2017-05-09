@@ -1,6 +1,7 @@
 from datetime import datetime
 import os
 import yaml
+import json
 
 from flask import make_response, flash
 from werkzeug.exceptions import HTTPException
@@ -49,6 +50,12 @@ def index():
 @cross_origin()
 def about():
     return render_template('about.html', user=session.get('user', 'Anon'))
+
+
+@main.route('/plots')
+def plots():
+    return render_template('plots.html',
+                           user=session.get('user', 'Anon'))
 
 
 def update_database(user_message, bot_response):

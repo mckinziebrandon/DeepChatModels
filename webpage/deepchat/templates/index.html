@@ -109,6 +109,23 @@
 
 {% block scripts %}
   {{ super() }}
+
+    <!-- Chat Processing JavaScript -->
+  <script src="{{ url_for('static', filename='js/chat_processing.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/user_form.js') }}"></script>
+
+  <script type="text/javascript">
+      var csrf_token = "{{ csrf_token() }}";
+      $.ajaxSetup({
+          beforeSend: function(xhr, settings) {
+              console.log('this.crossDomain:', this.crossDomain);
+              if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain) {
+                  xhr.setRequestHeader("X-CSRFToken", csrf_token);
+              }
+          }
+      });
+  </script>
+
   <script>
       $(function() {
           $('[data-toggle="popover"]').popover();

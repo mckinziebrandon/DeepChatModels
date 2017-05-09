@@ -60,7 +60,6 @@ class Chatbot(db.Model):
     conversations = db.relationship('Conversation', backref='chatbot', lazy='dynamic')
 
     def __init__(self, name, **bot_kwargs):
-        print("BOT KWARGS:\n", bot_kwargs)
         self.name = (name or 'Unknown Bot')
         self.dataset = bot_kwargs['dataset']
         self.base_cell = bot_kwargs['base_cell']
