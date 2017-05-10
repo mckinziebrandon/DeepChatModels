@@ -63,8 +63,8 @@ class Chatbot(db.Model):
         self.name = (name or 'Unknown Bot')
         self.dataset = bot_kwargs['dataset']
         self.base_cell = bot_kwargs['base_cell']
-        self.encoder = bot_kwargs['encoder.class']
-        self.decoder = bot_kwargs['decoder.class']
+        self.encoder = bot_kwargs['encoder']
+        self.decoder = bot_kwargs['decoder']
         self.learning_rate = bot_kwargs['learning_rate']
         self.num_layers = bot_kwargs['num_layers']
         self.state_size = bot_kwargs['state_size']

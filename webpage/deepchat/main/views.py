@@ -110,7 +110,6 @@ def get_database_model(class_name, filter=None, **kwargs):
 
 class UserAPI(Resource):
 
-    @cross_origin()
     def post(self):
         name = request.values.get('name', 'Anon')
         session['user'] = name
@@ -138,10 +137,13 @@ class ChatAPI(Resource):
             # TODO: delete this after refactor rest of file.
             session['data_name'] = data_name
 
-    @cross_origin()
     def post(self):
+        print('post received')
+        print('request:', request)
         user_message = request.values.get('user_message')
+        print('user_message = ', user_message)
         bot_response = self.bot(user_message)
+        print('resp:', bot_response)
         update_database(user_message, bot_response)
         return {'response': bot_response,
                 'bot_name': ChatAPI.bot_name}
