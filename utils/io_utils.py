@@ -35,11 +35,26 @@ UNK_ID = 3
 _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
 _DIGIT_RE = re.compile(br"\d")
 
-
-_flags = tf.app.flags
-_flags.model = _flags.model_params = '{}'
-_flags.dataset = _flags.dataset_params = '{}'
-_FLAGS = _flags.FLAGS
+# Build mock FLAGS object for utils to wrap info around if needed.
+# This makes the API more user-friendly, since it takes care of
+# formatting data if the user doesn't do it exactly as expected.
+# Note: I did initially try this with an actual tf.app.flags object,
+# but it was a nightmare.
+_flag_names = ["pretrained_dir",
+               "config",
+               "debug",
+               "model",
+               "model_params",
+               "dataset",
+               "dataset_params"]
+Flags = namedtuple('Flags', _flag_names)
+_FLAGS = Flags(pretrained_dir=None,
+               config=None,
+               debug=None,
+               model='{}',
+               dataset='{}',
+               model_params='{}',
+               dataset_params='{}')
 
 
 def save_hyper_params(hyper_params, fname):
@@ -129,8 +144,8 @@ def load_pretrained_config(pretrained_dir):
         - checkpoint(s) from training session (also saved automatically).
 
     Returns:
-        config: dictionary loaded from config.yml, and with all training flags reset to
-                chat session flags, since the only time this is called is for chatting.
+        config: dictionary loaded from config.yml, and with all training test_flags reset to
+                chat session test_flags, since the only time this is called is for chatting.
     """
     config_path = os.path.join(pretrained_dir, "config.yml")
     config = get_yaml_config(config_path)
@@ -173,7 +188,7 @@ def flags_to_dict(flags):
     """
 
     if isinstance(flags, dict):
-        logging.warning('The `flags` object is already a dictionary!')
+        logging.warning('The `test_flags` object is already a dictionary!')
         return flags
 
     if flags.pretrained_dir is not None:
@@ -235,7 +250,7 @@ def merge_dicts(default_dict, preference_dict):
 
 
 def parse_config(flags=None, pretrained_dir=None, config_path=None):
-    """Get custom configuration dictionary from either a tensorflow flags 
+    """Get custom configuration dictionary from either a tensorflow test_flags 
     object, a path to a training directory, or a path to a yaml file. Only pass 
     one of these. See "Args" below for more details.
     
@@ -245,7 +260,7 @@ def parse_config(flags=None, pretrained_dir=None, config_path=None):
     DEFAULT_FULL_CONFIG.
 
     Args:
-        flags: A tf.app.flags.FLAGS object. See FLAGS in main.py.
+        flags: A tf.app.test_flags.TEST_FLAGS object. See TEST_FLAGS in main.py.
         pretrained_dir: relative [to project root] path to a pretrained model 
             directory, i.e. a directory where a chatbot was previously 
             saved/trained (a ckpt_dir).
@@ -260,7 +275,7 @@ def parse_config(flags=None, pretrained_dir=None, config_path=None):
     # Only pass one of the options!
     assert sum(x is not None for x in [flags, pretrained_dir, config_path]) == 1
 
-    # Build a flags object from other params, if it doesn't exist.
+    # Build a test_flags object from other params, if it doesn't exist.
     if flags is None:
 
         # Get the config_path from the pretrained directory.
@@ -269,12 +284,9 @@ def parse_config(flags=None, pretrained_dir=None, config_path=None):
         assert gfile.Exists(config_path), \
             "Cannot parse from %s. No config.yml." % config_path
 
-        # Wrap flags string inside an actual tf.app.flags object.
+        # Wrap test_flags string inside an actual tf.app.test_flags object.
         flags = _FLAGS
-        # Make sure we are using a clean slate.
-        flags.model = flags.model_params = '{}'
-        flags.dataset = flags.dataset_params = '{}'
-        flags.config = config_path
+        flags = flags._replace(config=config_path)
     assert flags is not None
 
     # Get configuration dictionary containing user-specified parameters.
