@@ -1,4 +1,5 @@
 import logging
+import pdb
 import sys
 sys.path.append("..")
 import os
@@ -10,15 +11,21 @@ from utils import io_utils
 import data
 from chatbot.globals import DEFAULT_FULL_CONFIG
 dir = os.path.dirname(os.path.realpath(__file__))
+from tests.utils import *
 
-from tests.utils import TEST_FLAGS, create_bot
 
 class TestData(unittest.TestCase):
     """Tests for the datsets."""
 
     def setUp(self):
         logging.basicConfig(level=logging.INFO)
+        tf.logging.set_verbosity('ERROR')
         self.supported_datasets = ['Reddit', 'Ubuntu', 'Cornell']
+        self.default_flags = {
+            'pretrained_dir': TEST_FLAGS.pretrained_dir,
+            'config': TEST_FLAGS.config,
+            'model': TEST_FLAGS.model,
+            'debug': TEST_FLAGS.debug}
 
     def test_basic(self):
         """Instantiate all supported datasets and check they satisfy basic conditions.
@@ -82,24 +89,27 @@ class TestData(unittest.TestCase):
         training data as input -- a sanity check that the data is clean.
         """
 
-        flags = TEST_FLAGS
-        flags.model_params = dict(
-            ckpt_dir='out/tests/test_cornell',
-            batch_size=256,
-            reset_model=True,
-            steps_per_ckpt=50,
-            num_layers=1,
-            state_size=512,
-            embed_size=64,
-            max_steps=500)
-        flags.dataset_params = dict(
-            vocab_size=50000,
-            max_seq_len=8,
-            data_dir='/home/brandon/Datasets/cornell')
-        flags.dataset = 'Cornell'
+        flags = Flags(
+            model_params=dict(
+                ckpt_dir='out/tests/test_cornell',
+                reset_model=True,
+                steps_per_ckpt=50,
+                base_cell='GRUCell',
+                num_layers=1,
+                state_size=128,
+                embed_size=64,
+                max_steps=50),
+            dataset_params=dict(
+                vocab_size=50000,
+                max_seq_len=8,
+                data_dir='/home/brandon/Datasets/cornell'),
+            dataset='Cornell',
+            **self.default_flags)
 
         bot, dataset = create_bot(flags=flags, return_dataset=True)
         bot.train()
+
+        del bot
 
         # Recreate bot (its session is automatically closed after training).
         flags.model_params['reset_model'] = False
@@ -117,4 +127,5 @@ class TestData(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    tf.logging.set_verbosity('ERROR')
     unittest.main()

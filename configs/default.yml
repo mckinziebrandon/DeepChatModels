@@ -1,6 +1,0 @@
-# Example of the bare minimum specifications for running main.py.
-# If no yml config is provided and user doesn't specify these
-# via flags (command line args), then they will be prompted to
-# provide the info at runtime.
-dataset_params:
-  data_dir: /home/brandon/Datasets/cornell

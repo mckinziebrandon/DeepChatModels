@@ -6,14 +6,19 @@ import unittest
 
 import numpy as np
 import tensorflow as tf
+import pydoc
 from pydoc import locate
 
 import data
 import chatbot
 from utils import io_utils, bot_freezer
-from tests.utils import TEST_FLAGS, create_bot
+from tests.utils import *
+
 
 class TestDynamicModels(unittest.TestCase):
+
+    def setUp(self):
+        tf.logging.set_verbosity('ERROR')
 
     def test_create_bot(self):
         """Ensure bot constructor is error-free."""
@@ -36,13 +41,11 @@ class TestDynamicModels(unittest.TestCase):
     def test_train(self):
         """Simulate a brief training session."""
         flags = TEST_FLAGS
-        flags.model_params = dict(
+        flags = flags._replace(model_params=dict(
+            **flags.model_params,
             reset_model=True,
-            steps_per_ckpt=10)
+            steps_per_ckpt=10))
         bot = create_bot(flags)
-        self.assertEqual(bot.ckpt_dir, 'out/test_data')
-        self.assertEqual(bot.reset_model, True)
-        self.assertEqual(bot.steps_per_ckpt, 10)
         self._quick_train(bot)
 
     def test_base_methods(self):
@@ -62,16 +65,13 @@ class TestDynamicModels(unittest.TestCase):
         # 1. Create & train bot.
         # ================================================
         flags = TEST_FLAGS
-        flags.model_params = dict(
-            ckpt_dir='out/test_data',
+        flags = flags._replace(model_params=dict(
+            ckpt_dir=os.path.join(TEST_DIR, 'out'),
             reset_model=True,
-            steps_per_ckpt=50,
-            max_steps=100)
+            steps_per_ckpt=20,
+            max_steps=40))
         bot = create_bot(flags)
-        self.assertEqual(bot.ckpt_dir, 'out/test_data')
         self.assertEqual(bot.reset_model, True)
-        self.assertEqual(bot.steps_per_ckpt, 50)
-        self.assertEqual(bot.max_steps, 100)
         # Simulate small train sesh on bot.
         bot.train()
 
@@ -81,18 +81,19 @@ class TestDynamicModels(unittest.TestCase):
         # Recreate bot from scratch with decode set to true.
         logging.info("Resetting default graph . . . ")
         tf.reset_default_graph()
-        flags.model_params = dict(
-            ckpt_dir='out/test_data',
-            reset_model=False,
-            decode=True,
-            steps_per_ckpt=10)
+        flags = flags._replace(model_params={
+            **flags.model_params,
+            'reset_model': False,
+            'decode': True,
+            'max_steps': 100,
+            'steps_per_ckpt': 50})
+        self.assertTrue(flags.model_params.get('decode'))
         bot = create_bot(flags)
         self.assertTrue(bot.is_chatting)
         self.assertTrue(bot.decode)
 
         print("Testing quick chat sesh . . . ")
         config = io_utils.parse_config(flags=flags)
-        import pydoc
         dataset_class = pydoc.locate(config['dataset']) \
                         or getattr(data, config['dataset'])
         dataset = dataset_class(config['dataset_params'])
@@ -144,22 +145,25 @@ class TestDynamicModels(unittest.TestCase):
         """
 
         flags = TEST_FLAGS
-        flags.model_params = dict(
+        flags = flags._replace(model_params=dict(
             ckpt_dir='out/test_data',
             reset_model=True,
-            steps_per_ckpt=100,
-            state_size=512,
-            embed_size=64,
-            max_steps=300)
-        flags.dataset_params = dict(
+            steps_per_ckpt=300,
+            state_size=128,
+            embed_size=32,
+            max_steps=300))
+        flags = flags._replace(dataset_params=dict(
             max_seq_len=20,
-            data_dir='/home/brandon/Datasets/test_data')
+            data_dir=TEST_DATA_DIR))
+        print('TEST_FLAGS', flags.dataset)
         bot, dataset = create_bot(flags=flags, return_dataset=True)
         bot.train()
 
         # Recreate bot (its session is automatically closed after training).
-        flags.model_params['reset_model'] = False
-        flags.model_params['decode'] = True
+        flags = flags._replace(model_params={
+            **flags.model_params,
+            'reset_model': False,
+            'decode': True})
         bot, dataset = create_bot(flags, return_dataset=True)
 
         for inp_sent, resp_sent in dataset.pairs_generator():

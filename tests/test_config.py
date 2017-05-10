@@ -9,42 +9,17 @@ import tensorflow as tf
 from utils import io_utils
 import chatbot
 import data
-from chatbot.globals import DEFAULT_FULL_CONFIG
 dir = os.path.dirname(os.path.realpath(__file__))
-from tests.utils import TEST_FLAGS
-
-def update_config(config, **kwargs):
-    new_config = {}
-    for key in DEFAULT_FULL_CONFIG:
-        for new_key in kwargs:
-            if new_key in DEFAULT_FULL_CONFIG[key]:
-                if new_config.get(key) is None:
-                    new_config[key] = {}
-                new_config[key][new_key] = kwargs[new_key]
-            elif new_key == key:
-                new_config[new_key] = kwargs[new_key]
-    return {**config, **new_config}
+from tests.utils import *
 
 
 class TestConfig(unittest.TestCase):
     """Test behavior of tf.contrib.rnn after migrating to r1.0."""
 
     def setUp(self):
-        with open('configs/test_config.yml') as f:
+        with open(TEST_CONFIG_PATH) as f:
             # So we can always reference default vals.
             self.test_config = yaml.load(f)
-
-    def test_path(self):
-        conf_path = os.path.abspath('configs/test_config.yml')
-        with tf.gfile.GFile(conf_path) as file:
-            config_dict = yaml.load(file)
-
-        self.assertIsInstance(config_dict, dict,
-                              "Config is type %r" % type(config_dict))
-
-        for key in config_dict['model_params']:
-            logging.info(key)
-            self.assertIsNotNone(key)
 
     def test_merge_params(self):
         """Checks how parameters passed to TEST_FLAGS interact with
@@ -60,7 +35,7 @@ class TestConfig(unittest.TestCase):
         # Easy tests.
         # ==============================================================
 
-        # Change model in flags and ensure merged config uses that model.
+        # Change model in test_flags and ensure merged config uses that model.
         config = update_config(config, model='ChatBot')
         self.assertEqual(config['model'], 'ChatBot')
 
@@ -69,7 +44,6 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config['model'], 'DynamicBot')
 
         # Do the same for changing the dataset.
-        TEST_FLAGS.dataset = "data.TestData"
         config = update_config(config, dataset='TestData')
         self.assertEqual(config['dataset'], 'TestData')
 
@@ -100,8 +74,7 @@ class TestConfig(unittest.TestCase):
         # Manually set vocab size to huge (non-optimal for TestData) value.
         config = io_utils.update_config(config=config, vocab_size=99999)
         self.assertEqual(config['dataset_params']['vocab_size'], 99999)
-        self.assertEqual(config['dataset_params']['config_path'],
-                         'configs/test_config.yml')
+        self.assertEqual(config['dataset_params']['config_path'], TEST_CONFIG_PATH)
 
         # Instantiate a new dataset.
         # This where the 'optimize' flag comes into play, since
@@ -119,8 +92,8 @@ class TestConfig(unittest.TestCase):
         """Test the new function in io_utils.py"""
 
         logging.info(os.getcwd())
-        config_path = 'configs/test_config.yml'
-        config = io_utils.parse_config(config_path=config_path)
+        config = io_utils.get_yaml_config(TEST_CONFIG_PATH)
+        config['model_params']['ckpt_dir'] = TEST_FLAGS.model_params['ckpt_dir']
         self.assertIsInstance(config, dict)
         self.assertTrue('model' in config)
         self.assertTrue('dataset' in config)
@@ -128,7 +101,7 @@ class TestConfig(unittest.TestCase):
         self.assertTrue('model_params' in config)
 
         config = io_utils.update_config(
-            config_path=config_path,
+            config_path=TEST_CONFIG_PATH,
             return_config=True,
             vocab_size=1234)
 
