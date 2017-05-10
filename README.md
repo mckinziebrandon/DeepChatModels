@@ -72,9 +72,7 @@ Instead of using the ```feed_dict``` argument to input data batches to the model
 <br/>
 <br/>
 
-This plot shows DynamicBot can achieve 0 loss for an extremely small dataset. Great, we can overfit. Now we can begin to explore regularization techniques.
-
-(More descriptions coming soon!)
+_(More descriptions coming soon!)_
 
 ## Reference Material
 
