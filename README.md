@@ -8,7 +8,7 @@
   * [Models](#models)
   * [Website](#website)
 * [Model Components](#model-components)
-  * [Input Pipeline](#input-pipeline)
+  * [Input Pipeline](#the-input-pipeline)
 * [Reference Material](#reference-material)
 
 ## Project Overview
