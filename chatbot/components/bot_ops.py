@@ -51,10 +51,10 @@ def _dynamic_sampled_map(labels, logits, output_projection, vocab_size,
             loss as a scalar Tensor, computed as the mean over all batches and sequences.
     """
     with tf.name_scope(name, "dynamic_sampled_softmax_loss", [labels, logits, output_projection]):
-        seq_len  = tf.shape(logits)[1]
-        st_size  = tf.shape(logits)[2]
-        time_major_outputs  = tf.reshape(logits, [seq_len, -1, st_size])
-        time_major_labels   = tf.reshape(labels, [seq_len, -1])
+        seq_len = tf.shape(logits)[1]
+        st_size = tf.shape(logits)[2]
+        time_major_outputs = tf.reshape(logits, [seq_len, -1, st_size])
+        time_major_labels = tf.reshape(labels, [seq_len, -1])
         # Reshape is apparently faster (dynamic) than transpose.
         w_t = tf.reshape(output_projection[0], [vocab_size, -1])
         b = output_projection[1]
@@ -120,8 +120,8 @@ def _dynamic_sampled_from_scratch(labels, logits, output_projection, vocab_size,
 
                 # Get concatenated 1D tensor of shape [batch_size * None + num_samples],
                 all_ids = tf.concat([targets, S], 0)
-                _W       = tf.nn.embedding_lookup(weights, all_ids, partition_strategy='div')
-                _b       = tf.nn.embedding_lookup(biases, all_ids)
+                _W = tf.nn.embedding_lookup(weights, all_ids, partition_strategy='div')
+                _b = tf.nn.embedding_lookup(biases, all_ids)
 
                 W = {'targets': tf.slice(_W, begin=[0, 0], size=[batch_size, state_size]),
                      'samples': tf.slice(_W, begin=[batch_size, 0], size=[num_samples, state_size])}
@@ -143,6 +143,23 @@ def _dynamic_sampled_from_scratch(labels, logits, output_projection, vocab_size,
         return tf.reduce_mean(tf.map_fn(sampled_loss_single_timestep,
                                         (time_major_outputs, time_major_labels),
                                         dtype=tf.float32))
+
+
+def cross_entropy_sequence_loss(logits, labels, weights):
+    """My version of various tensorflow sequence loss implementations I've 
+    seen. They all seem to do the basic operations below, but in a much more
+    roundabout way. This version is able to be simpler because it assumes that
+    the inputs are coming from a chatbot.Model subclass.
+    """
+    with tf.name_scope('cross_entropy_sequence_loss'):
+        losses = tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits=logits, labels=labels)
+
+        # We can get the sequence lengths simply by casting all PAD labels
+        # with 0 and everything else with 1.
+        weights = tf.to_float(weights)
+        losses = tf.multiply(losses, weights)
+        return tf.reduce_sum(losses) / tf.reduce_sum(weights)
 
 
 def dot_prod(x, y):
