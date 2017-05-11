@@ -13,8 +13,7 @@ except ImportError:
 
 from tensorflow.contrib.seq2seq import BahdanauAttention, LuongAttention
 from tensorflow.contrib.rnn import LSTMStateTuple, LSTMCell
-from tensorflow.python.util import nest
-from chatbot.components.base._rnn import RNN, MyAttentionWrapper
+from chatbot.components.base._rnn import RNN, SimpleAttentionWrapper
 from utils import io_utils
 
 
@@ -286,7 +285,6 @@ class AttentionDecoder(Decoder):
                  dropout_prob=1.0,
                  num_layers=2,
                  temperature=0.0,
-                 attention_size=256,
                  max_seq_len=50):
         """We need to explicitly call the constructor now, so we can:
            - Specify we need the state wrapped in AttentionWrapperState.
@@ -315,18 +313,10 @@ class AttentionDecoder(Decoder):
             max_seq_len=max_seq_len,
             state_wrapper=AttentionWrapperState)
 
-        print('received attn size of ', attention_size)
-        self.attention_size = attention_size
         _mechanism = getattr(tf.contrib.seq2seq, attention_mechanism)
-        self.attention_mechanism = _mechanism(num_units=attention_size,
+        self.attention_mechanism = _mechanism(num_units=state_size,
                                               memory=encoder_outputs)
-
-        if attention_mechanism == 'LuongAttention':
-            self.output_attention = True
-            self.layer_size = None
-        else:
-            self.output_attention = False
-            self.layer_size = None
+        self.output_attention = True
 
     def __call__(self,
                  inputs,
@@ -355,10 +345,9 @@ class AttentionDecoder(Decoder):
         # Get the simple underlying cell first.
         cell = super(AttentionDecoder, self).get_cell(name)
         # Return the normal cell wrapped to support attention.
-        return MyAttentionWrapper(cell=cell,
-                                  attention_mechanism=self.attention_mechanism,
-                                  output_attention=self.output_attention,
-                                  initial_cell_state=initial_state,
-                                  attention_layer_size=self.layer_size)
+        return SimpleAttentionWrapper(
+            cell=cell,
+            attention_mechanism=self.attention_mechanism,
+            initial_cell_state=initial_state)
 
 

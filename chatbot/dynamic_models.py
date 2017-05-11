@@ -115,9 +115,7 @@ class DynamicBot(Model):
         with tf.variable_scope("decoder"):
             embedded_dec_inputs = self.embedder(self.decoder_inputs)
             # Sneaky. Would be nice to have a "cleaner" way of doing this.
-            if getattr(self, 'attention_size', None) is not None \
-                    and getattr(self, 'attention_mechanism') is not None:
-                rnn_params['attention_size'] = self.attention_size
+            if getattr(self, 'attention_mechanism') is not None:
                 rnn_params['attention_mechanism'] = self.attention_mechanism
             self.decoder = decoder_class(
                 encoder_outputs=encoder_outputs,
