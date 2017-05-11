@@ -5,19 +5,16 @@ import sys
 # Required due to TensorFlow's unreliable naming across versions . . .
 try:
     # r1.1
-    from tensorflow.contrib.seq2seq import DynamicAttentionWrapper \
-        as AttentionWrapper
     from tensorflow.contrib.seq2seq import DynamicAttentionWrapperState \
         as AttentionWrapperState
 except ImportError:
     # master
-    from tensorflow.contrib.seq2seq import AttentionWrapper
     from tensorflow.contrib.seq2seq import AttentionWrapperState
 
 from tensorflow.contrib.seq2seq import BahdanauAttention, LuongAttention
 from tensorflow.contrib.rnn import LSTMStateTuple, LSTMCell
 from tensorflow.python.util import nest
-from chatbot.components.base._rnn import RNN
+from chatbot.components.base._rnn import RNN, MyAttentionWrapper
 from utils import io_utils
 
 
@@ -87,10 +84,10 @@ class Decoder(RNN):
 
     def __call__(self,
                  inputs,
-                 initial_state,
                  is_chatting,
                  loop_embedder,
-                 cell):
+                 cell,
+                 initial_state=None):
         """Run the inputs on the decoder.
 
         If we are chatting, then conduct dynamic sampling, which is the process
@@ -137,18 +134,12 @@ class Decoder(RNN):
             decoder_input = loop_embedder(tf.reshape(response[-1], (1, 1)),
                                           reuse=True)
 
-            # Reformat state to be acceptable as input (smh).
-            state = self._map_state_to(self.wrapper, state)
-            if "LSTM" in self.base_cell and isinstance(state, list):
-                state = tuple(state)
-
             outputs, state = self.rnn(inputs=decoder_input,
                                       initial_state=state,
                                       sequence_length=[1])
 
             next_id = self.sample(self.apply_projection(outputs))
             response = tf.concat([response, tf.stack([next_id])], axis=0)
-            state = self._map_state_to(list, state)
             return response, state
 
         def cond(response, s):
@@ -176,7 +167,7 @@ class Decoder(RNN):
         #            arity as loop_vars.
         # -- 'loop_vars': tuple of tensors that is passed to 'cond' and 'body'.
         response, _ = tf.while_loop(
-            cond, body, (response, self._map_state_to(list, state)),
+            cond, body, (response, state),
             shape_invariants=(tf.TensorShape([None]), cell.shape),
             back_prop=False)
         # =============== FAREWELL: The tensorflow while loop. =================
@@ -312,9 +303,6 @@ class AttentionDecoder(Decoder):
                 ' terminate the program now. Sorry!')
             sys.exit()
 
-        self.attention_size = attention_size
-
-        print('received attn size of ', attention_size)
         super(AttentionDecoder, self).__init__(
             encoder_outputs=encoder_outputs,
             base_cell=base_cell,
@@ -327,14 +315,18 @@ class AttentionDecoder(Decoder):
             max_seq_len=max_seq_len,
             state_wrapper=AttentionWrapperState)
 
-        _attention_mechanism = getattr(tf.contrib.seq2seq, attention_mechanism)
-        self.attention_mechanism = _attention_mechanism(
-            num_units=attention_size,
-            memory=encoder_outputs)
+        print('received attn size of ', attention_size)
+        self.attention_size = attention_size
+        _mechanism = getattr(tf.contrib.seq2seq, attention_mechanism)
+        self.attention_mechanism = _mechanism(num_units=attention_size,
+                                              memory=encoder_outputs)
+
         if attention_mechanism == 'LuongAttention':
             self.output_attention = True
+            self.layer_size = None
         else:
             self.output_attention = False
+            self.layer_size = None
 
     def __call__(self,
                  inputs,
@@ -350,33 +342,23 @@ class AttentionDecoder(Decoder):
         the project.
         """
 
-        if not cell:
-            #cell = self.get_cell('attn_cell',
-            #                     attn=self.attention_mechanism,
-            #                     output_attention=self.output_attention,
-            #                     encoder_outputs=self.encoder_outputs,
-            #                     attention_size=self.attention_size)
-            import chatbot.components.base._rnn as _rnn
-            cell = _rnn.Cell(state_size=self.state_size,
-                        num_layers=self.num_layers,
-                        dropout_prob=self.dropout_prob,
-                        base_cell=self.base_cell)
-            cell = AttentionWrapper(
-                cell=cell,
-                attention_mechanism=self.attention_mechanism,
-                attention_layer_size=None,
-                initial_cell_state=initial_state,
-                output_attention=self.output_attention)
+        if cell is None:
+            cell = self.get_cell('attn_cell', initial_state)
 
-        # Confirmed: (tf legacy) embedding_attention_seq2seq does
-        # initialize attention decoders with encoder final state (seems
-        # redundant but ok).
         return super(AttentionDecoder, self).__call__(
             inputs=inputs,
-            initial_state=None,
-            #initial_state=cell.initialized_state(initial_state, tf.shape(inputs)[0]),
             is_chatting=is_chatting,
             loop_embedder=loop_embedder,
             cell=cell)
+
+    def get_cell(self, name, initial_state):
+        # Get the simple underlying cell first.
+        cell = super(AttentionDecoder, self).get_cell(name)
+        # Return the normal cell wrapped to support attention.
+        return MyAttentionWrapper(cell=cell,
+                                  attention_mechanism=self.attention_mechanism,
+                                  output_attention=self.output_attention,
+                                  initial_cell_state=initial_state,
+                                  attention_layer_size=self.layer_size)
 
 

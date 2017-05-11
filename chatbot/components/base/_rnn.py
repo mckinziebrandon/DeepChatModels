@@ -125,21 +125,13 @@ class RNN(object):
         self.base_cell = base_cell
         self._wrapper = state_wrapper
 
-    def get_cell(self, name, **kwargs):
+    def get_cell(self, name):
         """Returns a cell instance, defined by its name scope."""
         with tf.name_scope(name, "get_cell"):
-            cell = Cell(state_size=self.state_size,
+            return Cell(state_size=self.state_size,
                         num_layers=self.num_layers,
                         dropout_prob=self.dropout_prob,
                         base_cell=self.base_cell)
-            if kwargs.get('attn') is None:
-                return cell
-
-            cell = MyAttentionWrapper(cell=cell,
-                                      attention_mechanism=kwargs['attn'],
-                                      output_attention=kwargs.get('output_attention', False),
-                                      attention_layer_size=kwargs['attention_size'])
-            return cell
 
     def wrapper(self, state):
         """Some RNN states are wrapped in namedtuples. 
@@ -160,165 +152,40 @@ class RNN(object):
         raise NotImplemented
 
 
-class MyAttentionWrapper(RNNCell):
-    """Wraps another `RNNCell` with attention.
-    Mostly the same as tf.contrib.seq2seq.AttentionWrapper, but with less 
-    headaches (for me) and custom tweaks to fit with the project better.
+class MyAttentionWrapper(AttentionWrapper):
+    """Minor tweaks to AttentionWrapper that are useful when working with
+    tf.while_loop in chat sessions.
     """
 
     def __init__(self,
                  cell,
                  attention_mechanism,
                  attention_layer_size=None,
-                 output_attention=False,
+                 alignment_history=False,
+                 cell_input_fn=None,
+                 probability_fn=None,
+                 output_attention=True,
+                 initial_cell_state=None,
                  name=None):
-        """Construct the `AttentionWrapper`.
 
-        Args:
-            cell: An instance of `RNNCell`.
-            attention_mechanism: An instance of `AttentionMechanism`.
-            attention_layer_size: Python integer, the depth of the attention (output)
-                layer. If None (default), use the context as attention at each time
-                step. Otherwise, feed the context and cell output into the attention
-                layer to generate attention at each time step.
-            output_attention: Python bool.  If `True` (default), the output at each
-                time step is the attention value (Luong-style). If `False`, 
-                the output at each time step is the output of `cell` 
-                (Bhadanau-style). In both cases, the `attention` tensor is
-                propagated to the next time step via the state and is used there.
-                This flag only controls whether the attention mechanism is propagated
-                up to the next cell in an RNN stack or to the top RNN output.
-            name: Name to use when creating ops.
-        """
-        super(MyAttentionWrapper, self).__init__(name=name)
+        print('outputattn:', output_attention)
+        print('attnlayersize:', attention_layer_size)
+
+        super(MyAttentionWrapper, self).__init__(
+            cell=cell,
+            attention_mechanism=attention_mechanism,
+            attention_layer_size=attention_layer_size,
+            alignment_history=alignment_history,
+            cell_input_fn=cell_input_fn,
+            probability_fn=probability_fn,
+            output_attention=output_attention,
+            initial_cell_state=initial_cell_state,
+            name=name)
 
         # Assume that 'cell' is an instance of the custom 'Cell' class above.
         self._base_cell = cell._base_cell
         self._num_layers = cell._num_layers
         self._state_size = cell._state_size
-
-        def cell_input_fn(inputs, attention):
-            return tf.concat([inputs, attention], -1)
-
-        if attention_layer_size is not None:
-            self._attention_layer = tf.contrib.keras.layers.Dense(attention_layer_size,
-                                        name="attention_layer",
-                                        use_bias=False)
-            self._attention_size = attention_layer_size
-        else:
-            self._attention_layer = None
-            self._attention_size = attention_mechanism.values.get_shape()[-1].value
-
-        self._cell = cell
-        self._attention_mechanism = attention_mechanism
-        self._cell_input_fn = cell_input_fn
-        self._output_attention = output_attention
-        self._alignment_history = False
-        with tf.name_scope(name, "AttentionWrapperInit"):
-            self._initial_cell_state = None
-
-    @property
-    def output_size(self):
-        if self._output_attention:
-            return self._attention_size
-        else:
-            return self._cell.output_size
-
-    @property
-    def state_size(self):
-        return AttentionWrapperState(cell_state=self._cell.state_size,
-                                     time=tf.TensorShape([]),
-                                     attention=self._attention_size,
-                                     alignment_history=())
-
-    def zero_state(self, batch_size, dtype=tf.float32):
-        with tf.name_scope(type(self).__name__ + "ZeroState", values=[batch_size]):
-            cell_state = self._cell.zero_state(batch_size, dtype)
-            alignment_history = ()
-            _zero_state_tensors = rnn_cell_impl._zero_state_tensors
-            return AttentionWrapperState(
-                cell_state=cell_state,
-                time=tf.zeros([], dtype=tf.int32),
-                attention=_zero_state_tensors(self._attention_size, batch_size, dtype),
-                alignment_history=alignment_history)
-
-    def initialized_state(self, state, batch_size, dtype=tf.float32):
-        _zero_state_tensors = rnn_cell_impl._zero_state_tensors
-        return AttentionWrapperState(
-            cell_state=state,
-            time=tf.zeros([], dtype=tf.int32),
-            attention=_zero_state_tensors(self._attention_size, batch_size, dtype),
-            alignment_history=())
-
-    def call(self, inputs, state):
-        """Perform a step of attention-wrapped RNN.
-       
-        Args:
-            inputs: (Possibly nested tuple of) Tensor, the input at this time step.
-            state: An instance of `AttentionWrapperState` containing
-            tensors from the previous time step.
-            
-        Returns:
-            A tuple `(attention_or_cell_output, next_state)`, where:
-        """
-
-        # Step 1: Calculate the true inputs to the cell based on the
-        # previous attention value.
-        cell_inputs = self._cell_input_fn(inputs, state.attention)
-        cell_state = state.cell_state
-
-        # Step 2: Call the wrapped `cell` with input and prev state.
-        cell_output, next_cell_state = self._cell(cell_inputs, cell_state)
-
-        # Step 3: Compute the scores with either Bahdanau/Luong.
-        att_query = tf.contrib.layers.fully_connected(
-            inputs=cell_output,
-            num_outputs=self._attention_size,
-            activation_fn=None)
-        score = self._attention_mechanism(att_query)
-
-        # Step 4: Calculate the alignments by passing the score through softmax.
-        alignments = tf.nn.softmax(score)
-
-        # Reshape from [batch_size, memory_time] to [batch_size, 1, memory_time]
-        expanded_alignments = tf.expand_dims(alignments, 1)
-
-        # Step 5: Calculate the context vector as the inner product between the
-        # alignments and the attention_mechanism's values (memory).
-        # - alignments shape:
-        #     [B, 1, memory_time]
-        # - attention_mechanism.values shape:
-        #     [B, memory_time, attention_mechanism.num_units]
-        # - output shape:
-        #     [B, 1, attention_mechanism.num_units].
-        context = tf.matmul(expanded_alignments,
-                            self._attention_mechanism.values)
-
-        # we then squeeze out the singleton dim.
-        context = tf.squeeze(context, [1])
-
-        # Step 6: Calculate the attention output by concatenating the cell output
-        #and context through the attention layer (a linear layer with
-        # `attention_size` outputs).
-        if self._attention_layer is not None:
-          attention = self._attention_layer(
-              tf.concat([cell_output, context], 1))
-        else:
-          attention = context
-
-        alignment_history = ()
-
-        next_state = AttentionWrapperState(
-            cell_state=next_cell_state,
-            attention=attention,
-            time=state.time + 1,
-            alignment_history=alignment_history)
-
-        if self._output_attention:
-            return attention, next_state
-        else:
-            return cell_output, next_state
-
 
     @property
     def shape(self):
@@ -329,9 +196,6 @@ class MyAttentionWrapper(RNNCell):
                 attention=tf.TensorShape([None, self._attention_size]),
                 time=tf.TensorShape(None),
                 alignment_history=())
-            #return [tf.TensorShape([None, self._state_size]),
-            #        tf.TensorShape([None, self._attention_size]),
-            #        tf.TensorShape(None), ()]
         else:
             def layer_shape():
                 return tf.TensorShape([None, self._state_size])
@@ -340,9 +204,6 @@ class MyAttentionWrapper(RNNCell):
                 attention=tf.TensorShape([None, self._attention_size]),
                 time=tf.TensorShape(None),
                 alignment_history=())
-            #return [tuple([layer_shape() for _ in range(self._num_layers)]),
-            #        tf.TensorShape([None, self._attention_size]),
-            #        tf.TensorShape(None), ()]
 
 
 class BasicRNNCell(RNNCell):
