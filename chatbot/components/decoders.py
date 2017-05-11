@@ -216,21 +216,29 @@ class Decoder(RNN):
 
     def sample(self, projected_output):
         """Return integer ID tensor representing the sampled word.
+        
+        Args:
+            projected_output: Tensor [1, 1, state_size], representing a single
+                decoder timestep output. 
         """
+        # TODO: We really need a tf.control_dependencies check here (for rank).
         with tf.name_scope('decoder_sampler', values=[projected_output]):
 
-            # Protect against extra size-1 dimensions.
-            projected_output = tf.squeeze(projected_output)
+            # Protect against extra size-1 dimensions; grab the 1D tensor
+            # of size state_size.
+            logits = tf.squeeze(projected_output)
             if self.temperature < 0.02:
-                return tf.argmax(projected_output, axis=0)
+                return tf.argmax(logits, axis=0)
 
-            projected_output = tf.div(projected_output, self.temperature)
+            # Convert logits to probability distribution.
+            probabilities = tf.div(logits, self.temperature)
             projected_output = tf.div(
-                tf.exp(projected_output),
-                tf.reduce_sum(tf.exp(projected_output), axis=-1))
+                tf.exp(probabilities),
+                tf.reduce_sum(tf.exp(probabilities), axis=-1))
 
+            # Sample 1 time from the probability distribution.
             sample_ID = tf.squeeze(
-                tf.multinomial(tf.expand_dims(projected_output, 0), 1))
+                tf.multinomial(tf.expand_dims(probabilities, 0), 1))
         return sample_ID
 
     def get_projection_tensors(self):
@@ -246,7 +254,8 @@ class Decoder(RNN):
         if self._wrapper is None:
             return state
         if self._wrapper == AttentionWrapperState:
-            return fn(state)
+            #return fn(state)
+            return state
         if self.num_layers > 1:
             return tuple(list(map(fn, state)))
         else:
@@ -317,7 +326,7 @@ class AttentionDecoder(Decoder):
             state_wrapper=AttentionWrapperState)
 
         # TODO: Allow user to specify which attention mechanism to use.
-        self.attention_mechanism = BahdanauAttention(num_units=attention_size,
+        self.attention_mechanism = LuongAttention(num_units=attention_size,
                                                      memory=encoder_outputs)
 
     def __call__(self,
@@ -340,9 +349,12 @@ class AttentionDecoder(Decoder):
                                  encoder_outputs=self.encoder_outputs,
                                  attention_size=self.attention_size)
 
+        # Confirmed: (tf legacy) embedding_attention_seq2seq does
+        # initialize attention decoders with encoder final state (seems
+        # redundant but ok).
         return super(AttentionDecoder, self).__call__(
             inputs=inputs,
-            initial_state=cell.zero_state(tf.shape(inputs)[0]),
+            initial_state=cell.initialized_state(initial_state, tf.shape(inputs)[0]),
             is_chatting=is_chatting,
             loop_embedder=loop_embedder,
             cell=cell)
