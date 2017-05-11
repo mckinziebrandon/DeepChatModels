@@ -291,6 +291,7 @@ class AttentionDecoder(Decoder):
                  state_size,
                  vocab_size,
                  embed_size,
+                 attention_mechanism,
                  dropout_prob=1.0,
                  num_layers=2,
                  temperature=0.0,
@@ -312,6 +313,7 @@ class AttentionDecoder(Decoder):
             sys.exit()
 
         self.attention_size = attention_size
+
         print('received attn size of ', attention_size)
         super(AttentionDecoder, self).__init__(
             encoder_outputs=encoder_outputs,
@@ -325,9 +327,14 @@ class AttentionDecoder(Decoder):
             max_seq_len=max_seq_len,
             state_wrapper=AttentionWrapperState)
 
-        # TODO: Allow user to specify which attention mechanism to use.
-        self.attention_mechanism = LuongAttention(num_units=attention_size,
-                                                     memory=encoder_outputs)
+        _attention_mechanism = getattr(tf.contrib.seq2seq, attention_mechanism)
+        self.attention_mechanism = _attention_mechanism(
+            num_units=attention_size,
+            memory=encoder_outputs)
+        if attention_mechanism == 'LuongAttention':
+            self.output_attention = True
+        else:
+            self.output_attention = False
 
     def __call__(self,
                  inputs,
@@ -344,17 +351,30 @@ class AttentionDecoder(Decoder):
         """
 
         if not cell:
-            cell = self.get_cell('attn_cell',
-                                 attn=self.attention_mechanism,
-                                 encoder_outputs=self.encoder_outputs,
-                                 attention_size=self.attention_size)
+            #cell = self.get_cell('attn_cell',
+            #                     attn=self.attention_mechanism,
+            #                     output_attention=self.output_attention,
+            #                     encoder_outputs=self.encoder_outputs,
+            #                     attention_size=self.attention_size)
+            import chatbot.components.base._rnn as _rnn
+            cell = _rnn.Cell(state_size=self.state_size,
+                        num_layers=self.num_layers,
+                        dropout_prob=self.dropout_prob,
+                        base_cell=self.base_cell)
+            cell = AttentionWrapper(
+                cell=cell,
+                attention_mechanism=self.attention_mechanism,
+                attention_layer_size=None,
+                initial_cell_state=initial_state,
+                output_attention=self.output_attention)
 
         # Confirmed: (tf legacy) embedding_attention_seq2seq does
         # initialize attention decoders with encoder final state (seems
         # redundant but ok).
         return super(AttentionDecoder, self).__call__(
             inputs=inputs,
-            initial_state=cell.initialized_state(initial_state, tf.shape(inputs)[0]),
+            initial_state=None,
+            #initial_state=cell.initialized_state(initial_state, tf.shape(inputs)[0]),
             is_chatting=is_chatting,
             loop_embedder=loop_embedder,
             cell=cell)

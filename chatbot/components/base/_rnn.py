@@ -137,6 +137,7 @@ class RNN(object):
 
             cell = MyAttentionWrapper(cell=cell,
                                       attention_mechanism=kwargs['attn'],
+                                      output_attention=kwargs.get('output_attention', False),
                                       attention_layer_size=kwargs['attention_size'])
             return cell
 
@@ -168,7 +169,7 @@ class MyAttentionWrapper(RNNCell):
     def __init__(self,
                  cell,
                  attention_mechanism,
-                 attention_layer_size=128,
+                 attention_layer_size=None,
                  output_attention=False,
                  name=None):
         """Construct the `AttentionWrapper`.
@@ -199,10 +200,15 @@ class MyAttentionWrapper(RNNCell):
         def cell_input_fn(inputs, attention):
             return tf.concat([inputs, attention], -1)
 
-        self._attention_layer = tf.contrib.keras.layers.Dense(attention_layer_size,
-                                                name="attention_layer",
-                                                use_bias=False)
-        self._attention_size = attention_layer_size
+        if attention_layer_size is not None:
+            self._attention_layer = tf.contrib.keras.layers.Dense(attention_layer_size,
+                                        name="attention_layer",
+                                        use_bias=False)
+            self._attention_size = attention_layer_size
+        else:
+            self._attention_layer = None
+            self._attention_size = attention_mechanism.values.get_shape()[-1].value
+
         self._cell = cell
         self._attention_mechanism = attention_mechanism
         self._cell_input_fn = cell_input_fn
@@ -265,7 +271,11 @@ class MyAttentionWrapper(RNNCell):
         cell_output, next_cell_state = self._cell(cell_inputs, cell_state)
 
         # Step 3: Compute the scores with either Bahdanau/Luong.
-        score = self._attention_mechanism(cell_output)
+        att_query = tf.contrib.layers.fully_connected(
+            inputs=cell_output,
+            num_outputs=self._attention_size,
+            activation_fn=None)
+        score = self._attention_mechanism(att_query)
 
         # Step 4: Calculate the alignments by passing the score through softmax.
         alignments = tf.nn.softmax(score)
@@ -290,7 +300,12 @@ class MyAttentionWrapper(RNNCell):
         # Step 6: Calculate the attention output by concatenating the cell output
         #and context through the attention layer (a linear layer with
         # `attention_size` outputs).
-        attention = self._attention_layer(tf.concat([cell_output, context], 1))
+        if self._attention_layer is not None:
+          attention = self._attention_layer(
+              tf.concat([cell_output, context], 1))
+        else:
+          attention = context
+
         alignment_history = ()
 
         next_state = AttentionWrapperState(

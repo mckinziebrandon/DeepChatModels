@@ -70,6 +70,7 @@ class DynamicBot(Model):
                         or getattr(components, getattr(self, 'encoder.class'))
         decoder_class = locate(getattr(self, 'decoder.class')) \
                         or getattr(components, getattr(self, 'decoder.class'))
+
         assert encoder_class is not None, "Couldn't find requested %s." % \
                                           self.model_params['encoder.class']
         assert decoder_class is not None, "Couldn't find requested %s." % \
@@ -114,8 +115,9 @@ class DynamicBot(Model):
         with tf.variable_scope("decoder"):
             embedded_dec_inputs = self.embedder(self.decoder_inputs)
             # Sneaky. Would be nice to have a "cleaner" way of doing this.
-            if self.attention_size is not None:
+            if self.attention_size is not None and self.attention_mechanism is not None:
                 rnn_params['attention_size'] = self.attention_size
+                rnn_params['attention_mechanism'] = self.attention_mechanism
             self.decoder = decoder_class(
                 encoder_outputs=encoder_outputs,
                 vocab_size=self.vocab_size,
@@ -133,8 +135,8 @@ class DynamicBot(Model):
 
         self.outputs = tf.identity(decoder_outputs, name='outputs')
         # Tag inputs and outputs by name should we want to freeze the model.
-        self.graph.add_to_collection('freezer', encoder_inputs)
-        self.graph.add_to_collection('freezer', self.outputs)
+        tf.add_to_collection('freezer', encoder_inputs)
+        tf.add_to_collection('freezer', self.outputs)
         # Merge any summaries floating around in the aether into one object.
         self.merged = tf.summary.merge_all()
 
@@ -175,6 +177,14 @@ class DynamicBot(Model):
                         labels=target_labels,
                         logits=preds[:, :-1, :],
                         weights=target_weights) + l1
+                    # New loss function I'm experimenting with below:
+                    # I'm suspicious that it may do the same stuff
+                    # under-the-hood as sparse_softmax_cross_entropy,
+                    # but I'm doing speed tests/comparisons to make sure.
+                    #self.loss = bot_ops.cross_entropy_sequence_loss(
+                    #    labels=target_labels,
+                    #    logits=preds[:, :-1, :],
+                    #    weights=target_weights) + l1
 
                 self.log.info("Optimizing with %s.", self.optimizer)
                 self.train_op = tf.contrib.layers.optimize_loss(
@@ -185,9 +195,8 @@ class DynamicBot(Model):
                     summaries=['gradients'])
 
                 # Compute accuracy, ensuring we use fully projected outputs.
-                correct_pred = tf.equal(
-                    tf.argmax(preds[:, :-1, :], axis=2),
-                    target_labels)
+                correct_pred = tf.equal(tf.argmax(preds[:, :-1, :], axis=2),
+                                        target_labels)
                 accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
                 tf.summary.scalar('accuracy', accuracy)
