@@ -273,6 +273,11 @@ class BasicDecoder(Decoder):
 class AttentionDecoder(Decoder):
     """Dynamic decoder that applies an attention mechanism over the full
     sequence of encoder outputs. Using Bahdanau for now (may change).
+    
+    TODO: Luong's paper mentions that they only use the *top* layer of 
+    stacked LSTMs for attention-related computation. Since currently I'm 
+    only testing attention models with one-layer encoder/decoders, this
+    isn't an issue. However, in a couple days I should revisit this.
     """
 
     def __init__(self,
