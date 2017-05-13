@@ -56,22 +56,24 @@ class Cell(RNNCell):
         return self._cell.state_size
 
     @property
-    def output_size(self):
-        return self._cell.output_size
-
-    @property
     def shape(self):
-        def cell_shape():
-            if "LSTM" in self._base_cell:
-                return LSTMStateTuple(c=tf.TensorShape([None, self._state_size]),
-                                      h=tf.TensorShape([None, self._state_size]))
+        """Needed for shape_invariants arg for tf.while_loop."""
+        if self._num_layers == 1:
+            return self.single_layer_shape()
+        else:
+            return tuple(self.single_layer_shape()
+                         for _ in range(self._num_layers))
+
+    def single_layer_shape(self):
+        if 'LSTM' in self._base_cell:
+            return LSTMStateTuple(c=tf.TensorShape([None, self._state_size]),
+                                  h=tf.TensorShape([None, self._state_size]))
+        else:
             return tf.TensorShape([None, self._state_size])
 
-        if self._num_layers == 1:
-            return cell_shape()
-        else:
-            # tuple appears necessary for GRUCell.
-            return tuple([cell_shape() for _ in range(self._num_layers)])
+    @property
+    def output_size(self):
+        return self._cell.output_size
 
     def __call__(self, inputs, state, scope=None):
         """Run this RNN cell on inputs, starting from the given state.
@@ -154,14 +156,32 @@ class RNN(object):
 
 
 class SimpleAttentionWrapper(RNNCell):
+    """A simplified and tweaked version of TensorFlow's AttentionWrapper.
+    
+    It closely follows the implementation described by Luong et. al, 2015 in
+    `Effective Approaches to Attention-based Neural Machine Translation`.
+    """
 
     def __init__(self,
                  cell,
                  attention_mechanism,
-                 alignment_history=False,
-                 cell_input_fn=None,
                  initial_cell_state=None,
                  name=None):
+        """Construct the wrapper.
+        
+        Main tweak is creating the attention_layer with a tanh activation 
+        (Luong's choice) as opposed to linear (TensorFlow's choice). Also,
+        since I am sticking with Luong's approach, parameters that are in the
+        constructor of TensorFlow's AttentionWrapper have been removed, and 
+        the corresponding values are set to how Luong's paper defined them.
+        
+        Args:
+            cell: instance of the Cell class above.
+            attention_mechanism: instance of tf AttentionMechanism.
+            initial_cell_state: The initial state value to use for the cell when
+                the user calls `zero_state()`.
+            name: Name to use when creating ops.
+        """
 
         super(SimpleAttentionWrapper, self).__init__(name=name)
 
@@ -169,9 +189,6 @@ class SimpleAttentionWrapper(RNNCell):
         self._base_cell = cell._base_cell
         self._num_layers = cell._num_layers
         self._state_size = cell._state_size
-
-        def cell_input_fn(inputs, attention):
-            return tf.concat([inputs, attention], -1)
 
         self._attention_size = attention_mechanism.values.get_shape()[-1].value
         self._attention_layer = layers_core.Dense(self._attention_size,
@@ -181,8 +198,6 @@ class SimpleAttentionWrapper(RNNCell):
 
         self._cell = cell
         self._attention_mechanism = attention_mechanism
-        self._cell_input_fn = cell_input_fn
-        self._alignment_history = alignment_history
         with tf.name_scope(name, "AttentionWrapperInit"):
             if initial_cell_state is None:
                 self._initial_cell_state = None
@@ -203,18 +218,6 @@ class SimpleAttentionWrapper(RNNCell):
                         lambda s: tf.identity(s, name="check_initial_cell_state"),
                         initial_cell_state)
 
-    @property
-    def output_size(self):
-        return self._attention_size
-
-    @property
-    def state_size(self):
-        return AttentionWrapperState(
-            cell_state=self._cell.state_size,
-            time=tf.TensorShape([]),
-            attention=self._attention_size,
-            alignment_history=())
-
     def zero_state(self, batch_size, dtype):
         with tf.name_scope(type(self).__name__ + "ZeroState", values=[batch_size]):
             if self._initial_cell_state is not None:
@@ -232,11 +235,7 @@ class SimpleAttentionWrapper(RNNCell):
                 cell_state = nest.map_structure(
                     lambda s: tf.identity(s, name="checked_cell_state"),
                     cell_state)
-            if self._alignment_history:
-                alignment_history = tf.TensorArray(
-                dtype=dtype, size=0, dynamic_size=True)
-            else:
-                alignment_history = ()
+            alignment_history = ()
 
             _zero_state_tensors = rnn_cell_impl._zero_state_tensors
             return AttentionWrapperState(
@@ -247,77 +246,72 @@ class SimpleAttentionWrapper(RNNCell):
                 alignment_history=alignment_history)
 
     def call(self, inputs, state):
+        """First computes the cell state and output in the usual way, 
+        then works through the attention pipeline:
+            h --> a --> c --> h_tilde
+        using the naming/notation from Luong et. al, 2015.
 
-        # Step 1: Calculate the true inputs to the cell based on the
-        cell_inputs = self._cell_input_fn(inputs, state.attention)
-        cell_state = state.cell_state
-        cell_output, next_cell_state = self._cell(cell_inputs, cell_state)
+        Args:
+            inputs: `2-D` tensor with shape `[batch_size x input_size]`.
+            state: An instance of `AttentionWrapperState` containing the 
+                tensors from the prev timestep.
+     
+        Returns:
+            A tuple `(attention_or_cell_output, next_state)`, where:
+            - `attention_or_cell_output` depending on `output_attention`.
+            - `next_state` is an instance of `DynamicAttentionWrapperState`
+                containing the state calculated at this time step.
+        """
 
-        cell_batch_size = (
-            cell_output.shape[0].value or tf.shape(cell_output)[0])
-        error_message = (
-            "When applying AttentionWrapper %s: " % self.name +
-            "Non-matching batch sizes between the memory "
-            "(encoder output) and the query (decoder output).")
-        with tf.control_dependencies(
-            [tf.assert_equal(cell_batch_size,
-                self._attention_mechanism.batch_size,
-                message=error_message)]):
-            cell_output = tf.identity(cell_output,
-                                      name="checked_cell_output")
+        # Concatenate the previous h_tilde with inputs (input-feeding).
+        cell_inputs = tf.concat([inputs, state.attention], -1)
 
+        # 1. (hidden) Compute the hidden state (cell_output).
+        cell_output, next_cell_state = self._cell(cell_inputs,
+                                                  state.cell_state)
+
+        # 2. (align) Compute the normalized alignment scores. [B, L_enc].
+        # where L_enc is the max seq len in the encoder outputs for the (B)atch.
         score = self._attention_mechanism(cell_output)
         alignments = tf.nn.softmax(score)
 
-        # Reshape from [batch_size, memory_time] to [batch_size, 1, memory_time]
+        # Reshape from [B, L_enc] to [B, 1, L_enc]
         expanded_alignments = tf.expand_dims(alignments, 1)
-
-        # Context is the inner product of alignments and values along the
-        # memory time dimension.
-        # alignments shape is
-        #   [batch_size, 1, memory_time]
-        # attention_mechanism.values shape is
-        #   [batch_size, memory_time, attention_mechanism.num_units]
-        # the batched matmul is over memory_time, so the output shape is
-        #   [batch_size, 1, attention_mechanism.num_units].
-        # we then squeeze out the singleton dim.
-        attention_mechanism_values = self._attention_mechanism.values
-        context = tf.matmul(expanded_alignments, attention_mechanism_values)
+        # (Possibly projected) encoder outputs: [B, L_enc, state_size]
+        encoder_outputs = self._attention_mechanism.values
+        # 3 (context) Take inner prod. [B, 1, state size].
+        context = tf.matmul(expanded_alignments, encoder_outputs)
         context = tf.squeeze(context, [1])
 
-        if self._attention_layer is not None:
-            attention = self._attention_layer(tf.concat([cell_output, context], 1))
-        else:
-            attention = context
-
-        if self._alignment_history:
-            alignment_history = state.alignment_history.write(
-            state.time, alignments)
-        else:
-            alignment_history = ()
+        # 4 (h_tilde) Compute tanh(W [c, h]).
+        attention = self._attention_layer(
+            tf.concat([cell_output, context], -1))
 
         next_state = AttentionWrapperState(
-            time=state.time + 1,
             cell_state=next_cell_state,
             attention=attention,
-            alignment_history=alignment_history)
+            time=state.time + 1,
+            alignment_history=())
 
         return attention, next_state
 
+
+    @property
+    def output_size(self):
+        return self._attention_size
+
+    @property
+    def state_size(self):
+        return AttentionWrapperState(
+            cell_state=self._cell.state_size,
+            time=tf.TensorShape([]),
+            attention=self._attention_size,
+            alignment_history=())
+
     @property
     def shape(self):
-        """The hoops you make me jump through, TensorFlow..."""
-
-        def layer_shape():
-            return tf.TensorShape([None, self._state_size])
-
-        if self._num_layers == 1:
-            _cell_state = layer_shape()
-        else:
-            _cell_state = tuple([layer_shape() for _ in range(self._num_layers)])
-
         return AttentionWrapperState(
-            cell_state=_cell_state,
+            cell_state=self._cell.shape,
             attention=tf.TensorShape([None, self._attention_size]),
             time=tf.TensorShape(None),
             alignment_history=())

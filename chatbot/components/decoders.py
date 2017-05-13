@@ -165,6 +165,7 @@ class Decoder(RNN):
         # -- 'body': callable returning a tuple of tensors of same
         #            arity as loop_vars.
         # -- 'loop_vars': tuple of tensors that is passed to 'cond' and 'body'.
+        print('\n\nstatesize', cell.state_size)
         response, _ = tf.while_loop(
             cond, body, (response, state),
             shape_invariants=(tf.TensorShape([None]), cell.shape),

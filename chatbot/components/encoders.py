@@ -66,26 +66,23 @@ class BidirectionalEncoder(RNN):
         # Now we are dealing with the concatenated "states" with dimension:
         # [batch_size, max_time, state_size * 2].
         outputs = tf.concat(outputs_tuple, -1)
-        bridge = self.get_bridge("bridge", outputs.dtype)
-        outputs = tf.stack([
-            tf.matmul(output, bridge) for output in tf.unstack(outputs)
-        ])
-
         # Similarly, combine the tuple of final states, resulting in:
         # [batch_size, state_size * 2].
         final_state = tf.concat(final_state_tuple, -1)
 
+        layer = layers_core.Dense(units=self.state_size, use_bias=False)
+        outputs = tf.map_fn(layer, outputs)
+
         def single_state(state):
-            """Reshape bidirectional state (via fully connected layer) 
+            """Reshape bidirectional state (via fully connected layer)
             to state size.
             """
             if 'LSTM' in self.base_cell:
-                def bridge_mult(s):
-                    return tf.matmul(s, bridge)
                 bridged_state = LSTMStateTuple(
-                    *tf.unstack(tf.map_fn(bridge_mult, state)))
+                    c=layer(state[0]),
+                    h=layer(state[1]))
             else:
-                bridged_state = tf.matmul(state, bridge)
+                bridged_state = layer(state)
             return bridged_state
 
         if self.num_layers == 1:
@@ -95,11 +92,4 @@ class BidirectionalEncoder(RNN):
                                  for fs in tf.unstack(final_state)])
 
         return outputs, final_state
-
-    def get_bridge(self, name, dtype):
-        """Used for restructuring bidirectional outputs via intermediate 
-        F.C. layer.
-        """
-        s = self.state_size
-        return tf.get_variable(name, [2 * s, s], dtype=dtype)
 
