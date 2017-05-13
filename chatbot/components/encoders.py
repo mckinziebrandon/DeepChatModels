@@ -62,16 +62,9 @@ class BidirectionalEncoder(RNN):
             inputs=inputs,
             dtype=tf.float32)
 
-        # Concatenate each of the tuples fw and bw dimensions.
-        # Now we are dealing with the concatenated "states" with dimension:
-        # [batch_size, max_time, state_size * 2].
-        outputs = tf.concat(outputs_tuple, -1)
-        # Similarly, combine the tuple of final states, resulting in:
-        # [batch_size, state_size * 2].
-        final_state = tf.concat(final_state_tuple, -1)
-
+        # Create fully connected layer to help get us back to
+        # state size (from the dual state fw-bw).
         layer = layers_core.Dense(units=self.state_size, use_bias=False)
-        outputs = tf.map_fn(layer, outputs)
 
         def single_state(state):
             """Reshape bidirectional state (via fully connected layer)
@@ -84,6 +77,18 @@ class BidirectionalEncoder(RNN):
             else:
                 bridged_state = layer(state)
             return bridged_state
+
+        # Concatenate each of the tuples fw and bw dimensions.
+        # Now we are dealing with the concatenated "states" with dimension:
+        # [batch_size, max_time, state_size * 2].
+        # NOTE: Convention of LSTMCell is that outputs only contain the
+        # the hidden state (i.e. 'h' only, no 'c').
+        outputs = tf.concat(outputs_tuple, -1)
+        outputs = tf.map_fn(layer, outputs)
+
+        # Similarly, combine the tuple of final states, resulting in:
+        # [batch_size, state_size * 2].
+        final_state = tf.concat(final_state_tuple, -1)
 
         if self.num_layers == 1:
             final_state = single_state(final_state)

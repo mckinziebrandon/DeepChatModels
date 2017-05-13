@@ -165,7 +165,6 @@ class Decoder(RNN):
         # -- 'body': callable returning a tuple of tensors of same
         #            arity as loop_vars.
         # -- 'loop_vars': tuple of tensors that is passed to 'cond' and 'body'.
-        print('\n\nstatesize', cell.state_size)
         response, _ = tf.while_loop(
             cond, body, (response, state),
             shape_invariants=(tf.TensorShape([None]), cell.shape),
@@ -296,16 +295,6 @@ class AttentionDecoder(Decoder):
            - Specify we need the state wrapped in AttentionWrapperState.
            - Specify our attention mechanism (will allow customization soon).
         """
-
-        if 'LSTM' in base_cell:
-            logging.error(
-                'LSTM with Attention not supported yet, due to the'
-                ' sad fact that LSTMStateTuple does not play nice with'
-                ' attention state wrappers. Don\'t worry, I\'m working'
-                ' on making them play nice. Since I can\'t reset your cells'
-                ' across the program (i.e. the encoder, I\'m going to have to'
-                ' terminate the program now. Sorry!')
-            sys.exit()
 
         super(AttentionDecoder, self).__init__(
             encoder_outputs=encoder_outputs,
