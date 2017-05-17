@@ -1,0 +1,13 @@
+model: DynamicBot
+dataset: Ubuntu
+model_params:
+  base_cell: GRUCell
+  ckpt_dir: out/ubuntu
+  decoder.class: BasicDecoder
+  encoder.class: BasicEncoder
+  num_layers: 2
+  state_size: 512
+dataset_params:
+  data_dir: /home/brandon/Datasets/ubuntu
+  vocab_size: 60000  # Should probably be higher. Ubuntu is noisy.
+  max_seq_len: 12  # Any longer, and output quality is a challenge.

@@ -1,16 +1,15 @@
-dataset: data.Reddit
-dataset_params:
-  config_path: configs/example_reddit.yml
-  data_dir: /home/brandon/Datasets/reddit
-  max_seq_len: 25
-  vocab_size: 80000
 model: DynamicBot
+dataset: Reddit
 model_params:
   base_cell: GRUCell
-  batch_size: 64
-  ckpt_dir: out/reddit/talkativeAttention
-  decoder.class: AttentionDecoder
+  batch_size: 128
   embed_size: 128
   num_layers: 1
   reset_model: true
   steps_per_ckpt: 200
+  ckpt_dir: out/reddit/basicReddit
+dataset_params:
+  data_dir: /home/brandon/Datasets/reddit
+  max_seq_len: 15
+  vocab_size: 80000  # HUGE dataset = huge vocabulary.
+
