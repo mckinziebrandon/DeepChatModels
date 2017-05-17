@@ -42,3 +42,4 @@ compact.sh
 /configs/test_lstm.yml
 /configs/cornell.yml
 /ae.py
+**/individual_tb_plots/*

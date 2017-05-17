@@ -1,6 +1,10 @@
 # Conversation Models in Tensorflow
 
-> Note to visitors: Data preprocessing work is still in the active stages and we haven't (yet) provided scripts for downloading the datasets. Updates will be posted here when this is completed. Until then, I've uploaded most of the data [here on my MEGA account](https://mega.nz/#F!xrRTwSzY!by9K42n_I_oi5T_DKP-xTA). It is organized the same way I have it locally.
+> Notes to visitors:
+* Please post any feedbacks/bugs as an issue and I will respond within 24 hours. If you've encountered any error at all trying to run the project, please let me know! I'd like it to be as headache free as possible. Think something should be in the README that isn't? Post an issue! Although the project should run fine for any TensorFlow version 1.0 or newer, I'd recommend upgrading to the latest version if possible.
+* I haven't gotten around to providing scripts for downloading the datasets. Until then, I've uploaded most of the data [here on my MEGA account](https://mega.nz/#F!xrRTwSzY!by9K42n_I_oi5T_DKP-xTA). It is organized the same way I have it locally.
+* Don't let the simple web bots fool you -- this project supports more advanced techniques than the single-layer encoder-decoder models on the website. To see the parameters that are immediately available/supported for tweaking, checkout chatbot/globals.py, which contains the default configuration dictionary. Any value that you don't specify will assume the default value from that file, which tend toward safe conversative simple values.
+* Contributions are more than welcome. I do my best to follow PEP8 and I'd prefer contributions do the same.
 
 ## Table of Contents
 * [Project Overview](#brief-overview-of-completed-work)
@@ -17,7 +21,7 @@ As of May 9, 2017, the main packages of the project are as follows:
 * __chatbot__: The conversation model classes, the structural components of the models (encoders, decoders, cells, etc.), and various operations for easy saving/loading/evaluation.
 * __data__: The core Dataset class that handles all data formatting, file paths, and utilities for interacting with the data, as well as some preprocessing scripts and helper classes for cleaning data. The data itself (for space reasons) is not included in the repository. See the link to my MEGA account to download the data in the same format as on my local machine.
 * __notebooks__: Jupyter notebooks showcasing data visualization examples, data preprocessing techniques, and conversation model exploration.
-* __webpage__: Flask web application hosted on Google App Engine, where you can talk with a handful of chatbots and interact with plots. Still in active development.
+* __webpage__: Flask web application hosted on Google App Engine, where you can talk with a handful of chatbots and interact with plots. You can run it locally, after installing its requirements (mostly Flask packages), by running the following command within the webpage directory: `python3 manage.py runserver`
 
 From a user/developer standpoint, this project offers a cleaner interface for tinkering with sequence-to-sequence models. The ideal result is a chatbot API with the readability of [Keras](https://keras.io/), but with a degree of flexibility closer to [TensorFlow](https://www.tensorflow.org/). 
 
@@ -76,7 +80,7 @@ _(More descriptions coming soon!)_
 
 ## Reference Material
 
-A lot of research has gone into these models, and I've been documenting my notes on the most "important" papers here in the last section of [my deep learning notes here](http://mckinziebrandon.me/assets/pdf/CondensedSummaries.pdf). I'll be updating that as the ideas from more papers make their way into this project. 
+A lot of research has gone into these models, and I've been documenting my notes on the most "important" papers here in the last section of [my deep learning notes here](http://mckinziebrandon.me/assets/pdf/CondensedSummaries.pdf). The notes also include how I've tried translating the material from the papers into TensorFlow code. I'll be updating that as the ideas from more papers make their way into this project.
 
 * Papers:
     * [Sequence to Sequence Learning with Neural Networks. Sutskever et al., 2014.](https://papers.nips.cc/paper/5346-sequence-to-sequence-learning-with-neural-networks.pdf)
