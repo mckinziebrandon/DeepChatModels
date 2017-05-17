@@ -272,11 +272,11 @@ class AttentionDecoder(Decoder):
                  state_size,
                  vocab_size,
                  embed_size,
-                 attention_mechanism,
+                 attention_mechanism='BahdanauAttention',
                  dropout_prob=1.0,
-                 num_layers=2,
+                 num_layers=1,
                  temperature=0.0,
-                 max_seq_len=50):
+                 max_seq_len=10):
         """We need to explicitly call the constructor now, so we can:
            - Specify we need the state wrapped in AttentionWrapperState.
            - Specify our attention mechanism (will allow customization soon).
