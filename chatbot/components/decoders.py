@@ -237,20 +237,6 @@ class Decoder(RNN):
         """
         return self._projection
 
-    def _map_state_to(self, fn, state, attn=True):
-        """Because LSTMStateTuple is the bane of my existence.
-        Leave now to retain your sanity.
-        """
-        if self._wrapper is None:
-            return state
-        if self._wrapper == AttentionWrapperState:
-            #return fn(state)
-            return state
-        if self.num_layers > 1:
-            return tuple(list(map(fn, state)))
-        else:
-            return fn(state)
-
 
 class BasicDecoder(Decoder):
     """Simple (but dynamic) decoder that is essentially just the base class."""

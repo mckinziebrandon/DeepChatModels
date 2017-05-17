@@ -21,9 +21,9 @@ from pydoc import locate
 class DynamicBot(Model):
     """ General sequence-to-sequence model for conversations. 
     
-    Will eventually support attention, beam search, and a wider variety of 
+    Will eventually support beam search, and a wider variety of 
     cell options. At present, supports multi-layer encoder/decoders, 
-    GRU/LSTM cells, and fully dynamic unrolling (online decoding included). 
+    GRU/LSTM cells, attention, and dynamic unrolling (online decoding included). 
     
     Additionally, will eventually support biologically inspired mechanisms for 
     learning, such as hebbian-based update rules.
