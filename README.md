@@ -1,6 +1,6 @@
 # Conversation Models in Tensorflow
 
-> Notes to visitors:
+Notes to visitors:
 * Please post any feedbacks/bugs as an issue and I will respond within 24 hours. If you've encountered any error at all trying to run the project, please let me know! I'd like it to be as headache free as possible. Think something should be in the README that isn't? Post an issue! Although the project should run fine for any TensorFlow version 1.0 or newer, I'd recommend upgrading to the latest version if possible.
 * I haven't gotten around to providing scripts for downloading the datasets. Until then, I've uploaded most of the data [here on my MEGA account](https://mega.nz/#F!xrRTwSzY!by9K42n_I_oi5T_DKP-xTA). It is organized the same way I have it locally.
 * Don't let the simple web bots fool you -- this project supports more advanced techniques than the single-layer encoder-decoder models on the website. To see the parameters that are immediately available/supported for tweaking, checkout chatbot/globals.py, which contains the default configuration dictionary. Any value that you don't specify will assume the default value from that file, which tend toward safe conversative simple values.
