@@ -1,0 +1,17 @@
+model: DynamicBot
+dataset: Cornell
+model_params:
+  base_cell: LSTMCell
+  ckpt_dir: out/cornell
+  attention_mechanism: BahdanauAttention
+  decoder.class: AttentionDecoder
+  encoder.class: BasicEncoder
+  batch_size: 256
+  embed_size: 128
+  num_layers: 1
+  state_size: 512
+  steps_per_ckpt: 250
+dataset_params:
+  data_dir: /home/brandon/Datasets/cornell  # Change to your path!
+  vocab_size: 52000
+  max_seq_len: 10
