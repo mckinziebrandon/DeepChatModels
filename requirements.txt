@@ -4,3 +4,4 @@ PyYAML==3.12
 nltk>=3.2.2
 numpy>=1.11.0
 pandas>=0.19.2
+tensorflow==1.2.0rc2
