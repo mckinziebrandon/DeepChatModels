@@ -243,6 +243,8 @@ class SimpleAttentionWrapper(RNNCell):
                 time=tf.zeros([], dtype=tf.int32),
                 attention=_zero_state_tensors(self._attention_size, batch_size,
                 dtype),
+                alignments=self._attention_mechanism.initial_alignments(
+                    batch_size, dtype),
                 alignment_history=alignment_history)
 
     def call(self, inputs, state):
@@ -272,7 +274,8 @@ class SimpleAttentionWrapper(RNNCell):
 
         # 2. (align) Compute the normalized alignment scores. [B, L_enc].
         # where L_enc is the max seq len in the encoder outputs for the (B)atch.
-        score = self._attention_mechanism(cell_output)
+        score = self._attention_mechanism(
+            cell_output, previous_alignments=state.alignments)
         alignments = tf.nn.softmax(score)
 
         # Reshape from [B, L_enc] to [B, 1, L_enc]
@@ -291,6 +294,7 @@ class SimpleAttentionWrapper(RNNCell):
             cell_state=next_cell_state,
             attention=attention,
             time=state.time + 1,
+            alignments=alignments,
             alignment_history=())
 
         return attention, next_state
@@ -304,8 +308,9 @@ class SimpleAttentionWrapper(RNNCell):
     def state_size(self):
         return AttentionWrapperState(
             cell_state=self._cell.state_size,
-            time=tf.TensorShape([]),
             attention=self._attention_size,
+            time=tf.TensorShape([]),
+            alignments=self._attention_mechanism.alignments_size,
             alignment_history=())
 
     @property
@@ -314,8 +319,8 @@ class SimpleAttentionWrapper(RNNCell):
             cell_state=self._cell.shape,
             attention=tf.TensorShape([None, self._attention_size]),
             time=tf.TensorShape(None),
+            alignments=tf.TensorShape([None, None]),
             alignment_history=())
-
 
 
 class BasicRNNCell(RNNCell):

@@ -9,7 +9,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.legacy_seq2seq import embedding_attention_seq2seq
 from tensorflow.contrib.legacy_seq2seq import model_with_buckets
-from tensorflow.contrib.rnn.python.ops import core_rnn
+#from tensorflow.contrib.rnn.python.ops import core_rnn
+from tensorflow.contrib.rnn.python.ops import core_rnn_cell
 from tensorflow.python.ops import embedding_ops
 from chatbot._models import BucketModel
 
@@ -254,7 +255,7 @@ class SimpleBot(BucketModel):
                 encoder_cell = tf.contrib.rnn.GRUCell(self.state_size)
                 encoder_cell = tf.contrib.rnn.EmbeddingWrapper(encoder_cell, self.vocab_size, self.state_size)
                 # BasicEncoder(raw_inputs) -> Embed(raw_inputs) -> [be an RNN] -> encoder state.
-                _, encoder_state = core_rnn.static_rnn(encoder_cell, encoder_inputs, dtype=tf.float32)
+                _, encoder_state = tf.contrib.rnn.static_rnn(encoder_cell, encoder_inputs, dtype=tf.float32)
                 with tf.variable_scope("decoder"):
 
                     def loop_function(x):
