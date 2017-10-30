@@ -2,10 +2,11 @@
 
 Notes to visitors:
 * I've just shut down the website indefinitely. I ran out of my credits on Google Cloud four days ago, and have since been billed 30+ dollars which isn't something I can sustain. To run locally, assuming you satisfy all requirements in webpage/requirements.txt, just run `python3 manage.py runserver`. If you're unfamiliar with running flask this way, see the docs for [Flask-Script](https://flask-script.readthedocs.io/en/latest/). Sorry for any inconvenience!
-* Please post any feedbacks/bugs as an issue and I will respond within 24 hours. Speaking of headaches, the recent 1.2 release (changes [here](https://github.com/tensorflow/tensorflow/blob/master/RELEASE.md)) took quite a blow at the RNN libraries. I'm working on it, but I'd also happily accept a PR that accomodates the changes (while still being backwards-compatible). Currently, my branch `tf1.2-fixes-issue-6` makes the repo tf1.2 compatible, but breaks it for past versions.
+* Please post any feedbacks/bugs as an issue and I will respond within 24 hours.
 * I haven't gotten around to providing scripts for downloading the datasets. Until then, I've uploaded most of the data [here on my MEGA account](https://mega.nz/#F!xrRTwSzY!by9K42n_I_oi5T_DKP-xTA). It is organized the same way I have it locally.
 * Don't let the simple web bots fool you -- this project supports more advanced techniques than the single-layer encoder-decoder models on the website. To see the parameters that are immediately available/supported for tweaking, checkout chatbot/globals.py, which contains the default configuration dictionary. Any value that you don't specify will assume the default value from that file, which tend toward safe conversative simple values.
 * Contributions are more than welcome. I do my best to follow PEP8 and I'd prefer contributions do the same.
+* Please note that the bulk of this project was written with tensorflow version 1.0 (before tf.contrib.seq2seq existed) and 1.1, but updates have been made since version 1.2 that appeared to break the project. I have not been able to do tests regarding how version 1.4 is faring with the project, but I intend to do so soon.
 
 ## Table of Contents
 * [Project Overview](#brief-overview-of-completed-work)
