@@ -43,7 +43,7 @@ On the 'client' side, playing with model parameters and running them is as easy 
   
 This is just one way to interface with the project. For example, the user can also pass in parameters via command-line args, which will be merged with any config files they specify as well (precedence given to command-line args if conflict). You can also pass in the location of a previously saved chatbot to resume training it or start a conversation. See `main.py` for more details.
 
-### Datasets
+### Datasets:
 
 * [Ubuntu Dialogue Corpus](https://arxiv.org/pdf/1506.08909.pdf): pre-processing approach can be seen in the ubuntu\_reformat.ipynb in the notebooks folder. The intended use for the dataset is response ranking for multi-turn dialogues, but I've taken the rather simple approach of extracting utterance-pairs and interpreting them as single-sentence to single-response, which correspond with inputs for the encoder and decoder, respectively, in the models.
 
@@ -51,7 +51,7 @@ This is just one way to interface with the project. For example, the user can al
 
 * [Reddit comments](https://www.reddit.com/r/datasets/comments/3bxlg7/i_have_every_publicly_available_reddit_comment/): Approx. 1.7 billion reddit comments. Currently working on preprocessing and reducing this massive dataset to suitable format for training conversation models. Will post processed dataset download links when complete!
 
-### Models
+### Models:
 
 * DynamicBot: uses a more object-oriented approach offered by custom classes in model_components.py. The result is faster online batch-concatenated embedding and a more natural approach to chatting. It makes use of the (fantastic) new python API in the TensorFlow 1.0 release, notably the dynamic_rnn. It also adheres to good variable scoping practice and common tensorflow conventions I've observed in the documentation and source code, which has nice side effects such as clean graph visualizations in TensorBoard.
 
@@ -59,17 +59,17 @@ This is just one way to interface with the project. For example, the user can al
 
 * ChatBot: Extended version of the model described in [this TensorFlow tutorial](https://www.tensorflow.org/tutorials/seq2seq). Architecture characteristics: bucketed inputs, decoder uses an attention mechanism (see page 69 of my [notes](http://mckinziebrandon.me/assets/pdf/CondensedSummaries.pdf), and inputs are embedded with the simple functions provided in the tf.contrib library. Also employs a sampled softmax loss function to allow for larger vocabulary sizes (page 67 of [notes](http://mckinziebrandon.me/assets/pdf/CondensedSummaries.pdf)). Additional comments: due to the nature of bucketed models, it takes much longer to create the model compared to others. The main bottleneck appears to be the size of the largest bucket and how the gradient ops are created based on the bucket sizes.
 
-### Website
+### Website:
 
 The webpage directory showcases a simple and space-efficient way for deploying your TensorFlow models in a Flask application. The models are 'frozen' -- all components not needed for chatting (e.g. optimizers) are removed and all remaining variables are converted to constants. When the user clicks on a model name, a REST API for that model is created. When the user enters a sentence into the form, an (AJAX) POST request is issued, where the response is the chatbot's response sentence. For more details on the REST API, see [views.py](https://github.com/mckinziebrandon/DeepChatModels/blob/master/webpage/deepchat/main/views.py).
 
 The Flask application follows best practices, such as using blueprints for instantiating applications, different databases depending on the application environment (e.g. development or production), and more. 
 
-## Model Components
+## Model Components:
 
 Here I'll go into more detail on how the models are constructed and how they can be visualized. This section is a work in progress and not yet complete.
 
-### The Input Pipeline
+### The Input Pipeline:
 
 Instead of using the ```feed_dict``` argument to input data batches to the model, it is *substantially* faster encode the input information and preprocessing techniques in the graph structure itself. This means we don't feed the model anything at training time. Rather the model uses a sequence of queues to access the data from files in google's protobuf format, decode the files into tensor sequences, dynamically batch and pad the sequences, and then feed these batches to the embedding decoder. All within the graph structure. Furthermore, this data processing is coordinated by multiple threads in parallel. We can use tensorboard (and best practices for variable scoping) to visualize this type of pipeline at a high level.  
 
@@ -80,7 +80,7 @@ Instead of using the ```feed_dict``` argument to input data batches to the model
 
 _(More descriptions coming soon!)_
 
-## Reference Material
+## Reference Material:
 
 A lot of research has gone into these models, and I've been documenting my notes on the most "important" papers here in the last section of [my deep learning notes here](http://mckinziebrandon.me/assets/pdf/CondensedSummaries.pdf). The notes also include how I've tried translating the material from the papers into TensorFlow code. I'll be updating that as the ideas from more papers make their way into this project.
 
