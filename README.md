@@ -1,4 +1,4 @@
-# Conversation Models in Tensorflow
+# Conversation Models in Tensorflow Website
 
 Notes to visitors:
 * I've just shut down the website indefinitely. I ran out of my credits on Google Cloud four days ago, and have since been billed 30+ dollars which isn't something I can sustain. To run locally, assuming you satisfy all requirements in webpage/requirements.txt, just run `python3 manage.py runserver`. If you're unfamiliar with running flask this way, see the docs for [Flask-Script](https://flask-script.readthedocs.io/en/latest/). Sorry for any inconvenience!
