@@ -78,7 +78,7 @@ Instead of using the ```feed_dict``` argument to input data batches to the model
 <br/>
 <br/>
 
-_(More descriptions coming soon!)_
+_(For more descriptions,stay with us!)_
 
 ## Reference Material
 
